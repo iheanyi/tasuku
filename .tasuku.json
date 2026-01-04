@@ -1,0 +1,439 @@
+{
+  "version": 1,
+  "tasks": {
+    "add-circular-dep-check": {
+      "status": "done",
+      "description": "Add circular dependency detection to tk validate",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:27.670083Z",
+      "updated_at": "2026-01-04T21:41:29.858722Z"
+    },
+    "add-context-timestamps": {
+      "status": "ready",
+      "description": "Add timestamps to notes and decisions in data model",
+      "priority": 3,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:26.619195Z",
+      "updated_at": "2026-01-04T21:17:26.619195Z"
+    },
+    "add-decisions-list": {
+      "status": "done",
+      "description": "Add tk decisions command to list recorded decisions",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:10.324412Z",
+      "updated_at": "2026-01-04T21:41:27.708403Z"
+    },
+    "add-delete-cmd": {
+      "status": "done",
+      "description": "Add tk delete command to remove tasks permanently",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:04.043192Z",
+      "updated_at": "2026-01-04T21:41:25.254287Z"
+    },
+    "add-edit-cmd": {
+      "status": "done",
+      "description": "Add tk edit command to update task descriptions",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:05.774468Z",
+      "updated_at": "2026-01-04T21:41:25.544616Z"
+    },
+    "add-format-flag": {
+      "status": "done",
+      "description": "Add --format flag supporting json|yaml|toml|table output formats (table is default)",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:52:55.085117Z",
+      "updated_at": "2026-01-04T21:45:51.355559Z"
+    },
+    "add-http-server-mode-tk-serve-ht": {
+      "status": "done",
+      "description": "Add HTTP server mode: tk serve --http :port with REST API",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:25:01.3933Z",
+      "updated_at": "2026-01-04T20:32:32.545738Z"
+    },
+    "add-http-tests": {
+      "status": "done",
+      "description": "Add test coverage for internal/http server package",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:52:55.092939Z",
+      "updated_at": "2026-01-04T21:45:51.556797Z"
+    },
+    "add-json-flag-to-list-show-conte": {
+      "status": "done",
+      "description": "Add --json flag to list, show, context commands for machine-readable output",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:24:47.341906Z",
+      "updated_at": "2026-01-04T20:26:25.829366Z"
+    },
+    "add-migration-tests-for-beads": {
+      "status": "done",
+      "description": "Add migration tests for Beads",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:37:10.825996Z",
+      "updated_at": "2026-01-04T20:41:49.816577Z"
+    },
+    "add-notes-list": {
+      "status": "done",
+      "description": "Add tk notes command to list task notes",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:24.411229Z",
+      "updated_at": "2026-01-04T21:41:27.910675Z"
+    },
+    "add-owner-cmd": {
+      "status": "done",
+      "description": "Add tk owner command for owner field management",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:06.937749Z",
+      "updated_at": "2026-01-04T21:41:25.740959Z"
+    },
+    "add-partial-unblock": {
+      "status": "done",
+      "description": "Add partial unblock with --from flag to remove specific blockers",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:08.090974Z",
+      "updated_at": "2026-01-04T21:41:29.971676Z"
+    },
+    "add-pause-cmd": {
+      "status": "done",
+      "description": "Add tk pause command to revert in_progress tasks to ready",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:09.086117Z",
+      "updated_at": "2026-01-04T21:41:25.641532Z"
+    },
+    "add-priority-levels-to-tasks-cri": {
+      "status": "done",
+      "description": "Add priority levels (0-4) to tasks: 0=critical, 1=high, 2=normal, 3=low, 4=backlog",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:24:48.402516Z",
+      "updated_at": "2026-01-04T20:29:23.324518Z"
+    },
+    "add-readmemd-with-installation-i": {
+      "status": "done",
+      "description": "Add README.md with installation instructions",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:03:56.52339Z",
+      "updated_at": "2026-01-04T20:05:30.804289Z"
+    },
+    "add-stats-cmd": {
+      "status": "done",
+      "description": "Add tk stats command for task statistics and progress",
+      "priority": 3,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:28.955244Z",
+      "updated_at": "2026-01-04T21:41:31.485316Z"
+    },
+    "add-tk-find-command-for-fulltext": {
+      "status": "done",
+      "description": "Add tk find command for full-text search across tasks, notes, learnings",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:24:50.673996Z",
+      "updated_at": "2026-01-04T20:29:23.334499Z"
+    },
+    "add-tk-hook-session-command-to-d": {
+      "status": "done",
+      "description": "Add tk hook session command to display context on session startup",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:25:05.080508Z",
+      "updated_at": "2026-01-04T20:41:51.112423Z"
+    },
+    "add-tk-hook-sync-command-for-tod": {
+      "status": "done",
+      "description": "Add tk hook sync command for TodoWrite integration (bidirectional sync)",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:25:03.878252Z",
+      "updated_at": "2026-01-04T20:42:57.567221Z"
+    },
+    "add-tk-mcp-install-command-for-c": {
+      "status": "done",
+      "description": "Add tk mcp install command for Claude Code integration",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:01:14.540378Z",
+      "updated_at": "2026-01-04T20:03:05.606942Z"
+    },
+    "add-tk-ready-command-to-show-unb": {
+      "status": "done",
+      "description": "Add tk ready command to show unblocked tasks sorted by priority",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:24:49.864258Z",
+      "updated_at": "2026-01-04T20:29:29.559875Z"
+    },
+    "add-undecide-cmd": {
+      "status": "done",
+      "description": "Add tk undecide command to remove decisions",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:23.300398Z",
+      "updated_at": "2026-01-04T21:41:27.809827Z"
+    },
+    "add-unnote-cmd": {
+      "status": "done",
+      "description": "Add tk unnote command to remove task notes",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:25.629323Z",
+      "updated_at": "2026-01-04T21:41:28.013061Z"
+    },
+    "beads-migrate": {
+      "status": "done",
+      "description": "Implement Beads to Tasuku migration system",
+      "blocked_by": [
+        "store-core"
+      ],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:26:14.578174Z"
+    },
+    "cli-add": {
+      "status": "done",
+      "description": "Implement tk add command to create tasks",
+      "blocked_by": [
+        "store-core"
+      ],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:26:14.567075Z"
+    },
+    "cli-context": {
+      "status": "done",
+      "description": "Implement tk learn/decide/context commands",
+      "blocked_by": [
+        "store-core"
+      ],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:26:14.574203Z"
+    },
+    "cli-init": {
+      "status": "done",
+      "description": "Implement tk init command to create .tasuku.json",
+      "blocked_by": [
+        "store-core"
+      ],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:26:14.559262Z"
+    },
+    "cli-list": {
+      "status": "done",
+      "description": "Implement tk list command with status filtering",
+      "blocked_by": [
+        "store-core"
+      ],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:26:14.563252Z"
+    },
+    "cli-status": {
+      "status": "done",
+      "description": "Implement tk start/done/block commands",
+      "blocked_by": [
+        "store-core"
+      ],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:26:14.570528Z"
+    },
+    "create-json-schema-for-tasukujso": {
+      "status": "done",
+      "description": "Create JSON Schema for .tasuku.json and add tk schema command",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:24:51.89442Z",
+      "updated_at": "2026-01-04T20:30:37.073127Z"
+    },
+    "fix-beads-migration-to-parse-iss": {
+      "status": "done",
+      "description": "Fix Beads migration to parse issues.jsonl format",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:37:03.376376Z",
+      "updated_at": "2026-01-04T20:37:10.817Z"
+    },
+    "fix-hooks-clobber": {
+      "status": "done",
+      "description": "Fix hooks install to merge with existing hooks instead of clobbering",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:30.089611Z",
+      "updated_at": "2026-01-04T21:41:30.076379Z"
+    },
+    "generate-openapi-specification-f": {
+      "status": "done",
+      "description": "Generate OpenAPI 3.0 specification from JSON Schema",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:25:02.644742Z",
+      "updated_at": "2026-01-04T20:44:25.95119Z"
+    },
+    "git-hooks": {
+      "status": "done",
+      "description": "Implement optional git hooks (pre-commit validation, post-commit linking)",
+      "blocked_by": [
+        "cli-status"
+      ],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:26:14.58194Z"
+    },
+    "grove-integration": {
+      "status": "ready",
+      "description": "Add Grove integration for optional worktree management on task start/done",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T21:17:56.07086Z",
+      "updated_at": "2026-01-04T21:17:56.07086Z"
+    },
+    "mcp-server": {
+      "status": "done",
+      "description": "Implement MCP server with all task tools",
+      "blocked_by": [
+        "store-core"
+      ],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:27:59.13321Z"
+    },
+    "migrate-to-cobra": {
+      "status": "done",
+      "description": "Migrate CLI from standard flag package to spf13/cobra for proper --flag syntax, shell completion, and better UX",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:52:55.074446Z",
+      "updated_at": "2026-01-04T21:45:51.257623Z"
+    },
+    "spec-doc": {
+      "status": "done",
+      "description": "Write formal SPEC.md documenting all decisions",
+      "blocked_by": [],
+      "owner": "claude",
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2024-01-04T12:30:00Z"
+    },
+    "store-core": {
+      "status": "done",
+      "description": "Implement core store with JSON read/write and file locking",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:25:42.931069Z"
+    },
+    "test-sync-task": {
+      "status": "done",
+      "description": "Test sync task",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:42:40.014966Z",
+      "updated_at": "2026-01-04T20:43:37.589307Z"
+    },
+    "testing": {
+      "status": "done",
+      "description": "Set up unit and integration tests with race detection",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2024-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T18:30:12.30499Z"
+    },
+    "update-readme": {
+      "status": "done",
+      "description": "Update README.md with current features, installation, and usage examples",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T20:52:55.103818Z",
+      "updated_at": "2026-01-04T21:45:51.455035Z"
+    }
+  },
+  "context": {
+    "learnings": [
+      "CLI command is 'tk' to avoid collisions",
+      "Using flock for file locking (works on macOS/Linux)",
+      "JSON chosen over YAML for faster parsing and less ambiguity",
+      "MCP server will use stdio mode for Claude Code integration",
+      "taskResult type in MCP server is local - use JSON marshal/unmarshal for testing",
+      "-h",
+      "--help"
+    ],
+    "decisions": [
+      {
+        "id": "language",
+        "chose": "Go",
+        "over": [
+          "TypeScript",
+          "Rust"
+        ],
+        "because": "Single binary, good concurrency, fast startup for CLI"
+      },
+      {
+        "id": "data-format",
+        "chose": "JSON",
+        "over": [
+          "YAML",
+          "TOML",
+          "SQLite"
+        ],
+        "because": "Faster parsing, unambiguous, better for programmatic access"
+      },
+      {
+        "id": "agent-model",
+        "chose": "Hierarchical with parallel workers",
+        "over": [
+          "Pure parallel",
+          "Sequential handoff"
+        ],
+        "because": "Best for token efficiency - workers get scoped context"
+      },
+      {
+        "id": "grove-over-native",
+        "chose": "Grove integration",
+        "over": [
+          "Native worktree support"
+        ],
+        "because": "Single responsibility - Tasuku manages tasks, Grove manages worktrees. Avoids duplication and leverages existing Grove infrastructure."
+      }
+    ],
+    "notes": {
+      "grove-integration": [
+        "Approach: Auto-detect Grove availability. If Grove present, use grove_new for full experience (worktree + dev server). If not, fall back to native git worktree commands for basic isolation. Print tip about Grove for full experience.",
+        "Detection: Check if Grove MCP is configured in Claude settings or attempt grove_list call. Native fallback uses git worktree add ../tasuku-{task-id} -b {task-id}"
+      ]
+    }
+  }
+}
