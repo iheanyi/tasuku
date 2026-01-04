@@ -241,9 +241,9 @@ func TestBeadsMigration(t *testing.T) {
 `
 	os.WriteFile(filepath.Join(beadsDir, "issues.jsonl"), []byte(issuesJSONL), 0644)
 
-	// Test dry-run (flags must come before positional args)
+	// Test dry-run (using proper subcommand pattern)
 	t.Run("migrate-dry-run", func(t *testing.T) {
-		output, err := runTk("migrate", "--dry-run", "beads")
+		output, err := runTk("migrate", "beads", "--dry-run")
 		if err != nil {
 			t.Fatalf("migrate dry-run failed: %v\n%s", err, output)
 		}
@@ -565,7 +565,7 @@ func TestPromoteCommand(t *testing.T) {
 
 	// Test promote (auto-detects CLAUDE.md)
 	t.Run("promote-default", func(t *testing.T) {
-		output, err := runTk("promote", "1")
+		output, err := runTk("promote", "Test learning")
 		if err != nil {
 			t.Fatalf("promote failed: %v\n%s", err, output)
 		}
@@ -592,7 +592,7 @@ func TestPromoteCommand(t *testing.T) {
 	// Test promote with --keep
 	t.Run("promote-with-keep", func(t *testing.T) {
 		runTk("learn", "Another learning to keep")
-		output, err := runTk("promote", "1", "--keep")
+		output, err := runTk("promote", "Another learning", "--keep")
 		if err != nil {
 			t.Fatalf("promote --keep failed: %v\n%s", err, output)
 		}
@@ -1170,7 +1170,7 @@ func TestContextCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("note failed: %v\n%s", err, output)
 		}
-		if !strings.Contains(output, "Note added") {
+		if !strings.Contains(output, "added to: my-task") {
 			t.Errorf("expected confirmation: %s", output)
 		}
 
@@ -1191,8 +1191,8 @@ func TestContextCommands(t *testing.T) {
 		if !strings.Contains(output, "Third note") {
 			t.Errorf("expected third note: %s", output)
 		}
-		if !strings.Contains(output, "Notes for my-task (3)") {
-			t.Errorf("expected 3 notes header: %s", output)
+		if !strings.Contains(output, "Notes for my-task:") {
+			t.Errorf("expected notes header: %s", output)
 		}
 	})
 
@@ -1262,11 +1262,23 @@ func TestContextCommands(t *testing.T) {
 		// Create task and add notes
 		runTk("add", "--id", "unnote-task", "Task for unnote test")
 		runTk("note", "unnote-task", "First note to keep")
-		runTk("note", "unnote-task", "Second note to remove")
+		output2, _ := runTk("note", "unnote-task", "Second note to remove")
 		runTk("note", "unnote-task", "Third note to keep")
 
-		// Remove the second note (index 2)
-		output, err := runTk("unnote", "unnote-task", "2")
+		// Extract the note ID from the output like "Note [abc123] added to: unnote-task"
+		var noteID string
+		if idx := strings.Index(output2, "["); idx != -1 {
+			endIdx := strings.Index(output2[idx:], "]")
+			if endIdx != -1 {
+				noteID = output2[idx+1 : idx+endIdx]
+			}
+		}
+		if noteID == "" {
+			t.Fatalf("failed to extract note ID from output: %s", output2)
+		}
+
+		// Remove the second note by ID
+		output, err := runTk("unnote", "unnote-task", noteID)
 		if err != nil {
 			t.Fatalf("unnote failed: %v\n%s", err, output)
 		}
@@ -1288,31 +1300,22 @@ func TestContextCommands(t *testing.T) {
 		if !strings.Contains(output, "Third note to keep") {
 			t.Errorf("third note should remain: %s", output)
 		}
-		if !strings.Contains(output, "Notes for unnote-task (2)") {
-			t.Errorf("expected 2 notes: %s", output)
-		}
 	})
 
-	t.Run("unnote-out-of-range", func(t *testing.T) {
+	t.Run("unnote-invalid-id", func(t *testing.T) {
 		_, runTk := setupTestDir(t)
 
 		// Create task and add one note
 		runTk("add", "--id", "range-task", "Task for range test")
 		runTk("note", "range-task", "Only note")
 
-		// Try to remove note at invalid index
-		_, err := runTk("unnote", "range-task", "5")
+		// Try to remove note with non-existent ID
+		output, err := runTk("unnote", "range-task", "nonexistent")
 		if err == nil {
-			t.Error("expected error for out of range index")
+			t.Error("expected error for non-existent note ID")
 		}
-
-		// Try to remove note at index 0 (invalid, 1-based)
-		output, err := runTk("unnote", "range-task", "0")
-		if err == nil {
-			t.Error("expected error for index 0")
-		}
-		if !strings.Contains(output, "invalid index") {
-			t.Errorf("expected invalid index message: %s", output)
+		if !strings.Contains(output, "not found") {
+			t.Errorf("expected not found message: %s", output)
 		}
 	})
 }

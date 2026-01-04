@@ -36,8 +36,26 @@ var rootCmd = &cobra.Command{
 	Use:   "tk",
 	Short: "Tasuku - agent-first task management",
 	Long: `tk is an agent-first task management system designed for AI agents
-working on codebases. It prioritizes pull over push, parallel-safety,
-minimal context, and human-readable JSON storage.`,
+working on codebases.
+
+Design Principles:
+  - Pull over push: Agents query when needed, no constant injections
+  - Parallel-safe: File locking for multiple simultaneous agents
+  - Minimal context: Only load what's needed for the current task
+  - Human-readable: JSON file that can be edited by hand
+
+Getting Started:
+  tk init                  # Create .tasuku.json in current directory
+  tk add "My first task"   # Add a task
+  tk list                  # View all tasks
+  tk start <task-id>       # Begin working on a task
+  tk done <task-id>        # Mark task complete
+
+AI Tool Integration:
+  tk mcp install           # Auto-configure MCP for Claude Code/Cursor
+  tk serve                 # Start MCP server (for AI tools)
+
+For full documentation: https://github.com/iheanyi/tasuku`,
 	Version: version,
 }
 
@@ -88,6 +106,22 @@ func init() {
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Create .tasuku.json in current directory",
+	Long: `Initialize a new Tasuku project in the current directory.
+
+Creates a .tasuku.json file with:
+  - version: Schema version (currently 1)
+  - tasks: Empty task map
+  - context: Empty learnings, decisions, and notes
+
+The file is human-readable JSON and can be edited directly or
+committed to version control.
+
+Prerequisites:
+  - Current directory should not already have .tasuku.json
+
+Examples:
+  tk init                    # Create .tasuku.json
+  tk init && tk add "Setup"  # Initialize and add first task`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		s := store.Default()
 		if s.Exists() {
@@ -105,6 +139,28 @@ var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
 	Short:   "List all tasks",
+	Long: `Display all tasks in the project, sorted by status and priority.
+
+Status Icons:
+  *  in_progress - Currently being worked on
+  -  ready       - Available to start
+  !  blocked     - Waiting on other tasks
+  +  done        - Completed
+
+Sort Order:
+  1. Status: in_progress > ready > blocked > done
+  2. Priority: critical (0) > high (1) > normal (2) > low (3) > backlog (4)
+  3. Task ID: alphabetically
+
+Filtering:
+  Use --status to show only tasks with a specific status.
+
+Examples:
+  tk list                    # List all tasks
+  tk list -s ready           # Show only ready tasks
+  tk list --status done      # Show completed tasks
+  tk list -f json            # Output as JSON
+  tk ls                      # Alias for 'list'`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		status, _ := cmd.Flags().GetString("status")
 
@@ -150,9 +206,28 @@ func init() {
 }
 
 var addCmd = &cobra.Command{
-	Use:   "add [description]",
+	Use:   "add <description>",
 	Short: "Add a new task",
-	Args:  cobra.ExactArgs(1),
+	Long: `Create a new task with the given description.
+
+A unique task ID is auto-generated from the description (e.g., "Fix login bug"
+becomes "fix-login-bug"). You can override this with --id.
+
+Priority Levels (optional --priority flag):
+  0 or critical  - Urgent, needs immediate attention
+  1 or high      - Important, should be done soon
+  2 or normal    - Standard priority (default)
+  3 or low       - Can wait
+  4 or backlog   - Future consideration
+
+New tasks start with "ready" status.
+
+Examples:
+  tk add "Implement user authentication"
+  tk add "Fix critical bug" -p 0               # Critical priority
+  tk add "Refactor database layer" --id db-refactor
+  tk add "Update documentation" --priority low`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		description := args[0]
 		id, _ := cmd.Flags().GetString("id")
@@ -188,9 +263,24 @@ func init() {
 }
 
 var showCmd = &cobra.Command{
-	Use:   "show [id]",
+	Use:   "show <task-id>",
 	Short: "Show task details",
-	Args:  cobra.ExactArgs(1),
+	Long: `Display detailed information about a specific task.
+
+Information Shown:
+  - Task ID and description
+  - Current status (ready, in_progress, blocked, done)
+  - Priority level
+  - Owner (if assigned)
+  - Blocked by (list of blocking task IDs)
+  - Created and updated timestamps
+  - Notes attached to the task
+
+Examples:
+  tk show my-task            # Show details for "my-task"
+  tk show fix-auth -f json   # Output as JSON
+  tk show feature-x -f yaml  # Output as YAML`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 
@@ -212,9 +302,25 @@ var showCmd = &cobra.Command{
 }
 
 var startCmd = &cobra.Command{
-	Use:   "start [id]",
+	Use:   "start <task-id>",
 	Short: "Mark task as in_progress",
-	Args:  cobra.ExactArgs(1),
+	Long: `Begin working on a task by setting its status to "in_progress".
+
+This indicates that the task is actively being worked on. Only one
+agent should work on a task at a time to avoid conflicts.
+
+Side Effects:
+  - Status changes from "ready" to "in_progress"
+  - Updates the task's updated_at timestamp
+
+Prerequisites:
+  - Task should exist
+  - Task should typically be in "ready" status
+
+Examples:
+  tk start my-task           # Start working on "my-task"
+  tk start fix-bug           # Begin bug fix`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		s := store.Default()
@@ -229,9 +335,24 @@ var startCmd = &cobra.Command{
 }
 
 var doneCmd = &cobra.Command{
-	Use:   "done [id]",
+	Use:   "done <task-id>",
 	Short: "Mark task as done",
-	Args:  cobra.ExactArgs(1),
+	Long: `Mark a task as completed.
+
+This indicates that the work for this task has been finished.
+
+Side Effects:
+  - Status changes to "done"
+  - Updates the task's updated_at timestamp
+  - May unblock other tasks that were waiting on this one
+
+If other tasks have this task in their blocked_by list, they may
+become "ready" once all their blockers are completed.
+
+Examples:
+  tk done my-task            # Mark "my-task" as complete
+  tk done fix-bug            # Complete bug fix task`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		s := store.Default()
@@ -246,9 +367,25 @@ var doneCmd = &cobra.Command{
 }
 
 var blockCmd = &cobra.Command{
-	Use:   "block [id]",
+	Use:   "block <task-id>",
 	Short: "Mark task as blocked",
-	Args:  cobra.ExactArgs(1),
+	Long: `Mark a task as blocked by one or more other tasks.
+
+Use this when a task cannot proceed until other tasks are completed.
+The --by flag is required and specifies which tasks are blocking.
+
+Side Effects:
+  - Status changes to "blocked"
+  - Adds specified task IDs to the blocked_by array
+  - Updates the task's updated_at timestamp
+
+When all blocking tasks are marked as "done", use 'tk unblock' to
+make this task ready again.
+
+Examples:
+  tk block my-task --by other-task        # Blocked by one task
+  tk block feature --by "api,database"    # Blocked by multiple tasks`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		by, _ := cmd.Flags().GetString("by")
@@ -343,9 +480,24 @@ func init() {
 }
 
 var deleteCmd = &cobra.Command{
-	Use:   "delete [id]",
+	Use:   "delete <task-id>",
 	Short: "Delete a task permanently",
-	Args:  cobra.ExactArgs(1),
+	Long: `Permanently remove a task from the project.
+
+WARNING: This action cannot be undone.
+
+Side Effects:
+  - Removes the task completely
+  - Deletes all notes attached to the task
+  - Removes this task from any other task's blocked_by list
+
+Use with caution. Consider marking tasks as "done" instead if you
+want to preserve history.
+
+Examples:
+  tk delete my-task          # Delete "my-task"
+  tk delete obsolete-task    # Remove an obsolete task`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		s := store.Default()
@@ -383,9 +535,17 @@ var deleteCmd = &cobra.Command{
 }
 
 var editCmd = &cobra.Command{
-	Use:   "edit [id] [new-description]",
+	Use:   "edit <task-id> <new-description>",
 	Short: "Update task description",
-	Args:  cobra.ExactArgs(2),
+	Long: `Change the description of an existing task.
+
+The task ID remains unchanged; only the description text is updated.
+Use this to clarify, expand, or correct task descriptions.
+
+Examples:
+  tk edit my-task "Updated description with more detail"
+  tk edit fix-bug "Fix null pointer in UserService.login()"`,
+	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		newDescription := args[1]
@@ -408,9 +568,25 @@ var editCmd = &cobra.Command{
 }
 
 var pauseCmd = &cobra.Command{
-	Use:   "pause [id]",
-	Short: "Revert in_progress task back to ready",
-	Args:  cobra.ExactArgs(1),
+	Use:   "pause <task-id>",
+	Short: "Pause work and revert task to ready status",
+	Long: `Pause work on an in_progress task, reverting it to ready status.
+
+This command:
+  - Changes status from "in_progress" to "ready"
+  - Clears the owner assignment
+  - Makes the task available for other agents to pick up
+
+Use this when you need to stop working on a task temporarily but
+it's not blocked by anything.
+
+Prerequisites:
+  - Task must currently be in "in_progress" status
+
+Examples:
+  tk pause my-task             # Pause and return to ready
+  tk pause feature-x           # Stop work on feature`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		s := store.Default()
@@ -500,7 +676,23 @@ func init() {
 
 var readyCmd = &cobra.Command{
 	Use:   "ready",
-	Short: "Show unblocked tasks sorted by priority",
+	Short: "Show tasks that are ready to work on",
+	Long: `List all tasks that are ready to be started, sorted by priority.
+
+A task is considered "ready" when:
+  - Status is "ready" (not blocked, in_progress, or done)
+  - All blocking tasks (blocked_by) are completed
+
+This helps agents quickly identify what to work on next.
+
+Output:
+  Shows task ID, priority, and truncated description.
+  Higher priority tasks appear first.
+
+Examples:
+  tk ready                     # List ready tasks
+  tk ready -f json             # Output as JSON
+  tk ready -f yaml             # Output as YAML`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		s := store.Default()
 		f, err := s.Read()
@@ -557,9 +749,23 @@ var readyCmd = &cobra.Command{
 }
 
 var findCmd = &cobra.Command{
-	Use:   "find [query]",
-	Short: "Search tasks, notes, and learnings",
-	Args:  cobra.ExactArgs(1),
+	Use:   "find <query>",
+	Short: "Search across tasks, notes, learnings, and decisions",
+	Long: `Search for text across all content in your Tasuku project.
+
+Searches (case-insensitive) in:
+  - Task IDs and descriptions
+  - Notes text
+  - Learnings
+  - Decision IDs, choices, and reasoning
+
+Results are grouped by type for easy scanning.
+
+Examples:
+  tk find "auth"               # Find anything related to auth
+  tk find "database"           # Search for database references
+  tk find "redis" -f json      # Output matches as JSON`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query := strings.ToLower(args[0])
 
@@ -586,11 +792,11 @@ var findCmd = &cobra.Command{
 		// Search notes
 		for taskID, notes := range f.Context.Notes {
 			for _, note := range notes {
-				if strings.Contains(strings.ToLower(note), query) {
+				if strings.Contains(strings.ToLower(note.Text), query) {
 					results = append(results, searchResult{
 						Type:    "note",
 						ID:      taskID,
-						Content: note,
+						Content: note.Text,
 					})
 				}
 			}
@@ -598,10 +804,11 @@ var findCmd = &cobra.Command{
 
 		// Search learnings
 		for _, learning := range f.Context.Learnings {
-			if strings.Contains(strings.ToLower(learning), query) {
+			if strings.Contains(strings.ToLower(learning.Text), query) {
 				results = append(results, searchResult{
 					Type:    "learning",
-					Content: learning,
+					ID:      learning.ID,
+					Content: learning.Text,
 				})
 			}
 		}
@@ -624,9 +831,27 @@ var findCmd = &cobra.Command{
 }
 
 var priorityCmd = &cobra.Command{
-	Use:   "priority [id] [0-4]",
-	Short: "Set task priority",
-	Args:  cobra.ExactArgs(2),
+	Use:   "priority <task-id> <level>",
+	Short: "Set task priority level",
+	Long: `Change the priority of a task.
+
+Priority Levels:
+  0 or critical  - Urgent issues requiring immediate attention
+  1 or high      - Important tasks to complete soon
+  2 or normal    - Standard priority (default for new tasks)
+  3 or low       - Can be done when time permits
+  4 or backlog   - Future consideration, not actively planned
+
+Priority affects:
+  - Sort order in 'tk list' and 'tk ready'
+  - Which task is suggested as "next" in session context
+
+Examples:
+  tk priority my-task 0          # Set to critical (numeric)
+  tk priority my-task critical   # Set to critical (named)
+  tk priority fix-bug high       # Set to high priority
+  tk priority cleanup backlog    # Move to backlog`,
+	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		priorityStr := args[1]
@@ -675,24 +900,25 @@ Examples:
   tk learn "Users expect the save button in the top-right corner"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		learning := args[0]
+		learningText := args[0]
 		permanent, _ := cmd.Flags().GetBool("permanent")
 		s := store.Default()
 
-		if err := s.AddLearning(learning); err != nil {
+		id, err := s.AddLearning(learningText)
+		if err != nil {
 			return err
 		}
 
 		if permanent {
-			if err := appendToCLAUDEmd(learning, "learning"); err != nil {
+			if err := appendToCLAUDEmd(learningText, "learning"); err != nil {
 				fmt.Printf("Warning: could not append to CLAUDE.md: %v\n", err)
 			} else {
-				fmt.Println("Learning added (also appended to CLAUDE.md)")
+				fmt.Printf("Learning added [%s] (also appended to CLAUDE.md)\n", id)
 				return nil
 			}
 		}
 
-		fmt.Println("Learning added")
+		fmt.Printf("Learning added [%s]\n", id)
 		return nil
 	},
 }
@@ -770,8 +996,13 @@ Examples:
 			fmt.Print(string(data))
 		default:
 			fmt.Printf("Learnings (%d):\n\n", len(learnings))
-			for i, l := range learnings {
-				fmt.Printf("  %d. %s\n", i+1, l)
+			for _, l := range learnings {
+				age := formatAge(l.CreatedAt)
+				if age != "" {
+					fmt.Printf("  [%s] %s (%s)\n", l.ID, l.Text, age)
+				} else {
+					fmt.Printf("  [%s] %s\n", l.ID, l.Text)
+				}
 			}
 		}
 		return nil
@@ -779,49 +1010,42 @@ Examples:
 }
 
 var unlearnCmd = &cobra.Command{
-	Use:   "unlearn [index or text]",
-	Short: "Remove a learning by index or partial match",
+	Use:   "unlearn <id or text>",
+	Short: "Remove a learning by ID or partial match",
 	Long: `Remove a learning from the project context.
 
 You can specify either:
-- A number (1-based index from 'tk learnings' output)
+- An ID (6-character code from 'tk learnings' output, e.g., a3x9k2)
 - A partial text match (case-insensitive)
 
 Examples:
-  tk unlearn 3                    # Remove learning #3
+  tk unlearn a3x9k2               # Remove learning by ID
   tk unlearn "redis"              # Remove first learning containing "redis"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		s := store.Default()
 		query := args[0]
 
-		// Try to parse as number first
-		var idx int
-		if _, err := fmt.Sscanf(query, "%d", &idx); err == nil && idx > 0 {
-			return s.Update(func(f *task.File) error {
-				if idx > len(f.Context.Learnings) {
-					return fmt.Errorf("index %d out of range (have %d learnings)", idx, len(f.Context.Learnings))
-				}
-				removed := f.Context.Learnings[idx-1]
-				f.Context.Learnings = append(f.Context.Learnings[:idx-1], f.Context.Learnings[idx:]...)
-				fmt.Printf("Removed: %s\n", removed)
-				return nil
-			})
+		// First try to remove by ID
+		removedText, err := s.RemoveLearning(query)
+		if err == nil {
+			fmt.Printf("Removed learning: %s\n", removedText)
+			return nil
 		}
 
-		// Otherwise, search by text
-		return s.Update(func(f *task.File) error {
-			lowerQuery := strings.ToLower(query)
-			for i, l := range f.Context.Learnings {
-				if strings.Contains(strings.ToLower(l), lowerQuery) {
-					removed := f.Context.Learnings[i]
-					f.Context.Learnings = append(f.Context.Learnings[:i], f.Context.Learnings[i+1:]...)
-					fmt.Printf("Removed: %s\n", removed)
-					return nil
-				}
-			}
+		// If ID not found, try to find by text match
+		learning, err := s.FindLearningByText(query)
+		if err != nil {
 			return fmt.Errorf("no learning found matching %q", query)
-		})
+		}
+
+		// Remove by the found ID
+		removedText, err = s.RemoveLearning(learning.ID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Removed learning: %s\n", removedText)
+		return nil
 	},
 }
 
@@ -851,7 +1075,7 @@ func detectContextFile() string {
 }
 
 var promoteCmd = &cobra.Command{
-	Use:   "promote [index or text]",
+	Use:   "promote <id or text>",
 	Short: "Promote a learning to permanent documentation",
 	Long: `Move a learning from .tasuku.json to your AI context file.
 
@@ -864,10 +1088,10 @@ Tasuku auto-detects which context file to use based on your project:
 Use --to to specify a custom target file.
 
 Examples:
-  tk promote 1                     # Promote learning #1 to auto-detected file
+  tk promote a3x9k2                # Promote learning by ID to auto-detected file
   tk promote "redis"               # Promote learning containing "redis"
-  tk promote 1 --to AGENTS.md      # Promote to specific file
-  tk promote 1 --keep              # Keep in learnings after promoting`,
+  tk promote a3x9k2 --to AGENTS.md # Promote to specific file
+  tk promote a3x9k2 --keep         # Keep in learnings after promoting`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		s := store.Default()
@@ -884,55 +1108,47 @@ Examples:
 			return err
 		}
 
-		var learning string
-		var learningIdx int = -1
+		var foundLearning *task.Learning
 
-		// Try to parse as number first
-		var idx int
-		if _, err := fmt.Sscanf(query, "%d", &idx); err == nil && idx > 0 {
-			if idx > len(f.Context.Learnings) {
-				return fmt.Errorf("index %d out of range (have %d learnings)", idx, len(f.Context.Learnings))
+		// First try to find by ID
+		for i := range f.Context.Learnings {
+			if f.Context.Learnings[i].ID == query {
+				foundLearning = &f.Context.Learnings[i]
+				break
 			}
-			learning = f.Context.Learnings[idx-1]
-			learningIdx = idx - 1
-		} else {
-			// Search by text
+		}
+
+		// If not found by ID, search by text
+		if foundLearning == nil {
 			lowerQuery := strings.ToLower(query)
-			for i, l := range f.Context.Learnings {
-				if strings.Contains(strings.ToLower(l), lowerQuery) {
-					learning = l
-					learningIdx = i
+			for i := range f.Context.Learnings {
+				if strings.Contains(strings.ToLower(f.Context.Learnings[i].Text), lowerQuery) {
+					foundLearning = &f.Context.Learnings[i]
 					break
 				}
 			}
 		}
 
-		if learning == "" {
+		if foundLearning == nil {
 			return fmt.Errorf("no learning found matching %q", query)
 		}
 
 		// Append to context file
-		if err := appendToContextFile(targetFile, learning); err != nil {
+		if err := appendToContextFile(targetFile, foundLearning.Text); err != nil {
 			return fmt.Errorf("failed to write to %s: %w", targetFile, err)
 		}
 
 		// Remove from learnings unless --keep
 		if !keep {
-			if err := s.Update(func(f *task.File) error {
-				f.Context.Learnings = append(
-					f.Context.Learnings[:learningIdx],
-					f.Context.Learnings[learningIdx+1:]...,
-				)
-				return nil
-			}); err != nil {
+			if _, err := s.RemoveLearning(foundLearning.ID); err != nil {
 				return err
 			}
 		}
 
 		if keep {
-			fmt.Printf("Promoted to %s (kept in learnings): %s\n", targetFile, learning)
+			fmt.Printf("Promoted to %s (kept in learnings): %s\n", targetFile, foundLearning.Text)
 		} else {
-			fmt.Printf("Promoted to %s: %s\n", targetFile, learning)
+			fmt.Printf("Promoted to %s: %s\n", targetFile, foundLearning.Text)
 		}
 		return nil
 	},
@@ -980,8 +1196,30 @@ func appendToContextFile(filePath, learning string) error {
 }
 
 var decideCmd = &cobra.Command{
-	Use:   "decide",
-	Short: "Record a decision",
+	Use:   "decide --id <id> --chose <option> --over <alternatives> --because <reason>",
+	Short: "Record an architectural or design decision",
+	Long: `Document a decision made during development for future reference.
+
+Decisions capture:
+  - What was chosen
+  - What alternatives were considered
+  - Why this choice was made
+
+This creates an audit trail of architectural choices, helping future
+developers (or agents) understand why things are the way they are.
+
+Required Flags:
+  --id       Unique identifier for this decision (e.g., "use-postgres")
+  --chose    The option that was selected
+  --because  The reasoning behind the choice
+
+Optional Flags:
+  --over     Comma-separated list of alternatives that were considered
+
+Examples:
+  tk decide --id db-choice --chose PostgreSQL --over "MySQL,SQLite" --because "Better JSON support"
+  tk decide --id auth-method --chose JWT --over "sessions,OAuth" --because "Stateless and scalable"
+  tk decide --id framework --chose Cobra --because "Standard Go CLI library"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, _ := cmd.Flags().GetString("id")
 		chose, _ := cmd.Flags().GetString("chose")
@@ -1025,19 +1263,34 @@ func init() {
 }
 
 var noteCmd = &cobra.Command{
-	Use:   "note [task-id] [text]",
+	Use:   "note <task-id> <text>",
 	Short: "Add a note to a task",
-	Args:  cobra.ExactArgs(2),
+	Long: `Attach a note to a specific task for additional context.
+
+Notes are useful for:
+  - Recording progress updates
+  - Documenting blockers or issues encountered
+  - Capturing implementation details
+  - Leaving messages for other agents
+
+Notes appear when you run 'tk show' for the task.
+
+Examples:
+  tk note my-task "Started implementation of auth flow"
+  tk note fix-bug "Root cause: null pointer in UserService"
+  tk note feature "Waiting for API spec from backend team"`,
+	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		note := args[1]
 
 		s := store.Default()
-		if err := s.AddNote(taskID, note); err != nil {
+		noteID, err := s.AddNote(taskID, note)
+		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Note added to: %s\n", taskID)
+		fmt.Printf("Note [%s] added to: %s\n", noteID, taskID)
 		return nil
 	},
 }
@@ -1156,15 +1409,15 @@ Examples:
 
 			switch outputFormat {
 			case "json":
-				data, _ := json.MarshalIndent(map[string][]string{taskID: taskNotes}, "", "  ")
+				data, _ := json.MarshalIndent(map[string][]task.Note{taskID: taskNotes}, "", "  ")
 				fmt.Println(string(data))
 			case "yaml":
-				data, _ := yaml.Marshal(map[string][]string{taskID: taskNotes})
+				data, _ := yaml.Marshal(map[string][]task.Note{taskID: taskNotes})
 				fmt.Print(string(data))
 			default:
-				fmt.Printf("Notes for %s (%d):\n\n", taskID, len(taskNotes))
-				for i, note := range taskNotes {
-					fmt.Printf("  %d. %s\n", i+1, note)
+				fmt.Printf("Notes for %s:\n", taskID)
+				for _, note := range taskNotes {
+					fmt.Printf("  [%s] %s\n", note.ID, note.Text)
 				}
 			}
 			return nil
@@ -1195,8 +1448,8 @@ Examples:
 			for _, taskID := range taskIDs {
 				taskNotes := notes[taskID]
 				fmt.Printf("  [%s]\n", taskID)
-				for i, note := range taskNotes {
-					fmt.Printf("    %d. %s\n", i+1, note)
+				for _, note := range taskNotes {
+					fmt.Printf("    [%s] %s\n", note.ID, note.Text)
 				}
 				fmt.Println()
 			}
@@ -1206,54 +1459,52 @@ Examples:
 }
 
 var unnoteCmd = &cobra.Command{
-	Use:   "unnote [task-id] [index]",
+	Use:   "unnote <task-id> <note-id>",
 	Short: "Remove a note from a task",
-	Long: `Remove a note from a task by its 1-based index.
+	Long: `Remove a note from a task by its ID.
 
-Use 'tk notes <task-id>' to see available notes and their indices.
+Use 'tk notes <task-id>' to see available notes and their IDs.
 
 Examples:
-  tk unnote my-task 1         # Remove first note from "my-task"
-  tk unnote my-task 3         # Remove third note from "my-task"`,
+  tk unnote my-task a3x9k2    # Remove note with ID "a3x9k2" from "my-task"
+  tk unnote fix-bug b7m4p1    # Remove note with ID "b7m4p1" from "fix-bug"`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		indexStr := args[1]
-
-		var idx int
-		if _, err := fmt.Sscanf(indexStr, "%d", &idx); err != nil || idx < 1 {
-			return fmt.Errorf("invalid index: %s (must be a positive number)", indexStr)
-		}
+		noteID := args[1]
 
 		s := store.Default()
+		removedText, err := s.RemoveNote(taskID, noteID)
+		if err != nil {
+			return err
+		}
 
-		return s.Update(func(f *task.File) error {
-			taskNotes, exists := f.Context.Notes[taskID]
-			if !exists || len(taskNotes) == 0 {
-				return fmt.Errorf("no notes found for task: %s", taskID)
-			}
-
-			if idx > len(taskNotes) {
-				return fmt.Errorf("index %d out of range (task has %d notes)", idx, len(taskNotes))
-			}
-
-			removed := taskNotes[idx-1]
-			f.Context.Notes[taskID] = append(taskNotes[:idx-1], taskNotes[idx:]...)
-
-			// If task has no more notes, remove the key from the map
-			if len(f.Context.Notes[taskID]) == 0 {
-				delete(f.Context.Notes, taskID)
-			}
-
-			fmt.Printf("Removed note from %s: %s\n", taskID, removed)
-			return nil
-		})
+		fmt.Printf("Removed note: %s\n", removedText)
+		return nil
 	},
 }
 
 var contextCmd = &cobra.Command{
 	Use:   "context",
-	Short: "Output full context as JSON/YAML",
+	Short: "Dump the complete project context for agent consumption",
+	Long: `Output the entire .tasuku.json contents as structured data.
+
+This command is designed for AI agents that need the full project context,
+including all tasks, learnings, decisions, and notes.
+
+Output includes:
+  - version: Schema version number
+  - tasks: All tasks with their statuses, priorities, dependencies
+  - context.learnings: Insights discovered during work
+  - context.decisions: Documented architectural choices
+  - context.notes: Notes attached to tasks
+
+The output format defaults to JSON but can be changed to YAML.
+
+Examples:
+  tk context                   # Output as JSON
+  tk context -f yaml           # Output as YAML
+  tk context | jq '.tasks'     # Pipe to jq for processing`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		s := store.Default()
 		f, err := s.Read()
@@ -1279,7 +1530,33 @@ var contextCmd = &cobra.Command{
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start MCP or HTTP server",
+	Short: "Start the Tasuku server (MCP or HTTP)",
+	Long: `Start a server for AI tool integration or HTTP API access.
+
+Server Modes:
+
+  MCP stdio (default):
+    Used by Claude Code and other MCP-compatible AI tools.
+    Communicates via stdin/stdout using the MCP protocol.
+    This is the mode used when configured in AI tool settings.
+
+  HTTP server (--http or --port):
+    Runs a REST API server for programmatic access.
+    Useful for integration with other tools or custom scripts.
+
+MCP Tools Exposed:
+  tk_list, tk_add, tk_start, tk_done, tk_block, tk_unblock,
+  tk_learn, tk_decide, tk_context, and more.
+
+Examples:
+  tk serve                     # Start MCP server (stdio mode)
+  tk serve --http :3000        # Start HTTP server on port 3000
+  tk serve --http localhost:8080  # HTTP on specific address
+  tk serve --port 3000         # HTTP server (deprecated, use --http)
+
+See also:
+  tk mcp install               # Auto-configure MCP in your AI tools
+  tk mcp config                # Show MCP configuration JSON`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		port, _ := cmd.Flags().GetInt("port")
 		httpAddr, _ := cmd.Flags().GetString("http")
@@ -1314,24 +1591,42 @@ func init() {
 // =============================================================================
 
 var migrateCmd = &cobra.Command{
-	Use:   "migrate [source]",
-	Short: "Migrate from another task system",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		source := args[0]
-		dryRun, _ := cmd.Flags().GetBool("dry-run")
+	Use:   "migrate",
+	Short: "Import tasks from another task management system",
+	Long: `Migrate tasks from another task management system into Tasuku.
 
-		switch source {
-		case "beads":
-			return migrateFromBeads(dryRun)
-		default:
-			return fmt.Errorf("unknown migration source: %s\nSupported: beads", source)
-		}
+Available subcommands:
+  beads    Import from Beads (.beads/issues.jsonl)
+
+Run 'tk migrate <subcommand> --help' for details on each source.`,
+}
+
+var migrateBeadsCmd = &cobra.Command{
+	Use:   "beads",
+	Short: "Import tasks from Beads issue tracker",
+	Long: `Migrate tasks from a Beads (.beads/issues.jsonl) directory to Tasuku.
+
+This will:
+  - Import all issues as tasks
+  - Map Beads statuses to Tasuku statuses
+  - Preserve priority and dependencies
+  - Import descriptions and notes
+  - Keep the original .beads/ directory intact
+
+Use --dry-run to preview what would be imported without making changes.
+
+Examples:
+  tk migrate beads             # Import from Beads
+  tk migrate beads --dry-run   # Preview migration without changes`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		return migrateFromBeads(dryRun)
 	},
 }
 
 func init() {
-	migrateCmd.Flags().Bool("dry-run", false, "Preview migration without making changes")
+	migrateBeadsCmd.Flags().Bool("dry-run", false, "Preview migration without making changes")
+	migrateCmd.AddCommand(migrateBeadsCmd)
 }
 
 // =============================================================================
@@ -1339,37 +1634,101 @@ func init() {
 // =============================================================================
 
 var hooksCmd = &cobra.Command{
-	Use:   "hooks [action]",
-	Short: "Manage git hooks",
-	Args:  cobra.ExactArgs(1),
+	Use:   "hooks",
+	Short: "Manage git hooks for Tasuku integration",
+	Long: `Manage git hooks that integrate Tasuku with your git workflow.
+
+Available subcommands:
+  install    Install pre-commit and post-commit hooks
+  uninstall  Remove Tasuku hooks (preserves other hook content)
+
+The hooks provide:
+  - pre-commit: Validates .tasuku.json before commits
+  - post-commit: Suggests task status updates based on commit messages
+
+Run 'tk hooks <subcommand> --help' for more details.`,
+}
+
+var hooksInstallCmd = &cobra.Command{
+	Use:   "install",
+	Short: "Install Tasuku git hooks",
+	Long: `Install Tasuku git hooks (pre-commit and post-commit).
+
+This will add Tasuku integration to your git hooks while preserving
+any existing hook content. The hooks are marked with special comments
+so they can be safely removed later.
+
+Hooks installed:
+  - pre-commit: Validates .tasuku.json before allowing commits
+  - post-commit: Detects task references in commit messages and suggests updates`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		action := args[0]
-		switch action {
-		case "install":
-			return installHooks()
-		case "uninstall":
-			return uninstallHooks()
-		default:
-			return fmt.Errorf("unknown action: %s (use install or uninstall)", action)
-		}
+		return installHooks()
 	},
 }
 
-var hookCmd = &cobra.Command{
-	Use:   "hook [name]",
-	Short: "Run Claude Code integration hooks",
-	Args:  cobra.ExactArgs(1),
+var hooksUninstallCmd = &cobra.Command{
+	Use:   "uninstall",
+	Short: "Remove Tasuku git hooks",
+	Long: `Remove Tasuku git hooks while preserving other hook content.
+
+This only removes the Tasuku-specific sections from your git hooks.
+Any other hook content (from other tools) will be preserved.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		action := args[0]
-		switch action {
-		case "session":
-			return hookSession()
-		case "sync":
-			return hookSync()
-		default:
-			return fmt.Errorf("unknown hook: %s (use session or sync)", action)
-		}
+		return uninstallHooks()
 	},
+}
+
+func init() {
+	hooksCmd.AddCommand(hooksInstallCmd)
+	hooksCmd.AddCommand(hooksUninstallCmd)
+}
+
+var hookCmd = &cobra.Command{
+	Use:   "hook",
+	Short: "Run Claude Code integration hooks",
+	Long: `Run internal hooks for Claude Code integration.
+
+Available subcommands:
+  session    Display Tasuku context summary at session start
+  sync       Sync tasks from TodoWrite JSON input
+
+These are typically called automatically by Claude Code integration,
+but can be run manually for debugging.`,
+}
+
+var hookSessionCmd = &cobra.Command{
+	Use:   "session",
+	Short: "Display Tasuku context summary",
+	Long: `Display a summary of Tasuku context for Claude Code session start.
+
+Shows:
+  - Task counts by status
+  - Number of learnings and decisions
+  - Suggested next task based on priority`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookSession()
+	},
+}
+
+var hookSyncCmd = &cobra.Command{
+	Use:   "sync",
+	Short: "Sync tasks from TodoWrite JSON",
+	Long: `Sync tasks from Claude Code's TodoWrite tool.
+
+Reads JSON from stdin in TodoWrite format and syncs to .tasuku.json.
+Creates new tasks or updates status of existing ones.
+
+Examples:
+  tk hook sync < todos.json          # Sync from file
+  echo '[...]' | tk hook sync        # Sync from piped JSON`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookSync()
+	},
+}
+
+func init() {
+	hookCmd.AddCommand(hookSessionCmd)
+	hookCmd.AddCommand(hookSyncCmd)
 }
 
 // =============================================================================
@@ -1377,22 +1736,65 @@ var hookCmd = &cobra.Command{
 // =============================================================================
 
 var mcpCmd = &cobra.Command{
-	Use:   "mcp [action]",
-	Short: "Manage MCP server for Claude Code",
-	Args:  cobra.ExactArgs(1),
+	Use:   "mcp",
+	Short: "Manage MCP server configuration for AI tools",
+	Long: `Manage the MCP (Model Context Protocol) server for AI tool integration.
+
+Available subcommands:
+  install    Auto-configure Tasuku MCP in Claude Code, Cursor, etc.
+  uninstall  Remove Tasuku MCP configuration from AI tools
+  config     Display MCP configuration JSON for manual setup
+
+The MCP server enables AI tools to interact with Tasuku directly,
+allowing them to list, create, and update tasks.
+
+Run 'tk mcp <subcommand> --help' for more details.`,
+}
+
+var mcpInstallCmd = &cobra.Command{
+	Use:   "install",
+	Short: "Auto-configure MCP in AI tools",
+	Long: `Automatically configure the Tasuku MCP server in supported AI tools.
+
+Supported tools:
+  - Claude Code (~/.claude/settings.json)
+  - Cursor (~/.cursor/mcp.json)
+
+The configuration will be added to existing settings without
+overwriting other MCP servers or configurations.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		action := args[0]
-		switch action {
-		case "install":
-			return mcpInstall()
-		case "uninstall":
-			return mcpUninstall()
-		case "config":
-			return mcpConfig()
-		default:
-			return fmt.Errorf("unknown action: %s (use install, uninstall, or config)", action)
-		}
+		return mcpInstall()
 	},
+}
+
+var mcpUninstallCmd = &cobra.Command{
+	Use:   "uninstall",
+	Short: "Remove MCP configuration from AI tools",
+	Long: `Remove the Tasuku MCP server configuration from AI tools.
+
+This removes only the Tasuku configuration; other MCP servers
+will be preserved.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return mcpUninstall()
+	},
+}
+
+var mcpConfigCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Show MCP configuration snippet",
+	Long: `Display the MCP configuration snippet for manual setup.
+
+Use this if automatic installation doesn't work or you want
+to configure MCP manually in your AI tool settings.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return mcpConfig()
+	},
+}
+
+func init() {
+	mcpCmd.AddCommand(mcpInstallCmd)
+	mcpCmd.AddCommand(mcpUninstallCmd)
+	mcpCmd.AddCommand(mcpConfigCmd)
 }
 
 // =============================================================================
@@ -1534,6 +1936,30 @@ func normalizeCycle(cycle []string) string {
 var schemaCmd = &cobra.Command{
 	Use:   "schema",
 	Short: "Output JSON Schema for .tasuku.json",
+	Long: `Output the JSON Schema definition for .tasuku.json files.
+
+The schema defines:
+  - version: Must be 1 (integer)
+  - tasks: Object mapping task IDs to task objects
+    - status: ready, in_progress, blocked, or done
+    - description: Task description (string)
+    - priority: 0-4 (0=critical, 4=backlog)
+    - blocked_by: Array of task IDs this task depends on
+    - owner: Optional owner identifier
+    - created_at/updated_at: ISO 8601 timestamps
+  - context: Shared knowledge object
+    - learnings: Array of insight strings
+    - decisions: Array of decision objects (chose/over/because)
+    - notes: Object mapping task IDs to note arrays
+
+Use Cases:
+  - IDE validation: Configure your editor to validate .tasuku.json
+  - Documentation: Reference for file format
+  - Tooling: Build tools that work with Tasuku files
+
+Examples:
+  tk schema                      # Print schema to stdout
+  tk schema > tasuku.schema.json # Save schema to file`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		schema := `{
   "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1642,7 +2068,7 @@ func outputTasks(tasks []taskEntry) error {
 	return nil
 }
 
-func outputTaskDetail(id string, t task.Task, notes []string) error {
+func outputTaskDetail(id string, t task.Task, notes []task.Note) error {
 	switch outputFormat {
 	case "json":
 		data, _ := json.MarshalIndent(map[string]interface{}{
@@ -1677,7 +2103,8 @@ func outputTaskDetail(id string, t task.Task, notes []string) error {
 		if len(notes) > 0 {
 			fmt.Printf("\nNotes:\n")
 			for _, note := range notes {
-				fmt.Printf("  - %s\n", note)
+				timeStr := formatRelativeTime(note.CreatedAt)
+			fmt.Printf("  - %s (%s)\n", note.Text, timeStr)
 			}
 		}
 	}
@@ -1706,7 +2133,7 @@ func outputSearchResults(results []searchResult, query string) error {
 			case "note":
 				fmt.Printf("  [note on %s] %s\n", r.ID, r.Content)
 			case "learning":
-				fmt.Printf("  [learning] %s\n", r.Content)
+				fmt.Printf("  [learning %s] %s\n", r.ID, r.Content)
 			case "decision":
 				fmt.Printf("  [decision %s] %s\n", r.ID, r.Content)
 			}
@@ -1733,6 +2160,50 @@ func statusToIcon(s task.Status) string {
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// formatRelativeTime formats a time as relative (e.g., "2 hours ago") for recent times
+// or as a date (e.g., "2024-01-04") for older times.
+func formatRelativeTime(t time.Time) string {
+	if t.IsZero() {
+		return "unknown"
+	}
+
+	now := time.Now()
+	diff := now.Sub(t)
+
+	switch {
+	case diff < time.Minute:
+		return "just now"
+	case diff < time.Hour:
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", mins)
+	case diff < 24*time.Hour:
+		hours := int(diff.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	case diff < 7*24*time.Hour:
+		days := int(diff.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	default:
+		return t.Format("2006-01-02")
+	}
+}
+
+// formatAge returns a human-readable age string, or empty string for zero time.
+func formatAge(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return formatRelativeTime(t)
+}
 
 // generateID creates a kebab-case ID from description.
 func generateID(desc string) string {
@@ -2011,16 +2482,16 @@ func migrateFromBeads(dryRun bool) error {
 			}
 
 			if f.Context.Notes == nil {
-				f.Context.Notes = make(map[string][]string)
+				f.Context.Notes = make(map[string][]task.Note)
 			}
 			if issue.Description != "" {
-				f.Context.Notes[id] = append(f.Context.Notes[id], "Description: "+issue.Description)
+				f.Context.Notes[id] = append(f.Context.Notes[id], task.Note{Text: "Description: " + issue.Description, CreatedAt: createdAt})
 			}
 			if issue.Notes != "" {
-				f.Context.Notes[id] = append(f.Context.Notes[id], issue.Notes)
+				f.Context.Notes[id] = append(f.Context.Notes[id], task.Note{Text: issue.Notes, CreatedAt: createdAt})
 			}
 			if issue.CloseReason != "" {
-				f.Context.Notes[id] = append(f.Context.Notes[id], "Close reason: "+issue.CloseReason)
+				f.Context.Notes[id] = append(f.Context.Notes[id], task.Note{Text: "Close reason: " + issue.CloseReason, CreatedAt: updatedAt})
 			}
 
 			return nil

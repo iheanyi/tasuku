@@ -120,7 +120,7 @@ func computeStats(f *task.File) Stats {
 			oldTasks = append(oldTasks, OldTask{
 				ID:        id,
 				CreatedAt: t.CreatedAt,
-				Age:       formatAge(age),
+				Age:       formatDurationAge(age),
 			})
 		}
 	}
@@ -135,7 +135,7 @@ func computeStats(f *task.File) Stats {
 	return stats
 }
 
-func formatAge(d time.Duration) string {
+func formatDurationAge(d time.Duration) string {
 	days := int(d.Hours() / 24)
 	if days > 30 {
 		months := days / 30
