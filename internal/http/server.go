@@ -349,13 +349,14 @@ func (s *Server) handleLearnings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.store.AddLearning(req.Learning); err != nil {
+	id, err := s.store.AddLearning(req.Learning)
+	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"status": "added"})
+	json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "added"})
 }
 
 func (s *Server) handleDecisions(w http.ResponseWriter, r *http.Request) {
@@ -392,10 +393,11 @@ func (s *Server) handleDecisions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	d := task.Decision{
-		ID:      req.ID,
-		Chose:   req.Chose,
-		Over:    req.Over,
-		Because: req.Because,
+		ID:        req.ID,
+		Chose:     req.Chose,
+		Over:      req.Over,
+		Because:   req.Because,
+		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := s.store.AddDecision(d); err != nil {

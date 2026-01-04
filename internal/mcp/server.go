@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
@@ -385,10 +386,11 @@ func (s *Server) handleBlock(args map[string]interface{}) (interface{}, error) {
 
 func (s *Server) handleLearn(args map[string]interface{}) (interface{}, error) {
 	insight, _ := args["insight"].(string)
-	if err := s.store.AddLearning(insight); err != nil {
+	id, err := s.store.AddLearning(insight)
+	if err != nil {
 		return nil, err
 	}
-	return map[string]string{"status": "added"}, nil
+	return map[string]string{"id": id, "status": "added"}, nil
 }
 
 func (s *Server) handleDecide(args map[string]interface{}) (interface{}, error) {
@@ -406,10 +408,11 @@ func (s *Server) handleDecide(args map[string]interface{}) (interface{}, error) 
 	}
 
 	d := task.Decision{
-		ID:      id,
-		Chose:   chose,
-		Over:    over,
-		Because: because,
+		ID:        id,
+		Chose:     chose,
+		Over:      over,
+		Because:   because,
+		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := s.store.AddDecision(d); err != nil {
@@ -423,11 +426,12 @@ func (s *Server) handleNote(args map[string]interface{}) (interface{}, error) {
 	taskID, _ := args["task_id"].(string)
 	note, _ := args["note"].(string)
 
-	if err := s.store.AddNote(taskID, note); err != nil {
+	id, err := s.store.AddNote(taskID, note)
+	if err != nil {
 		return nil, err
 	}
 
-	return map[string]string{"task_id": taskID, "status": "added"}, nil
+	return map[string]string{"id": id, "task_id": taskID, "status": "added"}, nil
 }
 
 func (s *Server) handleContext(args map[string]interface{}) (interface{}, error) {

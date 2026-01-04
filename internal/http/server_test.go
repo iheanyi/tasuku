@@ -415,8 +415,9 @@ func TestAddLearning(t *testing.T) {
 	if len(learnings) != 1 {
 		t.Errorf("expected 1 learning, got %d", len(learnings))
 	}
-	if learnings[0] != "Test insight" {
-		t.Errorf("expected 'Test insight', got '%v'", learnings[0])
+	learning := learnings[0].(map[string]interface{})
+	if learning["text"] != "Test insight" {
+		t.Errorf("expected 'Test insight', got '%v'", learning["text"])
 	}
 }
 
