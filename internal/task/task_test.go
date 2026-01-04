@@ -1,6 +1,7 @@
 package task
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -117,5 +118,123 @@ func TestStatusConstants(t *testing.T) {
 	}
 	if StatusDone != "done" {
 		t.Errorf("StatusDone should be 'done', got %s", StatusDone)
+	}
+}
+
+func TestGenerateShortID(t *testing.T) {
+	id := GenerateShortID()
+	if len(id) != 6 {
+		t.Errorf("expected 6-char ID, got %d chars: %s", len(id), id)
+	}
+
+	// Generate a bunch and check uniqueness
+	ids := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		newID := GenerateShortID()
+		if ids[newID] {
+			t.Errorf("duplicate ID generated: %s", newID)
+		}
+		ids[newID] = true
+	}
+}
+
+func TestLearningStruct(t *testing.T) {
+	learning := Learning{
+		ID:        "abc123",
+		Text:      "Test learning",
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if learning.ID != "abc123" {
+		t.Errorf("expected ID 'abc123', got %s", learning.ID)
+	}
+	if learning.Text != "Test learning" {
+		t.Errorf("expected Text 'Test learning', got %s", learning.Text)
+	}
+	if learning.CreatedAt.IsZero() {
+		t.Error("CreatedAt should not be zero")
+	}
+}
+
+func TestContextUnmarshalJSON_OldLearningsFormat(t *testing.T) {
+	// Old format: learnings as []string
+	oldJSON := `{
+		"learnings": ["Learning 1", "Learning 2"],
+		"decisions": [],
+		"notes": {}
+	}`
+
+	var ctx Context
+	if err := json.Unmarshal([]byte(oldJSON), &ctx); err != nil {
+		t.Fatalf("failed to unmarshal old format: %v", err)
+	}
+
+	if len(ctx.Learnings) != 2 {
+		t.Fatalf("expected 2 learnings, got %d", len(ctx.Learnings))
+	}
+
+	if ctx.Learnings[0].Text != "Learning 1" {
+		t.Errorf("expected 'Learning 1', got %s", ctx.Learnings[0].Text)
+	}
+
+	if ctx.Learnings[0].ID == "" {
+		t.Error("expected generated ID for migrated learning")
+	}
+}
+
+func TestContextUnmarshalJSON_NewLearningsFormat(t *testing.T) {
+	// New format: learnings as []Learning
+	newJSON := `{
+		"learnings": [
+			{"id": "abc123", "text": "New learning", "created_at": "2024-01-01T00:00:00Z"}
+		],
+		"decisions": [],
+		"notes": {}
+	}`
+
+	var ctx Context
+	if err := json.Unmarshal([]byte(newJSON), &ctx); err != nil {
+		t.Fatalf("failed to unmarshal new format: %v", err)
+	}
+
+	if len(ctx.Learnings) != 1 {
+		t.Fatalf("expected 1 learning, got %d", len(ctx.Learnings))
+	}
+
+	if ctx.Learnings[0].ID != "abc123" {
+		t.Errorf("expected ID 'abc123', got %s", ctx.Learnings[0].ID)
+	}
+
+	if ctx.Learnings[0].Text != "New learning" {
+		t.Errorf("expected 'New learning', got %s", ctx.Learnings[0].Text)
+	}
+}
+
+func TestContextMarshalJSON_LearningsFormat(t *testing.T) {
+	ctx := Context{
+		Learnings: []Learning{
+			{ID: "test1", Text: "Test learning", CreatedAt: time.Now().UTC()},
+		},
+		Decisions: []Decision{},
+		Notes:     make(map[string][]Note),
+	}
+
+	data, err := json.Marshal(ctx)
+	if err != nil {
+		t.Fatalf("failed to marshal context: %v", err)
+	}
+
+	// Verify the JSON contains the new format
+	var unmarshaled Context
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if len(unmarshaled.Learnings) != 1 {
+		t.Fatalf("expected 1 learning, got %d", len(unmarshaled.Learnings))
+	}
+
+	if unmarshaled.Learnings[0].ID != "test1" {
+		t.Errorf("ID not preserved: got %s", unmarshaled.Learnings[0].ID)
 	}
 }

@@ -98,8 +98,12 @@ func TestStore_AddLearning(t *testing.T) {
 	s := New(path)
 	s.Init()
 
-	if err := s.AddLearning("Test learning"); err != nil {
+	id, err := s.AddLearning("Test learning")
+	if err != nil {
 		t.Fatalf("add learning failed: %v", err)
+	}
+	if id == "" {
+		t.Error("expected non-empty learning ID")
 	}
 
 	f, _ := s.Read()
@@ -107,8 +111,81 @@ func TestStore_AddLearning(t *testing.T) {
 		t.Fatalf("expected 1 learning, got %d", len(f.Context.Learnings))
 	}
 
-	if f.Context.Learnings[0] != "Test learning" {
-		t.Errorf("wrong learning: %s", f.Context.Learnings[0])
+	if f.Context.Learnings[0].Text != "Test learning" {
+		t.Errorf("wrong learning: %s", f.Context.Learnings[0].Text)
+	}
+}
+
+func TestStore_RemoveLearning(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add a learning
+	id, err := s.AddLearning("Test learning to remove")
+	if err != nil {
+		t.Fatalf("add learning failed: %v", err)
+	}
+
+	// Remove it
+	removedText, err := s.RemoveLearning(id)
+	if err != nil {
+		t.Fatalf("remove learning failed: %v", err)
+	}
+
+	if removedText != "Test learning to remove" {
+		t.Errorf("wrong removed text: %s", removedText)
+	}
+
+	// Verify it's gone
+	f, _ := s.Read()
+	if len(f.Context.Learnings) != 0 {
+		t.Errorf("expected 0 learnings, got %d", len(f.Context.Learnings))
+	}
+
+	// Try to remove non-existent learning
+	_, err = s.RemoveLearning("nonexistent")
+	if err == nil {
+		t.Error("expected error when removing non-existent learning")
+	}
+}
+
+func TestStore_FindLearningByText(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add some learnings
+	s.AddLearning("Redis connection pooling improves performance")
+	s.AddLearning("Always validate user input")
+	s.AddLearning("Use indexes for frequent queries")
+
+	// Find by partial text
+	learning, err := s.FindLearningByText("redis")
+	if err != nil {
+		t.Fatalf("find learning failed: %v", err)
+	}
+
+	if learning.Text != "Redis connection pooling improves performance" {
+		t.Errorf("wrong learning found: %s", learning.Text)
+	}
+
+	// Case insensitive
+	learning, err = s.FindLearningByText("REDIS")
+	if err != nil {
+		t.Fatalf("case insensitive find failed: %v", err)
+	}
+
+	if learning.Text != "Redis connection pooling improves performance" {
+		t.Errorf("case insensitive search failed: %s", learning.Text)
+	}
+
+	// Not found
+	_, err = s.FindLearningByText("nonexistent")
+	if err == nil {
+		t.Error("expected error when learning not found")
 	}
 }
 

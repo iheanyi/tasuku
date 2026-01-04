@@ -1,7 +1,12 @@
 // Package task defines the core task domain types.
 package task
 
-import "time"
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"time"
+)
 
 // Status represents the state of a task.
 type Status string
@@ -61,17 +66,124 @@ func PriorityName(p int) string {
 
 // Decision represents an architectural decision.
 type Decision struct {
-	ID      string   `json:"id"`
-	Chose   string   `json:"chose"`
-	Over    []string `json:"over"`
-	Because string   `json:"because"`
+	ID        string    `json:"id"`
+	Chose     string    `json:"chose"`
+	Over      []string  `json:"over"`
+	Because   string    `json:"because"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Note represents a note attached to a task with timestamp.
+type Note struct {
+	ID        string    `json:"id"`
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Learning represents a recorded learning with stable ID.
+type Learning struct {
+	ID        string    `json:"id"`
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// GenerateShortID creates a 6-character hex ID for notes and learnings.
+func GenerateShortID() string {
+	b := make([]byte, 3)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // Context holds agent learnings and decisions.
 type Context struct {
-	Learnings []string            `json:"learnings"`
-	Decisions []Decision          `json:"decisions"`
-	Notes     map[string][]string `json:"notes"`
+	Learnings []Learning        `json:"learnings"`
+	Decisions []Decision        `json:"decisions"`
+	Notes     map[string][]Note `json:"notes"`
+}
+
+// UnmarshalJSON implements custom unmarshaling for Context to handle
+// backward compatibility with old learnings format ([]string vs []Learning)
+// and old notes format ([]string vs []Note).
+func (c *Context) UnmarshalJSON(data []byte) error {
+	// Use a raw structure to detect the format of each field
+	type rawContext struct {
+		Learnings json.RawMessage     `json:"learnings"`
+		Decisions []Decision          `json:"decisions"`
+		Notes     json.RawMessage     `json:"notes"`
+	}
+	var raw rawContext
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	c.Decisions = raw.Decisions
+
+	// Handle learnings - try new format first, then old string format
+	if len(raw.Learnings) > 0 {
+		var newLearnings []Learning
+		if err := json.Unmarshal(raw.Learnings, &newLearnings); err == nil {
+			c.Learnings = newLearnings
+			// Ensure all learnings have IDs (backward compatibility)
+			for i := range c.Learnings {
+				if c.Learnings[i].ID == "" {
+					c.Learnings[i].ID = GenerateShortID()
+				}
+			}
+		} else {
+			// Try old format: []string
+			var oldLearnings []string
+			if err := json.Unmarshal(raw.Learnings, &oldLearnings); err != nil {
+				return err
+			}
+			c.Learnings = make([]Learning, len(oldLearnings))
+			for i, text := range oldLearnings {
+				c.Learnings[i] = Learning{
+					ID:        GenerateShortID(),
+					Text:      text,
+					CreatedAt: time.Time{}, // Zero time for migrated learnings
+				}
+			}
+		}
+	} else {
+		c.Learnings = []Learning{}
+	}
+
+	// Handle notes - try new format first, then old string format
+	if len(raw.Notes) > 0 {
+		var newNotes map[string][]Note
+		if err := json.Unmarshal(raw.Notes, &newNotes); err == nil {
+			c.Notes = newNotes
+			// Ensure all notes have IDs (backward compatibility)
+			for taskID, notes := range c.Notes {
+				for i := range notes {
+					if notes[i].ID == "" {
+						notes[i].ID = GenerateShortID()
+					}
+				}
+				c.Notes[taskID] = notes
+			}
+		} else {
+			// Try old format: map[string][]string
+			var oldNotes map[string][]string
+			if err := json.Unmarshal(raw.Notes, &oldNotes); err != nil {
+				return err
+			}
+			c.Notes = make(map[string][]Note)
+			for taskID, notes := range oldNotes {
+				for _, text := range notes {
+					c.Notes[taskID] = append(c.Notes[taskID], Note{
+						ID:        GenerateShortID(),
+						Text:      text,
+						CreatedAt: time.Time{}, // Zero time for migrated notes
+					})
+				}
+			}
+		}
+	} else {
+		c.Notes = make(map[string][]Note)
+	}
+
+	return nil
 }
 
 // File represents the complete .tasuku.json structure.
@@ -87,9 +199,9 @@ func NewFile() *File {
 		Version: 1,
 		Tasks:   make(map[string]Task),
 		Context: Context{
-			Learnings: []string{},
+			Learnings: []Learning{},
 			Decisions: []Decision{},
-			Notes:     make(map[string][]string),
+			Notes:     make(map[string][]Note),
 		},
 	}
 }

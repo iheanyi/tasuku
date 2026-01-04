@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -161,12 +162,51 @@ func (s *Store) SetStatus(id string, status task.Status) error {
 	})
 }
 
-// AddLearning adds a learning to context.
-func (s *Store) AddLearning(learning string) error {
-	return s.Update(func(f *task.File) error {
+// AddLearning adds a learning to context and returns its ID.
+func (s *Store) AddLearning(text string) (string, error) {
+	id := task.GenerateShortID()
+	err := s.Update(func(f *task.File) error {
+		learning := task.Learning{
+			ID:        id,
+			Text:      text,
+			CreatedAt: time.Now().UTC(),
+		}
 		f.Context.Learnings = append(f.Context.Learnings, learning)
 		return nil
 	})
+	return id, err
+}
+
+// RemoveLearning removes a learning by ID and returns the removed learning text.
+func (s *Store) RemoveLearning(id string) (string, error) {
+	var removedText string
+	err := s.Update(func(f *task.File) error {
+		for i, l := range f.Context.Learnings {
+			if l.ID == id {
+				removedText = l.Text
+				f.Context.Learnings = append(f.Context.Learnings[:i], f.Context.Learnings[i+1:]...)
+				return nil
+			}
+		}
+		return fmt.Errorf("learning %q not found", id)
+	})
+	return removedText, err
+}
+
+// FindLearningByText finds a learning by partial text match (case-insensitive).
+func (s *Store) FindLearningByText(query string) (*task.Learning, error) {
+	f, err := s.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	lowerQuery := strings.ToLower(query)
+	for i := range f.Context.Learnings {
+		if strings.Contains(strings.ToLower(f.Context.Learnings[i].Text), lowerQuery) {
+			return &f.Context.Learnings[i], nil
+		}
+	}
+	return nil, fmt.Errorf("no learning found matching %q", query)
 }
 
 // AddDecision adds a decision to context.
@@ -177,18 +217,52 @@ func (s *Store) AddDecision(d task.Decision) error {
 	})
 }
 
-// AddNote adds a note to a specific task.
-func (s *Store) AddNote(taskID, note string) error {
-	return s.Update(func(f *task.File) error {
+// AddNote adds a note to a specific task and returns the generated note ID.
+func (s *Store) AddNote(taskID, noteText string) (string, error) {
+	var noteID string
+	err := s.Update(func(f *task.File) error {
 		if _, exists := f.Tasks[taskID]; !exists {
 			return fmt.Errorf("store: task %q not found", taskID)
 		}
 		if f.Context.Notes == nil {
-			f.Context.Notes = make(map[string][]string)
+			f.Context.Notes = make(map[string][]task.Note)
+		}
+		noteID = task.GenerateShortID()
+		note := task.Note{
+			ID:        noteID,
+			Text:      noteText,
+			CreatedAt: time.Now().UTC(),
 		}
 		f.Context.Notes[taskID] = append(f.Context.Notes[taskID], note)
 		return nil
 	})
+	return noteID, err
+}
+
+// RemoveNote removes a note from a task by its ID.
+func (s *Store) RemoveNote(taskID, noteID string) (string, error) {
+	var removedText string
+	err := s.Update(func(f *task.File) error {
+		taskNotes, exists := f.Context.Notes[taskID]
+		if !exists || len(taskNotes) == 0 {
+			return fmt.Errorf("store: no notes found for task %q", taskID)
+		}
+
+		for i, note := range taskNotes {
+			if note.ID == noteID {
+				removedText = note.Text
+				f.Context.Notes[taskID] = append(taskNotes[:i], taskNotes[i+1:]...)
+
+				// If task has no more notes, remove the key from the map
+				if len(f.Context.Notes[taskID]) == 0 {
+					delete(f.Context.Notes, taskID)
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("store: note %q not found for task %q", noteID, taskID)
+	})
+	return removedText, err
 }
 
 // BlockTask marks a task as blocked by other tasks.
