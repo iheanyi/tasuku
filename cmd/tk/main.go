@@ -63,18 +63,32 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "format", "f", "table", "Output format: table, json, yaml")
 
-	// Add all commands
+	// Task parent command with all task subcommands
+	taskCmd.AddCommand(listCmd)
+	taskCmd.AddCommand(addCmd)
+	taskCmd.AddCommand(showCmd)
+	taskCmd.AddCommand(startCmd)
+	taskCmd.AddCommand(doneCmd)
+	taskCmd.AddCommand(blockCmd)
+	taskCmd.AddCommand(unblockCmd)
+	taskCmd.AddCommand(readyCmd)
+	taskCmd.AddCommand(findCmd)
+	taskCmd.AddCommand(priorityCmd)
+	taskCmd.AddCommand(deleteCmd)
+	taskCmd.AddCommand(editCmd)
+	taskCmd.AddCommand(pauseCmd)
+	taskCmd.AddCommand(ownerCmd)
+	rootCmd.AddCommand(taskCmd)
+
+	// Non-task root commands
 	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(listCmd)
-	rootCmd.AddCommand(addCmd)
-	rootCmd.AddCommand(showCmd)
-	rootCmd.AddCommand(startCmd)
-	rootCmd.AddCommand(doneCmd)
-	rootCmd.AddCommand(blockCmd)
-	rootCmd.AddCommand(unblockCmd)
-	rootCmd.AddCommand(readyCmd)
-	rootCmd.AddCommand(findCmd)
-	rootCmd.AddCommand(priorityCmd)
+
+	// Noun-verb pattern commands
+	rootCmd.AddCommand(learningCmd)
+	rootCmd.AddCommand(decisionCmd)
+	rootCmd.AddCommand(noteParentCmd)
+
+	// Deprecated commands (hidden, for backward compatibility)
 	rootCmd.AddCommand(learnCmd)
 	rootCmd.AddCommand(learningsCmd)
 	rootCmd.AddCommand(unlearnCmd)
@@ -93,14 +107,44 @@ func init() {
 	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(schemaCmd)
-	rootCmd.AddCommand(deleteCmd)
-	rootCmd.AddCommand(editCmd)
-	rootCmd.AddCommand(pauseCmd)
-	rootCmd.AddCommand(ownerCmd)
 }
 
 // =============================================================================
-// Task Commands
+// Task Parent Command
+// =============================================================================
+
+var taskCmd = &cobra.Command{
+	Use:     "task",
+	Aliases: []string{"tasks", "t"},
+	Short:   "Manage tasks",
+	Long: `Manage tasks in your Tasuku project.
+
+Subcommands:
+  list      List all tasks
+  add       Create a new task
+  show      Show task details
+  start     Mark task as in_progress
+  done      Mark task as complete
+  delete    Delete a task
+  edit      Update task description
+  pause     Pause work on a task
+  block     Mark task as blocked
+  unblock   Remove blockers from task
+  ready     List tasks ready to work on
+  find      Search across all content
+  priority  Set task priority
+  owner     Manage task ownership
+
+Examples:
+  tk task list                 # List all tasks
+  tk task add "New feature"    # Add a new task
+  tk task start my-task        # Start working on a task
+  tk t ls                      # Short alias for list
+  tk tasks ready               # Show ready tasks`,
+}
+
+// =============================================================================
+// Init Command (not part of task subcommand)
 // =============================================================================
 
 var initCmd = &cobra.Command{
@@ -883,13 +927,813 @@ Examples:
 }
 
 // =============================================================================
-// Context Commands
+// Deprecated Task Command Aliases (Hidden for backward compatibility)
+// =============================================================================
+// These aliases allow old commands like `tk list` to continue working
+// while showing a deprecation warning recommending `tk task list`.
+
+var listCmdAlias = &cobra.Command{
+	Use:        "list",
+	Aliases:    []string{"ls"},
+	Hidden:     true,
+	Deprecated: "use 'tk task list' instead",
+	Short:      "List all tasks (deprecated: use 'tk task list')",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return listCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	listCmdAlias.Flags().StringP("status", "s", "", "Filter by status: ready, in_progress, blocked, done")
+	rootCmd.AddCommand(listCmdAlias)
+}
+
+var addCmdAlias = &cobra.Command{
+	Use:        "add",
+	Hidden:     true,
+	Deprecated: "use 'tk task add' instead",
+	Short:      "Add a new task (deprecated: use 'tk task add')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return addCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	addCmdAlias.Flags().String("id", "", "Task ID (auto-generated if not provided)")
+	addCmdAlias.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
+	rootCmd.AddCommand(addCmdAlias)
+}
+
+var showCmdAlias = &cobra.Command{
+	Use:        "show",
+	Hidden:     true,
+	Deprecated: "use 'tk task show' instead",
+	Short:      "Show task details (deprecated: use 'tk task show')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return showCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(showCmdAlias)
+}
+
+var startCmdAlias = &cobra.Command{
+	Use:        "start",
+	Hidden:     true,
+	Deprecated: "use 'tk task start' instead",
+	Short:      "Mark task as in_progress (deprecated: use 'tk task start')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return startCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(startCmdAlias)
+}
+
+var doneCmdAlias = &cobra.Command{
+	Use:        "done",
+	Hidden:     true,
+	Deprecated: "use 'tk task done' instead",
+	Short:      "Mark task as done (deprecated: use 'tk task done')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return doneCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(doneCmdAlias)
+}
+
+var blockCmdAlias = &cobra.Command{
+	Use:        "block",
+	Hidden:     true,
+	Deprecated: "use 'tk task block' instead",
+	Short:      "Mark task as blocked (deprecated: use 'tk task block')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return blockCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	blockCmdAlias.Flags().String("by", "", "Comma-separated list of blocking task IDs")
+	blockCmdAlias.MarkFlagRequired("by")
+	rootCmd.AddCommand(blockCmdAlias)
+}
+
+var unblockCmdAlias = &cobra.Command{
+	Use:        "unblock",
+	Hidden:     true,
+	Deprecated: "use 'tk task unblock' instead",
+	Short:      "Remove blockers from task (deprecated: use 'tk task unblock')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return unblockCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	unblockCmdAlias.Flags().String("from", "", "Remove only this specific blocker (partial unblock)")
+	rootCmd.AddCommand(unblockCmdAlias)
+}
+
+var deleteCmdAlias = &cobra.Command{
+	Use:        "delete",
+	Hidden:     true,
+	Deprecated: "use 'tk task delete' instead",
+	Short:      "Delete a task (deprecated: use 'tk task delete')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return deleteCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(deleteCmdAlias)
+}
+
+var editCmdAlias = &cobra.Command{
+	Use:        "edit",
+	Hidden:     true,
+	Deprecated: "use 'tk task edit' instead",
+	Short:      "Update task description (deprecated: use 'tk task edit')",
+	Args:       cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return editCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(editCmdAlias)
+}
+
+var pauseCmdAlias = &cobra.Command{
+	Use:        "pause",
+	Hidden:     true,
+	Deprecated: "use 'tk task pause' instead",
+	Short:      "Pause work on a task (deprecated: use 'tk task pause')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return pauseCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(pauseCmdAlias)
+}
+
+var ownerCmdAlias = &cobra.Command{
+	Use:        "owner",
+	Hidden:     true,
+	Deprecated: "use 'tk task owner' instead",
+	Short:      "Manage task owner (deprecated: use 'tk task owner')",
+	Args:       cobra.RangeArgs(1, 2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return ownerCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	ownerCmdAlias.Flags().Bool("clear", false, "Clear the task owner")
+	rootCmd.AddCommand(ownerCmdAlias)
+}
+
+var readyCmdAlias = &cobra.Command{
+	Use:        "ready",
+	Hidden:     true,
+	Deprecated: "use 'tk task ready' instead",
+	Short:      "Show ready tasks (deprecated: use 'tk task ready')",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return readyCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(readyCmdAlias)
+}
+
+var findCmdAlias = &cobra.Command{
+	Use:        "find",
+	Hidden:     true,
+	Deprecated: "use 'tk task find' instead",
+	Short:      "Search across all content (deprecated: use 'tk task find')",
+	Args:       cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return findCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(findCmdAlias)
+}
+
+var priorityCmdAlias = &cobra.Command{
+	Use:        "priority",
+	Hidden:     true,
+	Deprecated: "use 'tk task priority' instead",
+	Short:      "Set task priority (deprecated: use 'tk task priority')",
+	Args:       cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return priorityCmd.RunE(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(priorityCmdAlias)
+}
+
+// =============================================================================
+// Context Commands (noun-verb pattern)
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// Learning Parent Command and Subcommands
+// -----------------------------------------------------------------------------
+
+var learningCmd = &cobra.Command{
+	Use:     "learning",
+	Short:   "Manage learnings",
+	Long:    `Manage project learnings - insights and knowledge discovered during work.`,
+	Aliases: []string{"learnings"},
+}
+
+var learningListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all recorded learnings",
+	Long: `Display all learnings recorded in the project context.
+
+Examples:
+  tk learning list              # List all learnings
+  tk learning list --format json  # Output as JSON`,
+	RunE: runLearningList,
+}
+
+var learningAddCmd = &cobra.Command{
+	Use:   "add \"insight\"",
+	Short: "Record an insight or knowledge discovered during work",
+	Long: `Record an insight, discovery, or piece of knowledge learned while working.
+Learnings are stored in the context section and help build project knowledge.
+
+Use --permanent to also append the learning to CLAUDE.md for persistent documentation.
+
+Examples:
+  tk learning add "Redis connection pooling significantly improves API latency"
+  tk learning add "The auth middleware must run before rate limiting" --permanent
+  tk learning add "Users expect the save button in the top-right corner"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runLearningAdd,
+}
+
+var learningRemoveCmd = &cobra.Command{
+	Use:   "remove <id or text>",
+	Short: "Remove a learning by ID or partial match",
+	Long: `Remove a learning from the project context.
+
+You can specify either:
+- An ID (6-character code from 'tk learning list' output, e.g., a3x9k2)
+- A partial text match (case-insensitive)
+
+Examples:
+  tk learning remove a3x9k2               # Remove learning by ID
+  tk learning remove "redis"              # Remove first learning containing "redis"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runLearningRemove,
+}
+
+var learningPromoteCmd = &cobra.Command{
+	Use:   "promote <id or text>",
+	Short: "Promote a learning to permanent documentation",
+	Long: `Move a learning from .tasuku.json to your AI context file.
+
+Tasuku auto-detects which context file to use based on your project:
+- CLAUDE.md (Claude Code)
+- .cursorrules (Cursor)
+- .github/copilot-instructions.md (GitHub Copilot)
+- AGENTS.md (Generic)
+
+Use --to to specify a custom target file.
+
+Examples:
+  tk learning promote a3x9k2                # Promote learning by ID to auto-detected file
+  tk learning promote "redis"               # Promote learning containing "redis"
+  tk learning promote a3x9k2 --to AGENTS.md # Promote to specific file
+  tk learning promote a3x9k2 --keep         # Keep in learnings after promoting`,
+	Args: cobra.ExactArgs(1),
+	RunE: runLearningPromote,
+}
+
+func init() {
+	// Learning subcommand flags
+	learningAddCmd.Flags().Bool("permanent", false, "Also append learning to CLAUDE.md")
+	learningPromoteCmd.Flags().String("to", "", "Target context file (auto-detected if not specified)")
+	learningPromoteCmd.Flags().Bool("keep", false, "Keep the learning in .tasuku.json after promoting")
+
+	// Register learning subcommands
+	learningCmd.AddCommand(learningListCmd)
+	learningCmd.AddCommand(learningAddCmd)
+	learningCmd.AddCommand(learningRemoveCmd)
+	learningCmd.AddCommand(learningPromoteCmd)
+}
+
+// Shared implementation functions for learning commands
+func runLearningList(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	learnings := f.Context.Learnings
+	if len(learnings) == 0 {
+		fmt.Println("No learnings recorded yet.")
+		fmt.Println("Use: tk learning add \"your insight here\"")
+		return nil
+	}
+
+	switch outputFormat {
+	case "json":
+		data, _ := json.MarshalIndent(learnings, "", "  ")
+		fmt.Println(string(data))
+	case "yaml":
+		data, _ := yaml.Marshal(learnings)
+		fmt.Print(string(data))
+	default:
+		fmt.Printf("Learnings (%d):\n\n", len(learnings))
+		for _, l := range learnings {
+			age := formatAge(l.CreatedAt)
+			if age != "" {
+				fmt.Printf("  [%s] %s (%s)\n", l.ID, l.Text, age)
+			} else {
+				fmt.Printf("  [%s] %s\n", l.ID, l.Text)
+			}
+		}
+	}
+	return nil
+}
+
+func runLearningAdd(cmd *cobra.Command, args []string) error {
+	learningText := args[0]
+	permanent, _ := cmd.Flags().GetBool("permanent")
+	s := store.Default()
+
+	id, err := s.AddLearning(learningText)
+	if err != nil {
+		return err
+	}
+
+	if permanent {
+		if err := appendToCLAUDEmd(learningText, "learning"); err != nil {
+			fmt.Printf("Warning: could not append to CLAUDE.md: %v\n", err)
+		} else {
+			fmt.Printf("Learning added [%s] (also appended to CLAUDE.md)\n", id)
+			return nil
+		}
+	}
+
+	fmt.Printf("Learning added [%s]\n", id)
+	return nil
+}
+
+func runLearningRemove(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	query := args[0]
+
+	// First try to remove by ID
+	removedText, err := s.RemoveLearning(query)
+	if err == nil {
+		fmt.Printf("Removed learning: %s\n", removedText)
+		return nil
+	}
+
+	// If ID not found, try to find by text match
+	learning, err := s.FindLearningByText(query)
+	if err != nil {
+		return fmt.Errorf("no learning found matching %q", query)
+	}
+
+	// Remove by the found ID
+	removedText, err = s.RemoveLearning(learning.ID)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Removed learning: %s\n", removedText)
+	return nil
+}
+
+func runLearningPromote(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	query := args[0]
+	targetFile, _ := cmd.Flags().GetString("to")
+	keep, _ := cmd.Flags().GetBool("keep")
+
+	if targetFile == "" {
+		targetFile = detectContextFile()
+	}
+
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	var foundLearning *task.Learning
+
+	// First try to find by ID
+	for i := range f.Context.Learnings {
+		if f.Context.Learnings[i].ID == query {
+			foundLearning = &f.Context.Learnings[i]
+			break
+		}
+	}
+
+	// If not found by ID, search by text
+	if foundLearning == nil {
+		lowerQuery := strings.ToLower(query)
+		for i := range f.Context.Learnings {
+			if strings.Contains(strings.ToLower(f.Context.Learnings[i].Text), lowerQuery) {
+				foundLearning = &f.Context.Learnings[i]
+				break
+			}
+		}
+	}
+
+	if foundLearning == nil {
+		return fmt.Errorf("no learning found matching %q", query)
+	}
+
+	// Append to context file
+	if err := appendToContextFile(targetFile, foundLearning.Text); err != nil {
+		return fmt.Errorf("failed to write to %s: %w", targetFile, err)
+	}
+
+	// Remove from learnings unless --keep
+	if !keep {
+		if _, err := s.RemoveLearning(foundLearning.ID); err != nil {
+			return err
+		}
+	}
+
+	if keep {
+		fmt.Printf("Promoted to %s (kept in learnings): %s\n", targetFile, foundLearning.Text)
+	} else {
+		fmt.Printf("Promoted to %s: %s\n", targetFile, foundLearning.Text)
+	}
+	return nil
+}
+
+// -----------------------------------------------------------------------------
+// Decision Parent Command and Subcommands
+// -----------------------------------------------------------------------------
+
+var decisionCmd = &cobra.Command{
+	Use:     "decision",
+	Short:   "Manage decisions",
+	Long:    `Manage architectural and design decisions recorded during development.`,
+	Aliases: []string{"decisions"},
+}
+
+var decisionListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all recorded decisions",
+	Long: `Display all decisions recorded in the project context.
+
+Examples:
+  tk decision list              # List all decisions
+  tk decision list --format json  # Output as JSON`,
+	RunE: runDecisionList,
+}
+
+var decisionAddCmd = &cobra.Command{
+	Use:   "add --id <id> --chose <option> --over <alternatives> --because <reason>",
+	Short: "Record an architectural or design decision",
+	Long: `Document a decision made during development for future reference.
+
+Decisions capture:
+  - What was chosen
+  - What alternatives were considered
+  - Why this choice was made
+
+This creates an audit trail of architectural choices, helping future
+developers (or agents) understand why things are the way they are.
+
+Required Flags:
+  --id       Unique identifier for this decision (e.g., "use-postgres")
+  --chose    The option that was selected
+  --because  The reasoning behind the choice
+
+Optional Flags:
+  --over     Comma-separated list of alternatives that were considered
+
+Examples:
+  tk decision add --id db-choice --chose PostgreSQL --over "MySQL,SQLite" --because "Better JSON support"
+  tk decision add --id auth-method --chose JWT --over "sessions,OAuth" --because "Stateless and scalable"
+  tk decision add --id framework --chose Cobra --because "Standard Go CLI library"`,
+	RunE: runDecisionAdd,
+}
+
+var decisionRemoveCmd = &cobra.Command{
+	Use:   "remove [id]",
+	Short: "Remove a decision by ID",
+	Long: `Remove a decision from the project context by its ID.
+
+Examples:
+  tk decision remove json-format          # Remove decision with ID "json-format"
+  tk decision remove use-cobra            # Remove decision with ID "use-cobra"`,
+	Args: cobra.ExactArgs(1),
+	RunE: runDecisionRemove,
+}
+
+func init() {
+	// Decision add subcommand flags
+	decisionAddCmd.Flags().String("id", "", "Decision ID")
+	decisionAddCmd.Flags().String("chose", "", "The option chosen")
+	decisionAddCmd.Flags().String("over", "", "Comma-separated alternatives considered")
+	decisionAddCmd.Flags().String("because", "", "Reasoning")
+	decisionAddCmd.MarkFlagRequired("id")
+	decisionAddCmd.MarkFlagRequired("chose")
+	decisionAddCmd.MarkFlagRequired("because")
+
+	// Register decision subcommands
+	decisionCmd.AddCommand(decisionListCmd)
+	decisionCmd.AddCommand(decisionAddCmd)
+	decisionCmd.AddCommand(decisionRemoveCmd)
+}
+
+// Shared implementation functions for decision commands
+func runDecisionList(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	decisions := f.Context.Decisions
+	if len(decisions) == 0 {
+		fmt.Println("No decisions recorded yet.")
+		fmt.Println("Use: tk decision add --id <id> --chose <choice> --over <alternatives> --because <reason>")
+		return nil
+	}
+
+	switch outputFormat {
+	case "json":
+		data, _ := json.MarshalIndent(decisions, "", "  ")
+		fmt.Println(string(data))
+	case "yaml":
+		data, _ := yaml.Marshal(decisions)
+		fmt.Print(string(data))
+	default:
+		fmt.Printf("Decisions (%d):\n\n", len(decisions))
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		for _, d := range decisions {
+			overStr := strings.Join(d.Over, ", ")
+			if len(overStr) > 30 {
+				overStr = overStr[:27] + "..."
+			}
+			becauseStr := d.Because
+			if len(becauseStr) > 40 {
+				becauseStr = becauseStr[:37] + "..."
+			}
+			fmt.Fprintf(w, "  %s\tChose: %s\tOver: %s\n", d.ID, d.Chose, overStr)
+			fmt.Fprintf(w, "  \tBecause: %s\n\n", becauseStr)
+		}
+		w.Flush()
+	}
+	return nil
+}
+
+func runDecisionAdd(cmd *cobra.Command, args []string) error {
+	id, _ := cmd.Flags().GetString("id")
+	chose, _ := cmd.Flags().GetString("chose")
+	over, _ := cmd.Flags().GetString("over")
+	because, _ := cmd.Flags().GetString("because")
+
+	if id == "" || chose == "" || because == "" {
+		return fmt.Errorf("usage: tk decision add --id <id> --chose <choice> --over <options> --because <reason>")
+	}
+
+	alternatives := strings.Split(over, ",")
+	for i := range alternatives {
+		alternatives[i] = strings.TrimSpace(alternatives[i])
+	}
+
+	d := task.Decision{
+		ID:      id,
+		Chose:   chose,
+		Over:    alternatives,
+		Because: because,
+	}
+
+	s := store.Default()
+	if err := s.AddDecision(d); err != nil {
+		return err
+	}
+
+	fmt.Printf("Decision recorded: %s\n", id)
+	return nil
+}
+
+func runDecisionRemove(cmd *cobra.Command, args []string) error {
+	decisionID := args[0]
+	s := store.Default()
+
+	return s.Update(func(f *task.File) error {
+		for i, d := range f.Context.Decisions {
+			if d.ID == decisionID {
+				removed := f.Context.Decisions[i]
+				f.Context.Decisions = append(f.Context.Decisions[:i], f.Context.Decisions[i+1:]...)
+				fmt.Printf("Removed decision: %s (chose %s)\n", removed.ID, removed.Chose)
+				return nil
+			}
+		}
+		return fmt.Errorf("decision not found: %s", decisionID)
+	})
+}
+
+// -----------------------------------------------------------------------------
+// Note Parent Command and Subcommands
+// -----------------------------------------------------------------------------
+
+var noteParentCmd = &cobra.Command{
+	Use:     "note",
+	Short:   "Manage notes",
+	Long:    `Manage notes attached to tasks.`,
+	Aliases: []string{"notes"},
+}
+
+var noteListCmd = &cobra.Command{
+	Use:   "list [task-id]",
+	Short: "List notes for a task or all notes",
+	Long: `Display notes recorded in the project context.
+
+If task-id is provided, show notes for that specific task.
+If no task-id is provided, show all notes grouped by task.
+
+Examples:
+  tk note list                    # List all notes grouped by task
+  tk note list my-task            # List notes for "my-task"
+  tk note list --format json      # Output as JSON`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runNoteList,
+}
+
+var noteAddCmd = &cobra.Command{
+	Use:   "add <task-id> <text>",
+	Short: "Add a note to a task",
+	Long: `Attach a note to a specific task for additional context.
+
+Notes are useful for:
+  - Recording progress updates
+  - Documenting blockers or issues encountered
+  - Capturing implementation details
+  - Leaving messages for other agents
+
+Notes appear when you run 'tk show' for the task.
+
+Examples:
+  tk note add my-task "Started implementation of auth flow"
+  tk note add fix-bug "Root cause: null pointer in UserService"
+  tk note add feature "Waiting for API spec from backend team"`,
+	Args: cobra.ExactArgs(2),
+	RunE: runNoteAdd,
+}
+
+var noteRemoveCmd = &cobra.Command{
+	Use:   "remove <task-id> <note-id>",
+	Short: "Remove a note from a task",
+	Long: `Remove a note from a task by its ID.
+
+Use 'tk note list <task-id>' to see available notes and their IDs.
+
+Examples:
+  tk note remove my-task a3x9k2    # Remove note with ID "a3x9k2" from "my-task"
+  tk note remove fix-bug b7m4p1    # Remove note with ID "b7m4p1" from "fix-bug"`,
+	Args: cobra.ExactArgs(2),
+	RunE: runNoteRemove,
+}
+
+func init() {
+	// Register note subcommands
+	noteParentCmd.AddCommand(noteListCmd)
+	noteParentCmd.AddCommand(noteAddCmd)
+	noteParentCmd.AddCommand(noteRemoveCmd)
+}
+
+// Shared implementation functions for note commands
+func runNoteList(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	notes := f.Context.Notes
+	if len(notes) == 0 {
+		fmt.Println("No notes recorded yet.")
+		fmt.Println("Use: tk note add <task-id> \"your note here\"")
+		return nil
+	}
+
+	// If task-id provided, show only that task's notes
+	if len(args) == 1 {
+		taskID := args[0]
+		taskNotes, exists := notes[taskID]
+		if !exists || len(taskNotes) == 0 {
+			return fmt.Errorf("no notes found for task: %s", taskID)
+		}
+
+		switch outputFormat {
+		case "json":
+			data, _ := json.MarshalIndent(map[string][]task.Note{taskID: taskNotes}, "", "  ")
+			fmt.Println(string(data))
+		case "yaml":
+			data, _ := yaml.Marshal(map[string][]task.Note{taskID: taskNotes})
+			fmt.Print(string(data))
+		default:
+			fmt.Printf("Notes for %s:\n", taskID)
+			for _, note := range taskNotes {
+				fmt.Printf("  [%s] %s\n", note.ID, note.Text)
+			}
+		}
+		return nil
+	}
+
+	// Show all notes grouped by task
+	switch outputFormat {
+	case "json":
+		data, _ := json.MarshalIndent(notes, "", "  ")
+		fmt.Println(string(data))
+	case "yaml":
+		data, _ := yaml.Marshal(notes)
+		fmt.Print(string(data))
+	default:
+		// Sort task IDs for consistent output
+		var taskIDs []string
+		for taskID := range notes {
+			taskIDs = append(taskIDs, taskID)
+		}
+		sort.Strings(taskIDs)
+
+		totalNotes := 0
+		for _, taskNotes := range notes {
+			totalNotes += len(taskNotes)
+		}
+
+		fmt.Printf("Notes (%d total across %d tasks):\n\n", totalNotes, len(notes))
+		for _, taskID := range taskIDs {
+			taskNotes := notes[taskID]
+			fmt.Printf("  [%s]\n", taskID)
+			for _, note := range taskNotes {
+				fmt.Printf("    [%s] %s\n", note.ID, note.Text)
+			}
+			fmt.Println()
+		}
+	}
+	return nil
+}
+
+func runNoteAdd(cmd *cobra.Command, args []string) error {
+	taskID := args[0]
+	note := args[1]
+
+	s := store.Default()
+	noteID, err := s.AddNote(taskID, note)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Note [%s] added to: %s\n", noteID, taskID)
+	return nil
+}
+
+func runNoteRemove(cmd *cobra.Command, args []string) error {
+	taskID := args[0]
+	noteID := args[1]
+
+	s := store.Default()
+	removedText, err := s.RemoveNote(taskID, noteID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Removed note: %s\n", removedText)
+	return nil
+}
+
+// =============================================================================
+// Deprecated Context Commands (kept for backward compatibility)
 // =============================================================================
 
 var learnCmd = &cobra.Command{
-	Use:   "learn \"insight\"",
-	Short: "Record an insight or knowledge discovered during work",
-	Long: `Record an insight, discovery, or piece of knowledge learned while working.
+	Use:        "learn \"insight\"",
+	Short:      "Record an insight or knowledge discovered during work",
+	Hidden:     true,
+	Deprecated: "use 'tk learning add' instead",
+	Long:       `Record an insight, discovery, or piece of knowledge learned while working.
 Learnings are stored in the context section and help build project knowledge.
 
 Use --permanent to also append the learning to CLAUDE.md for persistent documentation.
@@ -968,6 +1812,8 @@ func appendToCLAUDEmd(content, contentType string) error {
 var learningsCmd = &cobra.Command{
 	Use:   "learnings",
 	Short: "List all recorded learnings",
+	Hidden:     true,
+	Deprecated: "use 'tk learning list' instead",
 	Long: `Display all learnings recorded in the project context.
 
 Examples:
@@ -1012,6 +1858,8 @@ Examples:
 var unlearnCmd = &cobra.Command{
 	Use:   "unlearn <id or text>",
 	Short: "Remove a learning by ID or partial match",
+	Hidden:     true,
+	Deprecated: "use 'tk learning remove' instead",
 	Long: `Remove a learning from the project context.
 
 You can specify either:
@@ -1077,6 +1925,8 @@ func detectContextFile() string {
 var promoteCmd = &cobra.Command{
 	Use:   "promote <id or text>",
 	Short: "Promote a learning to permanent documentation",
+	Hidden:     true,
+	Deprecated: "use 'tk learning promote' instead",
 	Long: `Move a learning from .tasuku.json to your AI context file.
 
 Tasuku auto-detects which context file to use based on your project:
@@ -1198,6 +2048,8 @@ func appendToContextFile(filePath, learning string) error {
 var decideCmd = &cobra.Command{
 	Use:   "decide --id <id> --chose <option> --over <alternatives> --because <reason>",
 	Short: "Record an architectural or design decision",
+	Hidden:     true,
+	Deprecated: "use 'tk decision add' instead",
 	Long: `Document a decision made during development for future reference.
 
 Decisions capture:
@@ -1265,6 +2117,8 @@ func init() {
 var noteCmd = &cobra.Command{
 	Use:   "note <task-id> <text>",
 	Short: "Add a note to a task",
+	Hidden:     true,
+	Deprecated: "use 'tk note add' instead",
 	Long: `Attach a note to a specific task for additional context.
 
 Notes are useful for:
@@ -1298,6 +2152,8 @@ Examples:
 var decisionsCmd = &cobra.Command{
 	Use:   "decisions",
 	Short: "List all recorded decisions",
+	Hidden:     true,
+	Deprecated: "use 'tk decision list' instead",
 	Long: `Display all decisions recorded in the project context.
 
 Examples:
@@ -1348,6 +2204,8 @@ Examples:
 var undecideCmd = &cobra.Command{
 	Use:   "undecide [id]",
 	Short: "Remove a decision by ID",
+	Hidden:     true,
+	Deprecated: "use 'tk decision remove' instead",
 	Long: `Remove a decision from the project context by its ID.
 
 Examples:
@@ -1375,6 +2233,8 @@ Examples:
 var notesCmd = &cobra.Command{
 	Use:   "notes [task-id]",
 	Short: "List notes for a task or all notes",
+	Hidden:     true,
+	Deprecated: "use 'tk note list' instead",
 	Long: `Display notes recorded in the project context.
 
 If task-id is provided, show notes for that specific task.
@@ -1461,6 +2321,8 @@ Examples:
 var unnoteCmd = &cobra.Command{
 	Use:   "unnote <task-id> <note-id>",
 	Short: "Remove a note from a task",
+	Hidden:     true,
+	Deprecated: "use 'tk note remove' instead",
 	Long: `Remove a note from a task by its ID.
 
 Use 'tk notes <task-id>' to see available notes and their IDs.

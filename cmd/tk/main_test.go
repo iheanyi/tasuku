@@ -134,7 +134,7 @@ func TestCLI_Integration(t *testing.T) {
 
 	// Test learn
 	t.Run("learn", func(t *testing.T) {
-		output, err := runTk("learn", "Test insight")
+		output, err := runTk("learning", "add", "Test insight")
 		if err != nil {
 			t.Fatalf("learn failed: %v\n%s", err, output)
 		}
@@ -145,7 +145,7 @@ func TestCLI_Integration(t *testing.T) {
 
 	// Test decide
 	t.Run("decide", func(t *testing.T) {
-		output, err := runTk("decide",
+		output, err := runTk("decision", "add",
 			"--id", "test-decision",
 			"--chose", "Option A",
 			"--over", "Option B,Option C",
@@ -431,37 +431,37 @@ func TestLearningsCommands(t *testing.T) {
 	// Initialize
 	runTk("init")
 
-	// Test learnings list (empty)
+	// Test learnings list (empty) - using new noun-verb pattern
 	t.Run("learnings-empty", func(t *testing.T) {
-		output, err := runTk("learnings")
+		output, err := runTk("learning", "list")
 		if err != nil {
-			t.Fatalf("learnings failed: %v\n%s", err, output)
+			t.Fatalf("learning list failed: %v\n%s", err, output)
 		}
 		if !strings.Contains(output, "No learnings recorded") {
 			t.Errorf("expected empty message: %s", output)
 		}
 	})
 
-	// Add some learnings
+	// Add some learnings - using new noun-verb pattern
 	t.Run("learn-add", func(t *testing.T) {
-		output, err := runTk("learn", "Redis caching improves performance")
+		output, err := runTk("learning", "add", "Redis caching improves performance")
 		if err != nil {
-			t.Fatalf("learn failed: %v\n%s", err, output)
+			t.Fatalf("learning add failed: %v\n%s", err, output)
 		}
 		if !strings.Contains(output, "Learning added") {
 			t.Errorf("expected confirmation: %s", output)
 		}
 
 		// Add another
-		runTk("learn", "JWT tokens expire after 24 hours")
-		runTk("learn", "Database indexes are critical for queries")
+		runTk("learning", "add", "JWT tokens expire after 24 hours")
+		runTk("learning", "add", "Database indexes are critical for queries")
 	})
 
-	// Test learnings list (with items)
+	// Test learnings list (with items) - using new noun-verb pattern
 	t.Run("learnings-list", func(t *testing.T) {
-		output, err := runTk("learnings")
+		output, err := runTk("learning", "list")
 		if err != nil {
-			t.Fatalf("learnings failed: %v\n%s", err, output)
+			t.Fatalf("learning list failed: %v\n%s", err, output)
 		}
 		if !strings.Contains(output, "Redis") {
 			t.Errorf("expected Redis learning: %s", output)
@@ -474,22 +474,22 @@ func TestLearningsCommands(t *testing.T) {
 		}
 	})
 
-	// Test learnings JSON format
+	// Test learnings JSON format - using new noun-verb pattern
 	t.Run("learnings-json", func(t *testing.T) {
-		output, err := runTk("learnings", "--format", "json")
+		output, err := runTk("learning", "list", "--format", "json")
 		if err != nil {
-			t.Fatalf("learnings --format json failed: %v\n%s", err, output)
+			t.Fatalf("learning list --format json failed: %v\n%s", err, output)
 		}
 		if !strings.Contains(output, "[") || !strings.Contains(output, "]") {
 			t.Errorf("expected JSON array: %s", output)
 		}
 	})
 
-	// Test unlearn by index
+	// Test learning remove by index - using new noun-verb pattern
 	t.Run("unlearn-by-index", func(t *testing.T) {
-		output, err := runTk("unlearn", "2")
+		output, err := runTk("learning", "remove", "2")
 		if err != nil {
-			t.Fatalf("unlearn failed: %v\n%s", err, output)
+			t.Fatalf("learning remove failed: %v\n%s", err, output)
 		}
 		if !strings.Contains(output, "Removed") {
 			t.Errorf("expected removed message: %s", output)
@@ -499,7 +499,7 @@ func TestLearningsCommands(t *testing.T) {
 		}
 
 		// Verify it's gone
-		output, _ = runTk("learnings")
+		output, _ = runTk("learning", "list")
 		if strings.Contains(output, "JWT") {
 			t.Errorf("JWT should be removed: %s", output)
 		}
@@ -508,28 +508,28 @@ func TestLearningsCommands(t *testing.T) {
 		}
 	})
 
-	// Test unlearn by text match
+	// Test learning remove by text match - using new noun-verb pattern
 	t.Run("unlearn-by-text", func(t *testing.T) {
-		output, err := runTk("unlearn", "redis")
+		output, err := runTk("learning", "remove", "redis")
 		if err != nil {
-			t.Fatalf("unlearn by text failed: %v\n%s", err, output)
+			t.Fatalf("learning remove by text failed: %v\n%s", err, output)
 		}
 		if !strings.Contains(output, "Redis") {
 			t.Errorf("expected Redis in removed: %s", output)
 		}
 	})
 
-	// Test unlearn not found
+	// Test learning remove not found - using new noun-verb pattern
 	t.Run("unlearn-not-found", func(t *testing.T) {
-		_, err := runTk("unlearn", "nonexistent-learning")
+		_, err := runTk("learning", "remove", "nonexistent-learning")
 		if err == nil {
 			t.Error("expected error for nonexistent learning")
 		}
 	})
 
-	// Test unlearn index out of range
+	// Test learning remove index out of range - using new noun-verb pattern
 	t.Run("unlearn-out-of-range", func(t *testing.T) {
-		_, err := runTk("unlearn", "999")
+		_, err := runTk("learning", "remove", "999")
 		if err == nil {
 			t.Error("expected error for out of range index")
 		}
@@ -559,13 +559,13 @@ func TestPromoteCommand(t *testing.T) {
 		return string(output), err
 	}
 
-	// Initialize and add learning
+	// Initialize and add learning - using new noun-verb pattern
 	runTk("init")
-	runTk("learn", "Test learning for promotion")
+	runTk("learning", "add", "Test learning for promotion")
 
-	// Test promote (auto-detects CLAUDE.md)
+	// Test promote (auto-detects CLAUDE.md) - using new noun-verb pattern
 	t.Run("promote-default", func(t *testing.T) {
-		output, err := runTk("promote", "Test learning")
+		output, err := runTk("learning", "promote", "Test learning")
 		if err != nil {
 			t.Fatalf("promote failed: %v\n%s", err, output)
 		}
@@ -583,7 +583,7 @@ func TestPromoteCommand(t *testing.T) {
 		}
 
 		// Verify learning was removed from .tasuku.json
-		output, _ = runTk("learnings")
+		output, _ = runTk("learning", "list")
 		if strings.Contains(output, "Test learning") {
 			t.Errorf("learning should be removed from .tasuku.json: %s", output)
 		}
@@ -591,8 +591,8 @@ func TestPromoteCommand(t *testing.T) {
 
 	// Test promote with --keep
 	t.Run("promote-with-keep", func(t *testing.T) {
-		runTk("learn", "Another learning to keep")
-		output, err := runTk("promote", "Another learning", "--keep")
+		runTk("learning", "add", "Another learning to keep")
+		output, err := runTk("learning", "promote", "Another learning", "--keep")
 		if err != nil {
 			t.Fatalf("promote --keep failed: %v\n%s", err, output)
 		}
@@ -601,7 +601,7 @@ func TestPromoteCommand(t *testing.T) {
 		}
 
 		// Verify learning still exists in .tasuku.json
-		output, _ = runTk("learnings")
+		output, _ = runTk("learning", "list")
 		if !strings.Contains(output, "Another learning") {
 			t.Errorf("learning should still be in .tasuku.json: %s", output)
 		}
@@ -609,8 +609,8 @@ func TestPromoteCommand(t *testing.T) {
 
 	// Test promote to custom file
 	t.Run("promote-to-custom", func(t *testing.T) {
-		runTk("learn", "Custom file learning")
-		output, err := runTk("promote", "custom", "--to", "AGENTS.md")
+		runTk("learning", "add", "Custom file learning")
+		output, err := runTk("learning", "promote", "custom", "--to", "AGENTS.md")
 		if err != nil {
 			t.Fatalf("promote --to failed: %v\n%s", err, output)
 		}
@@ -630,7 +630,7 @@ func TestPromoteCommand(t *testing.T) {
 
 	// Test promote not found
 	t.Run("promote-not-found", func(t *testing.T) {
-		_, err := runTk("promote", "nonexistent-learning")
+		_, err := runTk("learning", "promote", "nonexistent-learning")
 		if err == nil {
 			t.Error("expected error for nonexistent learning")
 		}
@@ -932,17 +932,17 @@ func TestStatsCommand(t *testing.T) {
 	// Test stats with context (learnings and decisions)
 	t.Run("stats-with-context", func(t *testing.T) {
 		// Add learnings
-		runTk("learn", "First insight about the project")
-		runTk("learn", "Second insight about the project")
-		runTk("learn", "Third insight about the project")
+		runTk("learning", "add", "First insight about the project")
+		runTk("learning", "add", "Second insight about the project")
+		runTk("learning", "add", "Third insight about the project")
 
 		// Add decisions
-		runTk("decide",
+		runTk("decision", "add",
 			"--id", "decision-1",
 			"--chose", "Option A",
 			"--over", "Option B",
 			"--because", "Better performance")
-		runTk("decide",
+		runTk("decision", "add",
 			"--id", "decision-2",
 			"--chose", "JSON",
 			"--over", "YAML,TOML",
@@ -1014,7 +1014,7 @@ func TestContextCommands(t *testing.T) {
 	t.Run("decisions-empty", func(t *testing.T) {
 		_, runTk := setupTestDir(t)
 
-		output, err := runTk("decisions")
+		output, err := runTk("decision", "list")
 		if err != nil {
 			t.Fatalf("decisions failed: %v\n%s", err, output)
 		}
@@ -1027,7 +1027,7 @@ func TestContextCommands(t *testing.T) {
 		_, runTk := setupTestDir(t)
 
 		// Add some decisions
-		output, err := runTk("decide",
+		output, err := runTk("decision", "add",
 			"--id", "json-format",
 			"--chose", "JSON",
 			"--over", "YAML,TOML",
@@ -1040,14 +1040,14 @@ func TestContextCommands(t *testing.T) {
 		}
 
 		// Add another decision
-		runTk("decide",
+		runTk("decision", "add",
 			"--id", "use-cobra",
 			"--chose", "Cobra",
 			"--over", "flag,urfave/cli",
 			"--because", "Better subcommand support")
 
 		// List decisions
-		output, err = runTk("decisions")
+		output, err = runTk("decision", "list")
 		if err != nil {
 			t.Fatalf("decisions list failed: %v\n%s", err, output)
 		}
@@ -1069,14 +1069,14 @@ func TestContextCommands(t *testing.T) {
 		_, runTk := setupTestDir(t)
 
 		// Add a decision
-		runTk("decide",
+		runTk("decision", "add",
 			"--id", "test-decision",
 			"--chose", "Option A",
 			"--over", "Option B",
 			"--because", "Better performance")
 
 		// List decisions as JSON
-		output, err := runTk("decisions", "--format", "json")
+		output, err := runTk("decision", "list", "--format", "json")
 		if err != nil {
 			t.Fatalf("decisions --format json failed: %v\n%s", err, output)
 		}
@@ -1098,19 +1098,19 @@ func TestContextCommands(t *testing.T) {
 		_, runTk := setupTestDir(t)
 
 		// Add decisions
-		runTk("decide",
+		runTk("decision", "add",
 			"--id", "to-remove",
 			"--chose", "Remove Me",
 			"--over", "Keep Me",
 			"--because", "Testing removal")
-		runTk("decide",
+		runTk("decision", "add",
 			"--id", "to-keep",
 			"--chose", "Keep This",
 			"--over", "Other",
 			"--because", "Should remain")
 
 		// Remove the first decision
-		output, err := runTk("undecide", "to-remove")
+		output, err := runTk("decision", "remove", "to-remove")
 		if err != nil {
 			t.Fatalf("undecide failed: %v\n%s", err, output)
 		}
@@ -1122,7 +1122,7 @@ func TestContextCommands(t *testing.T) {
 		}
 
 		// Verify it's gone
-		output, _ = runTk("decisions")
+		output, _ = runTk("decision", "list")
 		if strings.Contains(output, "to-remove") {
 			t.Errorf("to-remove should be gone: %s", output)
 		}
@@ -1137,7 +1137,7 @@ func TestContextCommands(t *testing.T) {
 	t.Run("undecide-not-found", func(t *testing.T) {
 		_, runTk := setupTestDir(t)
 
-		_, err := runTk("undecide", "nonexistent-decision")
+		_, err := runTk("decision", "remove", "nonexistent-decision")
 		if err == nil {
 			t.Error("expected error for nonexistent decision")
 		}
@@ -1150,7 +1150,7 @@ func TestContextCommands(t *testing.T) {
 	t.Run("notes-empty", func(t *testing.T) {
 		_, runTk := setupTestDir(t)
 
-		output, err := runTk("notes")
+		output, err := runTk("note", "list")
 		if err != nil {
 			t.Fatalf("notes failed: %v\n%s", err, output)
 		}
@@ -1166,7 +1166,7 @@ func TestContextCommands(t *testing.T) {
 		runTk("add", "--id", "my-task", "My test task")
 
 		// Add notes to the task
-		output, err := runTk("note", "my-task", "First note for task")
+		output, err := runTk("note", "add", "my-task", "First note for task")
 		if err != nil {
 			t.Fatalf("note failed: %v\n%s", err, output)
 		}
@@ -1174,11 +1174,11 @@ func TestContextCommands(t *testing.T) {
 			t.Errorf("expected confirmation: %s", output)
 		}
 
-		runTk("note", "my-task", "Second note for task")
-		runTk("note", "my-task", "Third note for task")
+		runTk("note", "add", "my-task", "Second note for task")
+		runTk("note", "add", "my-task", "Third note for task")
 
 		// List notes for specific task
-		output, err = runTk("notes", "my-task")
+		output, err = runTk("note", "list", "my-task")
 		if err != nil {
 			t.Fatalf("notes my-task failed: %v\n%s", err, output)
 		}
@@ -1204,12 +1204,12 @@ func TestContextCommands(t *testing.T) {
 		runTk("add", "--id", "task-b", "Task B")
 
 		// Add notes to different tasks
-		runTk("note", "task-a", "Note for task A")
-		runTk("note", "task-a", "Another note for A")
-		runTk("note", "task-b", "Note for task B")
+		runTk("note", "add", "task-a", "Note for task A")
+		runTk("note", "add", "task-a", "Another note for A")
+		runTk("note", "add", "task-b", "Note for task B")
 
 		// List all notes
-		output, err := runTk("notes")
+		output, err := runTk("note", "list")
 		if err != nil {
 			t.Fatalf("notes failed: %v\n%s", err, output)
 		}
@@ -1238,10 +1238,10 @@ func TestContextCommands(t *testing.T) {
 
 		// Create task and add notes
 		runTk("add", "--id", "json-task", "JSON test task")
-		runTk("note", "json-task", "Note for JSON output")
+		runTk("note", "add", "json-task", "Note for JSON output")
 
 		// List notes as JSON
-		output, err := runTk("notes", "--format", "json")
+		output, err := runTk("note", "list", "--format", "json")
 		if err != nil {
 			t.Fatalf("notes --format json failed: %v\n%s", err, output)
 		}
@@ -1261,9 +1261,9 @@ func TestContextCommands(t *testing.T) {
 
 		// Create task and add notes
 		runTk("add", "--id", "unnote-task", "Task for unnote test")
-		runTk("note", "unnote-task", "First note to keep")
-		output2, _ := runTk("note", "unnote-task", "Second note to remove")
-		runTk("note", "unnote-task", "Third note to keep")
+		runTk("note", "add", "unnote-task", "First note to keep")
+		output2, _ := runTk("note", "add", "unnote-task", "Second note to remove")
+		runTk("note", "add", "unnote-task", "Third note to keep")
 
 		// Extract the note ID from the output like "Note [abc123] added to: unnote-task"
 		var noteID string
@@ -1278,7 +1278,7 @@ func TestContextCommands(t *testing.T) {
 		}
 
 		// Remove the second note by ID
-		output, err := runTk("unnote", "unnote-task", noteID)
+		output, err := runTk("note", "remove", "unnote-task", noteID)
 		if err != nil {
 			t.Fatalf("unnote failed: %v\n%s", err, output)
 		}
@@ -1290,7 +1290,7 @@ func TestContextCommands(t *testing.T) {
 		}
 
 		// Verify it's gone
-		output, _ = runTk("notes", "unnote-task")
+		output, _ = runTk("note", "list", "unnote-task")
 		if strings.Contains(output, "Second note to remove") {
 			t.Errorf("second note should be removed: %s", output)
 		}
@@ -1307,10 +1307,10 @@ func TestContextCommands(t *testing.T) {
 
 		// Create task and add one note
 		runTk("add", "--id", "range-task", "Task for range test")
-		runTk("note", "range-task", "Only note")
+		runTk("note", "add", "range-task", "Only note")
 
 		// Try to remove note with non-existent ID
-		output, err := runTk("unnote", "range-task", "nonexistent")
+		output, err := runTk("note", "remove", "range-task", "nonexistent")
 		if err == nil {
 			t.Error("expected error for non-existent note ID")
 		}
@@ -1394,15 +1394,15 @@ func TestTaskCRUDCommands(t *testing.T) {
 
 		// Create a task and add notes
 		runTk("add", "--id", "task-with-notes", "Task with notes")
-		runTk("note", "task-with-notes", "Note 1 for this task")
-		runTk("note", "task-with-notes", "Note 2 for this task")
+		runTk("note", "add", "task-with-notes", "Note 1 for this task")
+		runTk("note", "add", "task-with-notes", "Note 2 for this task")
 
 		// Create another task with notes to keep the notes map non-empty
 		runTk("add", "--id", "other-task", "Other task")
-		runTk("note", "other-task", "Other task note")
+		runTk("note", "add", "other-task", "Other task note")
 
 		// Verify notes exist
-		output, err := runTk("notes", "task-with-notes")
+		output, err := runTk("note", "list", "task-with-notes")
 		if err != nil {
 			t.Fatalf("notes failed: %v\n%s", err, output)
 		}
@@ -1417,7 +1417,7 @@ func TestTaskCRUDCommands(t *testing.T) {
 		}
 
 		// Verify notes for deleted task are gone (other-task notes still exist)
-		output, err = runTk("notes", "task-with-notes")
+		output, err = runTk("note", "list", "task-with-notes")
 		if err == nil {
 			t.Error("expected error when showing notes for deleted task")
 		}
@@ -1426,7 +1426,7 @@ func TestTaskCRUDCommands(t *testing.T) {
 		}
 
 		// Verify other-task notes still exist
-		output, err = runTk("notes", "other-task")
+		output, err = runTk("note", "list", "other-task")
 		if err != nil {
 			t.Fatalf("notes for other-task failed: %v\n%s", err, output)
 		}
