@@ -108,18 +108,97 @@ tk list --format json   # JSON output
 tk list --format yaml   # YAML output
 ```
 
-### Shell Completion
+## Shell Completion
+
+Tasuku supports tab completion for commands, subcommands, flags, and task IDs.
+
+### Quick Setup
 
 ```bash
-# Bash
-tk completion bash > /etc/bash_completion.d/tk
+# Bash (Linux)
+tk completion bash | sudo tee /etc/bash_completion.d/tk > /dev/null
+
+# Bash (macOS with Homebrew)
+tk completion bash > $(brew --prefix)/etc/bash_completion.d/tk
 
 # Zsh
-tk completion zsh > "${fpath[1]}/_tk"
+echo 'source <(tk completion zsh)' >> ~/.zshrc
 
 # Fish
 tk completion fish > ~/.config/fish/completions/tk.fish
 ```
+
+### Detailed Setup
+
+#### Bash
+
+```bash
+# Generate completion script
+tk completion bash > /tmp/tk.bash
+
+# Test in current session
+source /tmp/tk.bash
+
+# Install permanently (Linux)
+sudo mv /tmp/tk.bash /etc/bash_completion.d/tk
+
+# Install permanently (macOS)
+# First install bash-completion: brew install bash-completion@2
+tk completion bash > $(brew --prefix)/etc/bash_completion.d/tk
+# Add to ~/.bash_profile:
+# [[ -r "$(brew --prefix)/etc/profile.d/bash_completion.sh" ]] && source "$(brew --prefix)/etc/profile.d/bash_completion.sh"
+```
+
+#### Zsh
+
+```bash
+# Option 1: Source directly (add to ~/.zshrc)
+source <(tk completion zsh)
+
+# Option 2: Install to fpath
+tk completion zsh > "${fpath[1]}/_tk"
+# Then reload: autoload -Uz compinit && compinit
+
+# Option 3: Custom directory
+mkdir -p ~/.zsh/completions
+tk completion zsh > ~/.zsh/completions/_tk
+# Add to ~/.zshrc before compinit:
+# fpath=(~/.zsh/completions $fpath)
+```
+
+#### Fish
+
+```bash
+tk completion fish > ~/.config/fish/completions/tk.fish
+# Fish auto-loads from this directory
+```
+
+### What Gets Completed
+
+After setup, you can tab-complete:
+
+```bash
+tk <TAB>                    # Shows: task, learning, decision, note, ...
+tk task <TAB>               # Shows: list, add, show, start, done, ...
+tk task list --<TAB>        # Shows: --format, --status
+tk task start <TAB>         # Shows available task IDs
+tk learning <TAB>           # Shows: list, add, remove, promote
+```
+
+### Troubleshooting
+
+**Completions not working?**
+- Restart your shell after installing
+- Zsh: Run `compinit` or restart terminal
+- Bash: Ensure bash-completion is installed
+
+**"command not found: compdef" (Zsh)?**
+```bash
+autoload -Uz compinit && compinit
+```
+
+**Outdated completions?**
+Regenerate with the same command after upgrading tk.
 
 ## HTTP REST API
 

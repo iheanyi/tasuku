@@ -14,13 +14,36 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
+// =============================================================================
+// Task Stats Command (under task parent - noun-verb pattern)
+// =============================================================================
+
+var taskStatsCmd = &cobra.Command{
+	Use:   "stats",
+	Short: "Show task statistics and progress",
+	Long: `Display task statistics including counts by status, completion percentage,
+context counts (learnings/decisions), and tasks with most blockers.
+
+Examples:
+  tk task stats              # Show stats in table format
+  tk task stats -f json      # Output as JSON
+  tk task stats -f yaml      # Output as YAML`,
+	RunE: runStats,
+}
+
+// =============================================================================
+// Deprecated stats Command (kept for backward compatibility)
+// =============================================================================
+
 func init() {
 	rootCmd.AddCommand(statsCmd)
 }
 
 var statsCmd = &cobra.Command{
-	Use:   "stats",
-	Short: "Show task statistics and progress",
+	Use:        "stats",
+	Hidden:     true,
+	Deprecated: "use 'tk task stats' instead",
+	Short:      "Show task statistics and progress",
 	Long: `Display task statistics including counts by status, completion percentage,
 context counts (learnings/decisions), and tasks with most blockers.
 
@@ -28,16 +51,19 @@ Examples:
   tk stats              # Show stats in table format
   tk stats -f json      # Output as JSON
   tk stats -f yaml      # Output as YAML`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
-		f, err := s.Read()
-		if err != nil {
-			return err
-		}
+	RunE: runStats,
+}
 
-		stats := computeStats(f)
-		return outputStats(stats)
-	},
+// Shared implementation for stats
+func runStats(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	stats := computeStats(f)
+	return outputStats(stats)
 }
 
 // Stats represents task statistics

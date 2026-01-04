@@ -158,11 +158,11 @@ func TestCLI_Integration(t *testing.T) {
 		}
 	})
 
-	// Test context
+	// Test context show
 	t.Run("context", func(t *testing.T) {
-		output, err := runTk("context")
+		output, err := runTk("context", "show")
 		if err != nil {
-			t.Fatalf("context failed: %v\n%s", err, output)
+			t.Fatalf("context show failed: %v\n%s", err, output)
 		}
 		if !strings.Contains(output, "version") {
 			t.Errorf("expected JSON output: %s", output)
@@ -798,9 +798,9 @@ func TestStatsCommand(t *testing.T) {
 		// Initialize fresh for this test
 		runTk("init")
 
-		output, err := runTk("stats")
+		output, err := runTk("task", "stats")
 		if err != nil {
-			t.Fatalf("stats failed: %v\n%s", err, output)
+			t.Fatalf("task stats failed: %v\n%s", err, output)
 		}
 		if !strings.Contains(output, "Total tasks:     0") {
 			t.Errorf("expected 0 total tasks: %s", output)
@@ -830,9 +830,9 @@ func TestStatsCommand(t *testing.T) {
 		runTk("add", "--id", "task-blocked", "Blocked task")
 		runTk("block", "task-blocked", "--by", "task-ready-1")
 
-		output, err := runTk("stats")
+		output, err := runTk("task", "stats")
 		if err != nil {
-			t.Fatalf("stats failed: %v\n%s", err, output)
+			t.Fatalf("task stats failed: %v\n%s", err, output)
 		}
 
 		// Total should be 6
@@ -859,9 +859,9 @@ func TestStatsCommand(t *testing.T) {
 
 	// Test stats with JSON format
 	t.Run("stats-json", func(t *testing.T) {
-		output, err := runTk("stats", "--format", "json")
+		output, err := runTk("task", "stats", "--format", "json")
 		if err != nil {
-			t.Fatalf("stats --format json failed: %v\n%s", err, output)
+			t.Fatalf("task stats --format json failed: %v\n%s", err, output)
 		}
 
 		// Verify JSON structure
@@ -889,9 +889,9 @@ func TestStatsCommand(t *testing.T) {
 
 	// Test stats with YAML format
 	t.Run("stats-yaml", func(t *testing.T) {
-		output, err := runTk("stats", "--format", "yaml")
+		output, err := runTk("task", "stats", "--format", "yaml")
 		if err != nil {
-			t.Fatalf("stats --format yaml failed: %v\n%s", err, output)
+			t.Fatalf("task stats --format yaml failed: %v\n%s", err, output)
 		}
 
 		// Verify YAML structure (keys without quotes, indentation)
@@ -918,9 +918,9 @@ func TestStatsCommand(t *testing.T) {
 
 	// Test completion percentage calculation
 	t.Run("stats-completion-percentage", func(t *testing.T) {
-		output, err := runTk("stats")
+		output, err := runTk("task", "stats")
 		if err != nil {
-			t.Fatalf("stats failed: %v\n%s", err, output)
+			t.Fatalf("task stats failed: %v\n%s", err, output)
 		}
 
 		// With 2 done out of 6 total: 2/6 = 33%
@@ -948,9 +948,9 @@ func TestStatsCommand(t *testing.T) {
 			"--over", "YAML,TOML",
 			"--because", "Simpler parsing")
 
-		output, err := runTk("stats")
+		output, err := runTk("task", "stats")
 		if err != nil {
-			t.Fatalf("stats failed: %v\n%s", err, output)
+			t.Fatalf("task stats failed: %v\n%s", err, output)
 		}
 
 		// Verify learnings count
@@ -963,9 +963,9 @@ func TestStatsCommand(t *testing.T) {
 		}
 
 		// Also verify in JSON format
-		jsonOutput, err := runTk("stats", "--format", "json")
+		jsonOutput, err := runTk("task", "stats", "--format", "json")
 		if err != nil {
-			t.Fatalf("stats --format json failed: %v\n%s", err, jsonOutput)
+			t.Fatalf("task stats --format json failed: %v\n%s", err, jsonOutput)
 		}
 		if !strings.Contains(jsonOutput, `"learnings_count": 3`) {
 			t.Errorf("expected learnings_count: 3 in JSON: %s", jsonOutput)

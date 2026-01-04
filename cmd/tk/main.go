@@ -78,6 +78,8 @@ func init() {
 	taskCmd.AddCommand(editCmd)
 	taskCmd.AddCommand(pauseCmd)
 	taskCmd.AddCommand(ownerCmd)
+	taskCmd.AddCommand(taskStatsCmd)
+	taskCmd.AddCommand(taskDepsCmd)
 	rootCmd.AddCommand(taskCmd)
 
 	// Non-task root commands
@@ -87,6 +89,27 @@ func init() {
 	rootCmd.AddCommand(learningCmd)
 	rootCmd.AddCommand(decisionCmd)
 	rootCmd.AddCommand(noteParentCmd)
+
+	// Context parent command (noun-verb pattern)
+	contextParentCmd.AddCommand(contextShowCmd)
+	contextParentCmd.AddCommand(contextValidateCmd)
+	contextParentCmd.AddCommand(contextSchemaCmd)
+	rootCmd.AddCommand(contextParentCmd)
+
+	// Server parent command (noun-verb pattern)
+	serverCmd.AddCommand(serverStartCmd)
+	serverCmd.AddCommand(mcpCmd)
+	rootCmd.AddCommand(serverCmd)
+
+	// Hooks parent command (includes session/sync from old hook command)
+	hooksCmd.AddCommand(hooksInstallCmd)
+	hooksCmd.AddCommand(hooksUninstallCmd)
+	hooksCmd.AddCommand(hooksSessionCmd)
+	hooksCmd.AddCommand(hooksSyncCmd)
+	rootCmd.AddCommand(hooksCmd)
+
+	// Migration commands
+	rootCmd.AddCommand(migrateCmd)
 
 	// Deprecated commands (hidden, for backward compatibility)
 	rootCmd.AddCommand(learnCmd)
@@ -99,14 +122,11 @@ func init() {
 	rootCmd.AddCommand(noteCmd)
 	rootCmd.AddCommand(notesCmd)
 	rootCmd.AddCommand(unnoteCmd)
-	rootCmd.AddCommand(contextCmd)
-	rootCmd.AddCommand(serveCmd)
-	rootCmd.AddCommand(migrateCmd)
-	rootCmd.AddCommand(hooksCmd)
-	rootCmd.AddCommand(hookCmd)
-	rootCmd.AddCommand(mcpCmd)
-	rootCmd.AddCommand(validateCmd)
-	rootCmd.AddCommand(schemaCmd)
+	rootCmd.AddCommand(contextCmd)       // deprecated: use 'tk context show'
+	rootCmd.AddCommand(serveCmd)         // deprecated: use 'tk server start'
+	rootCmd.AddCommand(hookCmd)          // deprecated: use 'tk hooks session/sync'
+	rootCmd.AddCommand(validateCmd)      // deprecated: use 'tk context validate'
+	rootCmd.AddCommand(schemaCmd)        // deprecated: use 'tk context schema'
 }
 
 // =============================================================================
@@ -341,7 +361,7 @@ Examples:
 
 		notes := f.Context.Notes[taskID]
 
-		return outputTaskDetail(taskID, t, notes)
+		return outputTaskDetail(taskID, t, notes, f.Tasks)
 	},
 }
 
@@ -2346,9 +2366,220 @@ Examples:
 	},
 }
 
-var contextCmd = &cobra.Command{
-	Use:   "context",
+// =============================================================================
+// Context Parent Command and Subcommands (noun-verb pattern)
+// =============================================================================
+
+var contextParentCmd = &cobra.Command{
+	Use:     "context",
+	Aliases: []string{"ctx"},
+	Short:   "Manage project context (learnings, decisions, notes)",
+	Long: `Manage and inspect the project context in .tasuku.json.
+
+Subcommands:
+  show      Dump the complete project context for agent consumption
+  validate  Validate .tasuku.json for correctness
+  schema    Output JSON Schema for .tasuku.json
+
+Examples:
+  tk context show              # Output full context as JSON
+  tk context validate          # Validate .tasuku.json
+  tk context schema            # Show JSON schema`,
+}
+
+var contextShowCmd = &cobra.Command{
+	Use:   "show",
 	Short: "Dump the complete project context for agent consumption",
+	Long: `Output the entire .tasuku.json contents as structured data.
+
+This command is designed for AI agents that need the full project context,
+including all tasks, learnings, decisions, and notes.
+
+Output includes:
+  - version: Schema version number
+  - tasks: All tasks with their statuses, priorities, dependencies
+  - context.learnings: Insights discovered during work
+  - context.decisions: Documented architectural choices
+  - context.notes: Notes attached to tasks
+
+The output format defaults to JSON but can be changed to YAML.
+
+Examples:
+  tk context show              # Output as JSON
+  tk context show -f yaml      # Output as YAML
+  tk context show | jq '.tasks'  # Pipe to jq for processing`,
+	RunE: runContextShow,
+}
+
+var contextValidateCmd = &cobra.Command{
+	Use:   "validate",
+	Short: "Validate .tasuku.json",
+	Long: `Validate the .tasuku.json file for correctness.
+
+Checks performed:
+- Version is supported (must be 1)
+- All tasks have non-empty descriptions
+- All tasks have valid statuses
+- No circular dependencies in blocked_by relationships
+
+Examples:
+  tk context validate`,
+	RunE: runContextValidate,
+}
+
+var contextSchemaCmd = &cobra.Command{
+	Use:   "schema",
+	Short: "Output JSON Schema for .tasuku.json",
+	Long: `Output the JSON Schema definition for .tasuku.json files.
+
+The schema defines:
+  - version: Must be 1 (integer)
+  - tasks: Object mapping task IDs to task objects
+    - status: ready, in_progress, blocked, or done
+    - description: Task description (string)
+    - priority: 0-4 (0=critical, 4=backlog)
+    - blocked_by: Array of task IDs this task depends on
+    - owner: Optional owner identifier
+    - created_at/updated_at: ISO 8601 timestamps
+  - context: Shared knowledge object
+    - learnings: Array of insight strings
+    - decisions: Array of decision objects (chose/over/because)
+    - notes: Object mapping task IDs to note arrays
+
+Use Cases:
+  - IDE validation: Configure your editor to validate .tasuku.json
+  - Documentation: Reference for file format
+  - Tooling: Build tools that work with Tasuku files
+
+Examples:
+  tk context schema                   # Print schema to stdout
+  tk context schema > tasuku.schema.json  # Save schema to file`,
+	RunE: runContextSchema,
+}
+
+// Shared implementation for context show
+func runContextShow(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	// Context always outputs structured data
+	if outputFormat == "yaml" {
+		data, _ := yaml.Marshal(f)
+		fmt.Print(string(data))
+	} else {
+		data, _ := json.MarshalIndent(f, "", "  ")
+		fmt.Println(string(data))
+	}
+	return nil
+}
+
+// Shared implementation for context validate
+func runContextValidate(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	f, err := s.Read()
+	if err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	if f.Version != 1 {
+		return fmt.Errorf("unsupported version: %d", f.Version)
+	}
+
+	for id, t := range f.Tasks {
+		if t.Description == "" {
+			return fmt.Errorf("task %s has empty description", id)
+		}
+		switch t.Status {
+		case task.StatusReady, task.StatusInProgress, task.StatusBlocked, task.StatusDone:
+			// Valid
+		default:
+			return fmt.Errorf("task %s has invalid status: %s", id, t.Status)
+		}
+	}
+
+	// Detect circular dependencies
+	cycles := detectCircularDependencies(f.Tasks)
+	if len(cycles) > 0 {
+		fmt.Println("Circular dependencies detected:")
+		for _, cycle := range cycles {
+			fmt.Printf("  %s\n", strings.Join(cycle, " -> "))
+		}
+		return fmt.Errorf("found %d circular dependency chain(s)", len(cycles))
+	}
+
+	fmt.Println("Validation passed")
+	return nil
+}
+
+// Shared implementation for context schema
+func runContextSchema(cmd *cobra.Command, args []string) error {
+	schema := `{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/iheanyi/tasuku/schema.json",
+  "title": "Tasuku File",
+  "description": "Schema for .tasuku.json task management file",
+  "type": "object",
+  "required": ["version", "tasks", "context"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "tasks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "description", "blocked_by", "created_at", "updated_at"],
+        "properties": {
+          "status": { "type": "string", "enum": ["ready", "in_progress", "blocked", "done"] },
+          "description": { "type": "string" },
+          "priority": { "type": "integer", "minimum": 0, "maximum": 4 },
+          "blocked_by": { "type": "array", "items": { "type": "string" } },
+          "owner": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "required": ["learnings", "decisions", "notes"],
+      "properties": {
+        "learnings": { "type": "array", "items": { "type": "string" } },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "chose", "over", "because"],
+            "properties": {
+              "id": { "type": "string" },
+              "chose": { "type": "string" },
+              "over": { "type": "array", "items": { "type": "string" } },
+              "because": { "type": "string" }
+            }
+          }
+        },
+        "notes": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}`
+	fmt.Println(schema)
+	return nil
+}
+
+// =============================================================================
+// Deprecated Context Command (kept for backward compatibility)
+// =============================================================================
+
+var contextCmd = &cobra.Command{
+	Use:        "context",
+	Hidden:     true,
+	Deprecated: "use 'tk context show' instead",
+	Short:      "Dump the complete project context for agent consumption",
 	Long: `Output the entire .tasuku.json contents as structured data.
 
 This command is designed for AI agents that need the full project context,
@@ -2367,32 +2598,98 @@ Examples:
   tk context                   # Output as JSON
   tk context -f yaml           # Output as YAML
   tk context | jq '.tasks'     # Pipe to jq for processing`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
-		f, err := s.Read()
-		if err != nil {
-			return err
-		}
-
-		// Context always outputs structured data
-		if outputFormat == "yaml" {
-			data, _ := yaml.Marshal(f)
-			fmt.Print(string(data))
-		} else {
-			data, _ := json.MarshalIndent(f, "", "  ")
-			fmt.Println(string(data))
-		}
-		return nil
-	},
+	RunE: runContextShow,
 }
 
 // =============================================================================
-// Server Commands
+// Server Parent Command and Subcommands (noun-verb pattern)
+// =============================================================================
+
+var serverCmd = &cobra.Command{
+	Use:     "server",
+	Aliases: []string{"srv"},
+	Short:   "Manage Tasuku server",
+	Long: `Manage the Tasuku server for AI tool integration or HTTP API access.
+
+Subcommands:
+  start     Start the MCP or HTTP server
+  mcp       Manage MCP server configuration
+
+Examples:
+  tk server start              # Start MCP server (stdio mode)
+  tk server start --http :3000 # Start HTTP server
+  tk server mcp install        # Auto-configure MCP in AI tools`,
+}
+
+var serverStartCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the Tasuku server (MCP or HTTP)",
+	Long: `Start a server for AI tool integration or HTTP API access.
+
+Server Modes:
+
+  MCP stdio (default):
+    Used by Claude Code and other MCP-compatible AI tools.
+    Communicates via stdin/stdout using the MCP protocol.
+    This is the mode used when configured in AI tool settings.
+
+  HTTP server (--http or --port):
+    Runs a REST API server for programmatic access.
+    Useful for integration with other tools or custom scripts.
+
+MCP Tools Exposed:
+  tk_list, tk_add, tk_start, tk_done, tk_block, tk_unblock,
+  tk_learn, tk_decide, tk_context, and more.
+
+Examples:
+  tk server start                     # Start MCP server (stdio mode)
+  tk server start --http :3000        # Start HTTP server on port 3000
+  tk server start --http localhost:8080  # HTTP on specific address
+
+See also:
+  tk server mcp install        # Auto-configure MCP in your AI tools
+  tk server mcp config         # Show MCP configuration JSON`,
+	RunE: runServerStart,
+}
+
+func init() {
+	serverStartCmd.Flags().Int("port", 0, "HTTP port (deprecated, use --http)")
+	serverStartCmd.Flags().String("http", "", "HTTP address (e.g., :3000 or localhost:8080)")
+}
+
+// Shared implementation for server start
+func runServerStart(cmd *cobra.Command, args []string) error {
+	port, _ := cmd.Flags().GetInt("port")
+	httpAddr, _ := cmd.Flags().GetString("http")
+
+	s := store.Default()
+
+	// HTTP mode via --http
+	if httpAddr != "" {
+		httpServer := tkhttp.New(s)
+		return httpServer.Run(httpAddr)
+	}
+
+	// HTTP mode via --port (legacy)
+	if port > 0 {
+		httpServer := tkhttp.New(s)
+		return httpServer.Run(fmt.Sprintf(":%d", port))
+	}
+
+	// Default: MCP stdio mode
+	mcpServer := mcp.New(s)
+	return mcpServer.Run()
+}
+
+// =============================================================================
+// Deprecated serve Command (kept for backward compatibility)
 // =============================================================================
 
 var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "Start the Tasuku server (MCP or HTTP)",
+	Use:        "serve",
+	Hidden:     true,
+	Deprecated: "use 'tk server start' instead",
+	Short:      "Start the Tasuku server (MCP or HTTP)",
 	Long: `Start a server for AI tool integration or HTTP API access.
 
 Server Modes:
@@ -2419,28 +2716,7 @@ Examples:
 See also:
   tk mcp install               # Auto-configure MCP in your AI tools
   tk mcp config                # Show MCP configuration JSON`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		port, _ := cmd.Flags().GetInt("port")
-		httpAddr, _ := cmd.Flags().GetString("http")
-
-		s := store.Default()
-
-		// HTTP mode via --http
-		if httpAddr != "" {
-			httpServer := tkhttp.New(s)
-			return httpServer.Run(httpAddr)
-		}
-
-		// HTTP mode via --port (legacy)
-		if port > 0 {
-			httpServer := tkhttp.New(s)
-			return httpServer.Run(fmt.Sprintf(":%d", port))
-		}
-
-		// Default: MCP stdio mode
-		mcpServer := mcp.New(s)
-		return mcpServer.Run()
-	},
+	RunE: runServerStart,
 }
 
 func init() {
@@ -2492,19 +2768,23 @@ func init() {
 }
 
 // =============================================================================
-// Hook Commands
+// Hooks Commands (noun-verb pattern)
 // =============================================================================
 
 var hooksCmd = &cobra.Command{
 	Use:   "hooks",
-	Short: "Manage git hooks for Tasuku integration",
-	Long: `Manage git hooks that integrate Tasuku with your git workflow.
+	Short: "Manage git hooks and AI integration hooks",
+	Long: `Manage hooks for git and AI tool integration with Tasuku.
 
-Available subcommands:
+Git Hook Subcommands:
   install    Install pre-commit and post-commit hooks
   uninstall  Remove Tasuku hooks (preserves other hook content)
 
-The hooks provide:
+AI Integration Subcommands:
+  session    Display Tasuku context summary at session start
+  sync       Sync tasks from TodoWrite JSON input
+
+The git hooks provide:
   - pre-commit: Validates .tasuku.json before commits
   - post-commit: Suggests task status updates based on commit messages
 
@@ -2540,14 +2820,48 @@ Any other hook content (from other tools) will be preserved.`,
 	},
 }
 
-func init() {
-	hooksCmd.AddCommand(hooksInstallCmd)
-	hooksCmd.AddCommand(hooksUninstallCmd)
+var hooksSessionCmd = &cobra.Command{
+	Use:   "session",
+	Short: "Display Tasuku context summary",
+	Long: `Display a summary of Tasuku context for Claude Code session start.
+
+Shows:
+  - Task counts by status
+  - Number of learnings and decisions
+  - Suggested next task based on priority
+
+Examples:
+  tk hooks session               # Display context summary`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookSession()
+	},
 }
 
+var hooksSyncCmd = &cobra.Command{
+	Use:   "sync",
+	Short: "Sync tasks from TodoWrite JSON",
+	Long: `Sync tasks from Claude Code's TodoWrite tool.
+
+Reads JSON from stdin in TodoWrite format and syncs to .tasuku.json.
+Creates new tasks or updates status of existing ones.
+
+Examples:
+  tk hooks sync < todos.json         # Sync from file
+  echo '[...]' | tk hooks sync       # Sync from piped JSON`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookSync()
+	},
+}
+
+// =============================================================================
+// Deprecated hook Command (kept for backward compatibility)
+// =============================================================================
+
 var hookCmd = &cobra.Command{
-	Use:   "hook",
-	Short: "Run Claude Code integration hooks",
+	Use:        "hook",
+	Hidden:     true,
+	Deprecated: "use 'tk hooks session' or 'tk hooks sync' instead",
+	Short:      "Run Claude Code integration hooks",
 	Long: `Run internal hooks for Claude Code integration.
 
 Available subcommands:
@@ -2559,8 +2873,10 @@ but can be run manually for debugging.`,
 }
 
 var hookSessionCmd = &cobra.Command{
-	Use:   "session",
-	Short: "Display Tasuku context summary",
+	Use:        "session",
+	Hidden:     true,
+	Deprecated: "use 'tk hooks session' instead",
+	Short:      "Display Tasuku context summary",
 	Long: `Display a summary of Tasuku context for Claude Code session start.
 
 Shows:
@@ -2573,8 +2889,10 @@ Shows:
 }
 
 var hookSyncCmd = &cobra.Command{
-	Use:   "sync",
-	Short: "Sync tasks from TodoWrite JSON",
+	Use:        "sync",
+	Hidden:     true,
+	Deprecated: "use 'tk hooks sync' instead",
+	Short:      "Sync tasks from TodoWrite JSON",
 	Long: `Sync tasks from Claude Code's TodoWrite tool.
 
 Reads JSON from stdin in TodoWrite format and syncs to .tasuku.json.
@@ -2660,12 +2978,14 @@ func init() {
 }
 
 // =============================================================================
-// Utility Commands
+// Deprecated Utility Commands (kept for backward compatibility)
 // =============================================================================
 
 var validateCmd = &cobra.Command{
-	Use:   "validate",
-	Short: "Validate .tasuku.json",
+	Use:        "validate",
+	Hidden:     true,
+	Deprecated: "use 'tk context validate' instead",
+	Short:      "Validate .tasuku.json",
 	Long: `Validate the .tasuku.json file for correctness.
 
 Checks performed:
@@ -2676,42 +2996,7 @@ Checks performed:
 
 Examples:
   tk validate`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
-		f, err := s.Read()
-		if err != nil {
-			return fmt.Errorf("validation failed: %w", err)
-		}
-
-		if f.Version != 1 {
-			return fmt.Errorf("unsupported version: %d", f.Version)
-		}
-
-		for id, t := range f.Tasks {
-			if t.Description == "" {
-				return fmt.Errorf("task %s has empty description", id)
-			}
-			switch t.Status {
-			case task.StatusReady, task.StatusInProgress, task.StatusBlocked, task.StatusDone:
-				// Valid
-			default:
-				return fmt.Errorf("task %s has invalid status: %s", id, t.Status)
-			}
-		}
-
-		// Detect circular dependencies
-		cycles := detectCircularDependencies(f.Tasks)
-		if len(cycles) > 0 {
-			fmt.Println("Circular dependencies detected:")
-			for _, cycle := range cycles {
-				fmt.Printf("  %s\n", strings.Join(cycle, " -> "))
-			}
-			return fmt.Errorf("found %d circular dependency chain(s)", len(cycles))
-		}
-
-		fmt.Println("Validation passed")
-		return nil
-	},
+	RunE: runContextValidate,
 }
 
 // detectCircularDependencies finds all circular dependency chains in blocked_by relationships.
@@ -2796,8 +3081,10 @@ func normalizeCycle(cycle []string) string {
 }
 
 var schemaCmd = &cobra.Command{
-	Use:   "schema",
-	Short: "Output JSON Schema for .tasuku.json",
+	Use:        "schema",
+	Hidden:     true,
+	Deprecated: "use 'tk context schema' instead",
+	Short:      "Output JSON Schema for .tasuku.json",
 	Long: `Output the JSON Schema definition for .tasuku.json files.
 
 The schema defines:
@@ -2822,61 +3109,7 @@ Use Cases:
 Examples:
   tk schema                      # Print schema to stdout
   tk schema > tasuku.schema.json # Save schema to file`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		schema := `{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/iheanyi/tasuku/schema.json",
-  "title": "Tasuku File",
-  "description": "Schema for .tasuku.json task management file",
-  "type": "object",
-  "required": ["version", "tasks", "context"],
-  "properties": {
-    "version": { "type": "integer", "const": 1 },
-    "tasks": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "required": ["status", "description", "blocked_by", "created_at", "updated_at"],
-        "properties": {
-          "status": { "type": "string", "enum": ["ready", "in_progress", "blocked", "done"] },
-          "description": { "type": "string" },
-          "priority": { "type": "integer", "minimum": 0, "maximum": 4 },
-          "blocked_by": { "type": "array", "items": { "type": "string" } },
-          "owner": { "type": ["string", "null"] },
-          "created_at": { "type": "string", "format": "date-time" },
-          "updated_at": { "type": "string", "format": "date-time" }
-        }
-      }
-    },
-    "context": {
-      "type": "object",
-      "required": ["learnings", "decisions", "notes"],
-      "properties": {
-        "learnings": { "type": "array", "items": { "type": "string" } },
-        "decisions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["id", "chose", "over", "because"],
-            "properties": {
-              "id": { "type": "string" },
-              "chose": { "type": "string" },
-              "over": { "type": "array", "items": { "type": "string" } },
-              "because": { "type": "string" }
-            }
-          }
-        },
-        "notes": {
-          "type": "object",
-          "additionalProperties": { "type": "array", "items": { "type": "string" } }
-        }
-      }
-    }
-  }
-}`
-		fmt.Println(schema)
-		return nil
-	},
+	RunE: runContextSchema,
 }
 
 // =============================================================================
@@ -2930,20 +3163,25 @@ func outputTasks(tasks []taskEntry) error {
 	return nil
 }
 
-func outputTaskDetail(id string, t task.Task, notes []task.Note) error {
+func outputTaskDetail(id string, t task.Task, notes []task.Note, allTasks map[string]task.Task) error {
+	// Find which tasks this task blocks (reverse lookup)
+	blocks := findBlockedTasks(id, allTasks)
+
 	switch outputFormat {
 	case "json":
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"id":    id,
-			"task":  t,
-			"notes": notes,
+			"id":     id,
+			"task":   t,
+			"notes":  notes,
+			"blocks": blocks,
 		}, "", "  ")
 		fmt.Println(string(data))
 	case "yaml":
 		data, _ := yaml.Marshal(map[string]interface{}{
-			"id":    id,
-			"task":  t,
-			"notes": notes,
+			"id":     id,
+			"task":   t,
+			"notes":  notes,
+			"blocks": blocks,
 		})
 		fmt.Print(string(data))
 	default: // table
@@ -2956,6 +3194,9 @@ func outputTaskDetail(id string, t task.Task, notes []task.Note) error {
 		if len(t.BlockedBy) > 0 {
 			fmt.Printf("Blocked by:  %s\n", strings.Join(t.BlockedBy, ", "))
 		}
+		if len(blocks) > 0 {
+			fmt.Printf("Blocks:      %s\n", strings.Join(blocks, ", "))
+		}
 		if t.Owner != nil {
 			fmt.Printf("Owner:       %s\n", *t.Owner)
 		}
@@ -2966,7 +3207,7 @@ func outputTaskDetail(id string, t task.Task, notes []task.Note) error {
 			fmt.Printf("\nNotes:\n")
 			for _, note := range notes {
 				timeStr := formatRelativeTime(note.CreatedAt)
-			fmt.Printf("  - %s (%s)\n", note.Text, timeStr)
+				fmt.Printf("  - %s (%s)\n", note.Text, timeStr)
 			}
 		}
 	}
