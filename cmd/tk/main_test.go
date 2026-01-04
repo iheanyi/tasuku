@@ -769,3 +769,868 @@ func TestPartialUnblock(t *testing.T) {
 		}
 	})
 }
+
+func TestStatsCommand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tk")
+
+	cmd := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build: %v\n%s", err, output)
+	}
+
+	testDir := filepath.Join(dir, "project")
+	os.MkdirAll(testDir, 0755)
+
+	runTk := func(args ...string) (string, error) {
+		cmd := exec.Command(binary, args...)
+		cmd.Dir = testDir
+		output, err := cmd.CombinedOutput()
+		return string(output), err
+	}
+
+	// Test stats on empty task list
+	t.Run("stats-empty", func(t *testing.T) {
+		// Initialize fresh for this test
+		runTk("init")
+
+		output, err := runTk("stats")
+		if err != nil {
+			t.Fatalf("stats failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Total tasks:     0") {
+			t.Errorf("expected 0 total tasks: %s", output)
+		}
+		if !strings.Contains(output, "Completion:      0%") {
+			t.Errorf("expected 0%% completion: %s", output)
+		}
+		if !strings.Contains(output, "Learnings:     0") {
+			t.Errorf("expected 0 learnings: %s", output)
+		}
+		if !strings.Contains(output, "Decisions:     0") {
+			t.Errorf("expected 0 decisions: %s", output)
+		}
+	})
+
+	// Test stats with tasks in various states
+	t.Run("stats-with-tasks", func(t *testing.T) {
+		// Add tasks in different states
+		runTk("add", "--id", "task-ready-1", "Ready task 1")
+		runTk("add", "--id", "task-ready-2", "Ready task 2")
+		runTk("add", "--id", "task-in-progress", "In progress task")
+		runTk("start", "task-in-progress")
+		runTk("add", "--id", "task-done-1", "Done task 1")
+		runTk("done", "task-done-1")
+		runTk("add", "--id", "task-done-2", "Done task 2")
+		runTk("done", "task-done-2")
+		runTk("add", "--id", "task-blocked", "Blocked task")
+		runTk("block", "task-blocked", "--by", "task-ready-1")
+
+		output, err := runTk("stats")
+		if err != nil {
+			t.Fatalf("stats failed: %v\n%s", err, output)
+		}
+
+		// Total should be 6
+		if !strings.Contains(output, "Total tasks:     6") {
+			t.Errorf("expected 6 total tasks: %s", output)
+		}
+		// Ready: 2
+		if !strings.Contains(output, "Ready:         2") {
+			t.Errorf("expected 2 ready tasks: %s", output)
+		}
+		// In Progress: 1
+		if !strings.Contains(output, "In Progress:   1") {
+			t.Errorf("expected 1 in progress task: %s", output)
+		}
+		// Done: 2
+		if !strings.Contains(output, "Done:          2") {
+			t.Errorf("expected 2 done tasks: %s", output)
+		}
+		// Blocked: 1
+		if !strings.Contains(output, "Blocked:       1") {
+			t.Errorf("expected 1 blocked task: %s", output)
+		}
+	})
+
+	// Test stats with JSON format
+	t.Run("stats-json", func(t *testing.T) {
+		output, err := runTk("stats", "--format", "json")
+		if err != nil {
+			t.Fatalf("stats --format json failed: %v\n%s", err, output)
+		}
+
+		// Verify JSON structure
+		if !strings.Contains(output, `"total_tasks":`) {
+			t.Errorf("expected total_tasks in JSON: %s", output)
+		}
+		if !strings.Contains(output, `"by_status":`) {
+			t.Errorf("expected by_status in JSON: %s", output)
+		}
+		if !strings.Contains(output, `"completion_percent":`) {
+			t.Errorf("expected completion_percent in JSON: %s", output)
+		}
+		if !strings.Contains(output, `"learnings_count":`) {
+			t.Errorf("expected learnings_count in JSON: %s", output)
+		}
+		if !strings.Contains(output, `"decisions_count":`) {
+			t.Errorf("expected decisions_count in JSON: %s", output)
+		}
+		// Check it starts and ends with braces (valid JSON object)
+		trimmed := strings.TrimSpace(output)
+		if !strings.HasPrefix(trimmed, "{") || !strings.HasSuffix(trimmed, "}") {
+			t.Errorf("expected valid JSON object: %s", output)
+		}
+	})
+
+	// Test stats with YAML format
+	t.Run("stats-yaml", func(t *testing.T) {
+		output, err := runTk("stats", "--format", "yaml")
+		if err != nil {
+			t.Fatalf("stats --format yaml failed: %v\n%s", err, output)
+		}
+
+		// Verify YAML structure (keys without quotes, indentation)
+		if !strings.Contains(output, "total_tasks:") {
+			t.Errorf("expected total_tasks in YAML: %s", output)
+		}
+		if !strings.Contains(output, "by_status:") {
+			t.Errorf("expected by_status in YAML: %s", output)
+		}
+		if !strings.Contains(output, "completion_percent:") {
+			t.Errorf("expected completion_percent in YAML: %s", output)
+		}
+		if !strings.Contains(output, "learnings_count:") {
+			t.Errorf("expected learnings_count in YAML: %s", output)
+		}
+		if !strings.Contains(output, "decisions_count:") {
+			t.Errorf("expected decisions_count in YAML: %s", output)
+		}
+		// YAML shouldn't have braces like JSON
+		if strings.Contains(output, `"total_tasks":`) {
+			t.Errorf("YAML shouldn't have quoted keys like JSON: %s", output)
+		}
+	})
+
+	// Test completion percentage calculation
+	t.Run("stats-completion-percentage", func(t *testing.T) {
+		output, err := runTk("stats")
+		if err != nil {
+			t.Fatalf("stats failed: %v\n%s", err, output)
+		}
+
+		// With 2 done out of 6 total: 2/6 = 33%
+		if !strings.Contains(output, "Completion:      33% (2/6)") {
+			t.Errorf("expected 33%% completion (2/6): %s", output)
+		}
+	})
+
+	// Test stats with context (learnings and decisions)
+	t.Run("stats-with-context", func(t *testing.T) {
+		// Add learnings
+		runTk("learn", "First insight about the project")
+		runTk("learn", "Second insight about the project")
+		runTk("learn", "Third insight about the project")
+
+		// Add decisions
+		runTk("decide",
+			"--id", "decision-1",
+			"--chose", "Option A",
+			"--over", "Option B",
+			"--because", "Better performance")
+		runTk("decide",
+			"--id", "decision-2",
+			"--chose", "JSON",
+			"--over", "YAML,TOML",
+			"--because", "Simpler parsing")
+
+		output, err := runTk("stats")
+		if err != nil {
+			t.Fatalf("stats failed: %v\n%s", err, output)
+		}
+
+		// Verify learnings count
+		if !strings.Contains(output, "Learnings:     3") {
+			t.Errorf("expected 3 learnings: %s", output)
+		}
+		// Verify decisions count
+		if !strings.Contains(output, "Decisions:     2") {
+			t.Errorf("expected 2 decisions: %s", output)
+		}
+
+		// Also verify in JSON format
+		jsonOutput, err := runTk("stats", "--format", "json")
+		if err != nil {
+			t.Fatalf("stats --format json failed: %v\n%s", err, jsonOutput)
+		}
+		if !strings.Contains(jsonOutput, `"learnings_count": 3`) {
+			t.Errorf("expected learnings_count: 3 in JSON: %s", jsonOutput)
+		}
+		if !strings.Contains(jsonOutput, `"decisions_count": 2`) {
+			t.Errorf("expected decisions_count: 2 in JSON: %s", jsonOutput)
+		}
+	})
+}
+
+func TestContextCommands(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tk")
+
+	cmd := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build: %v\n%s", err, output)
+	}
+
+	// Helper to create fresh test environment
+	setupTestDir := func(t *testing.T) (string, func(args ...string) (string, error)) {
+		testDir := filepath.Join(dir, t.Name())
+		os.MkdirAll(testDir, 0755)
+
+		runTk := func(args ...string) (string, error) {
+			cmd := exec.Command(binary, args...)
+			cmd.Dir = testDir
+			output, err := cmd.CombinedOutput()
+			return string(output), err
+		}
+
+		// Initialize fresh .tasuku.json
+		runTk("init")
+
+		return testDir, runTk
+	}
+
+	// ==========================================================================
+	// Decision Tests
+	// ==========================================================================
+
+	t.Run("decisions-empty", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		output, err := runTk("decisions")
+		if err != nil {
+			t.Fatalf("decisions failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "No decisions recorded") {
+			t.Errorf("expected empty message: %s", output)
+		}
+	})
+
+	t.Run("decisions-list", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Add some decisions
+		output, err := runTk("decide",
+			"--id", "json-format",
+			"--chose", "JSON",
+			"--over", "YAML,TOML",
+			"--because", "Faster parsing and no ambiguity")
+		if err != nil {
+			t.Fatalf("decide failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Decision recorded") {
+			t.Errorf("expected confirmation: %s", output)
+		}
+
+		// Add another decision
+		runTk("decide",
+			"--id", "use-cobra",
+			"--chose", "Cobra",
+			"--over", "flag,urfave/cli",
+			"--because", "Better subcommand support")
+
+		// List decisions
+		output, err = runTk("decisions")
+		if err != nil {
+			t.Fatalf("decisions list failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "json-format") {
+			t.Errorf("expected json-format decision: %s", output)
+		}
+		if !strings.Contains(output, "use-cobra") {
+			t.Errorf("expected use-cobra decision: %s", output)
+		}
+		if !strings.Contains(output, "JSON") {
+			t.Errorf("expected JSON choice: %s", output)
+		}
+		if !strings.Contains(output, "Decisions (2)") {
+			t.Errorf("expected 2 decisions: %s", output)
+		}
+	})
+
+	t.Run("decisions-json", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Add a decision
+		runTk("decide",
+			"--id", "test-decision",
+			"--chose", "Option A",
+			"--over", "Option B",
+			"--because", "Better performance")
+
+		// List decisions as JSON
+		output, err := runTk("decisions", "--format", "json")
+		if err != nil {
+			t.Fatalf("decisions --format json failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "[") || !strings.Contains(output, "]") {
+			t.Errorf("expected JSON array: %s", output)
+		}
+		if !strings.Contains(output, `"id"`) {
+			t.Errorf("expected id field in JSON: %s", output)
+		}
+		if !strings.Contains(output, `"chose"`) {
+			t.Errorf("expected chose field in JSON: %s", output)
+		}
+		if !strings.Contains(output, "test-decision") {
+			t.Errorf("expected test-decision in JSON: %s", output)
+		}
+	})
+
+	t.Run("undecide", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Add decisions
+		runTk("decide",
+			"--id", "to-remove",
+			"--chose", "Remove Me",
+			"--over", "Keep Me",
+			"--because", "Testing removal")
+		runTk("decide",
+			"--id", "to-keep",
+			"--chose", "Keep This",
+			"--over", "Other",
+			"--because", "Should remain")
+
+		// Remove the first decision
+		output, err := runTk("undecide", "to-remove")
+		if err != nil {
+			t.Fatalf("undecide failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Removed decision") {
+			t.Errorf("expected removed message: %s", output)
+		}
+		if !strings.Contains(output, "to-remove") {
+			t.Errorf("expected decision id in output: %s", output)
+		}
+
+		// Verify it's gone
+		output, _ = runTk("decisions")
+		if strings.Contains(output, "to-remove") {
+			t.Errorf("to-remove should be gone: %s", output)
+		}
+		if !strings.Contains(output, "to-keep") {
+			t.Errorf("to-keep should still exist: %s", output)
+		}
+		if !strings.Contains(output, "Decisions (1)") {
+			t.Errorf("expected 1 decision: %s", output)
+		}
+	})
+
+	t.Run("undecide-not-found", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		_, err := runTk("undecide", "nonexistent-decision")
+		if err == nil {
+			t.Error("expected error for nonexistent decision")
+		}
+	})
+
+	// ==========================================================================
+	// Notes Tests
+	// ==========================================================================
+
+	t.Run("notes-empty", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		output, err := runTk("notes")
+		if err != nil {
+			t.Fatalf("notes failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "No notes recorded") {
+			t.Errorf("expected empty message: %s", output)
+		}
+	})
+
+	t.Run("notes-for-task", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task first
+		runTk("add", "--id", "my-task", "My test task")
+
+		// Add notes to the task
+		output, err := runTk("note", "my-task", "First note for task")
+		if err != nil {
+			t.Fatalf("note failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Note added") {
+			t.Errorf("expected confirmation: %s", output)
+		}
+
+		runTk("note", "my-task", "Second note for task")
+		runTk("note", "my-task", "Third note for task")
+
+		// List notes for specific task
+		output, err = runTk("notes", "my-task")
+		if err != nil {
+			t.Fatalf("notes my-task failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "First note") {
+			t.Errorf("expected first note: %s", output)
+		}
+		if !strings.Contains(output, "Second note") {
+			t.Errorf("expected second note: %s", output)
+		}
+		if !strings.Contains(output, "Third note") {
+			t.Errorf("expected third note: %s", output)
+		}
+		if !strings.Contains(output, "Notes for my-task (3)") {
+			t.Errorf("expected 3 notes header: %s", output)
+		}
+	})
+
+	t.Run("notes-all", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create tasks
+		runTk("add", "--id", "task-a", "Task A")
+		runTk("add", "--id", "task-b", "Task B")
+
+		// Add notes to different tasks
+		runTk("note", "task-a", "Note for task A")
+		runTk("note", "task-a", "Another note for A")
+		runTk("note", "task-b", "Note for task B")
+
+		// List all notes
+		output, err := runTk("notes")
+		if err != nil {
+			t.Fatalf("notes failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "task-a") {
+			t.Errorf("expected task-a: %s", output)
+		}
+		if !strings.Contains(output, "task-b") {
+			t.Errorf("expected task-b: %s", output)
+		}
+		if !strings.Contains(output, "Note for task A") {
+			t.Errorf("expected note for task A: %s", output)
+		}
+		if !strings.Contains(output, "Note for task B") {
+			t.Errorf("expected note for task B: %s", output)
+		}
+		if !strings.Contains(output, "3 total") {
+			t.Errorf("expected 3 total notes: %s", output)
+		}
+		if !strings.Contains(output, "2 tasks") {
+			t.Errorf("expected 2 tasks: %s", output)
+		}
+	})
+
+	t.Run("notes-json", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create task and add notes
+		runTk("add", "--id", "json-task", "JSON test task")
+		runTk("note", "json-task", "Note for JSON output")
+
+		// List notes as JSON
+		output, err := runTk("notes", "--format", "json")
+		if err != nil {
+			t.Fatalf("notes --format json failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "{") || !strings.Contains(output, "}") {
+			t.Errorf("expected JSON object: %s", output)
+		}
+		if !strings.Contains(output, "json-task") {
+			t.Errorf("expected json-task in output: %s", output)
+		}
+		if !strings.Contains(output, "Note for JSON output") {
+			t.Errorf("expected note content in JSON: %s", output)
+		}
+	})
+
+	t.Run("unnote", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create task and add notes
+		runTk("add", "--id", "unnote-task", "Task for unnote test")
+		runTk("note", "unnote-task", "First note to keep")
+		runTk("note", "unnote-task", "Second note to remove")
+		runTk("note", "unnote-task", "Third note to keep")
+
+		// Remove the second note (index 2)
+		output, err := runTk("unnote", "unnote-task", "2")
+		if err != nil {
+			t.Fatalf("unnote failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Removed note") {
+			t.Errorf("expected removed message: %s", output)
+		}
+		if !strings.Contains(output, "Second note to remove") {
+			t.Errorf("expected removed note content: %s", output)
+		}
+
+		// Verify it's gone
+		output, _ = runTk("notes", "unnote-task")
+		if strings.Contains(output, "Second note to remove") {
+			t.Errorf("second note should be removed: %s", output)
+		}
+		if !strings.Contains(output, "First note to keep") {
+			t.Errorf("first note should remain: %s", output)
+		}
+		if !strings.Contains(output, "Third note to keep") {
+			t.Errorf("third note should remain: %s", output)
+		}
+		if !strings.Contains(output, "Notes for unnote-task (2)") {
+			t.Errorf("expected 2 notes: %s", output)
+		}
+	})
+
+	t.Run("unnote-out-of-range", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create task and add one note
+		runTk("add", "--id", "range-task", "Task for range test")
+		runTk("note", "range-task", "Only note")
+
+		// Try to remove note at invalid index
+		_, err := runTk("unnote", "range-task", "5")
+		if err == nil {
+			t.Error("expected error for out of range index")
+		}
+
+		// Try to remove note at index 0 (invalid, 1-based)
+		output, err := runTk("unnote", "range-task", "0")
+		if err == nil {
+			t.Error("expected error for index 0")
+		}
+		if !strings.Contains(output, "invalid index") {
+			t.Errorf("expected invalid index message: %s", output)
+		}
+	})
+}
+
+func TestTaskCRUDCommands(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tk")
+
+	cmd := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build: %v\n%s", err, output)
+	}
+
+	// Helper to create a fresh test directory with initialized .tasuku.json
+	setupTestDir := func(t *testing.T) (string, func(args ...string) (string, error)) {
+		testDir := filepath.Join(dir, t.Name())
+		os.MkdirAll(testDir, 0755)
+
+		runTk := func(args ...string) (string, error) {
+			cmd := exec.Command(binary, args...)
+			cmd.Dir = testDir
+			output, err := cmd.CombinedOutput()
+			return string(output), err
+		}
+
+		// Initialize .tasuku.json
+		if _, err := runTk("init"); err != nil {
+			t.Fatalf("failed to init: %v", err)
+		}
+
+		return testDir, runTk
+	}
+
+	// Test delete: Create a task, delete it, verify it's gone
+	t.Run("delete", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task
+		_, err := runTk("add", "--id", "task-to-delete", "Task to be deleted")
+		if err != nil {
+			t.Fatalf("add failed: %v", err)
+		}
+
+		// Verify task exists
+		output, err := runTk("show", "task-to-delete")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+
+		// Delete the task
+		output, err = runTk("delete", "task-to-delete")
+		if err != nil {
+			t.Fatalf("delete failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Deleted: task-to-delete") {
+			t.Errorf("expected deletion message: %s", output)
+		}
+
+		// Verify task is gone
+		output, err = runTk("show", "task-to-delete")
+		if err == nil {
+			t.Error("expected error when showing deleted task")
+		}
+		if !strings.Contains(output, "not found") {
+			t.Errorf("expected 'not found' error: %s", output)
+		}
+	})
+
+	// Test delete-cleans-notes: Create task with notes, delete task, verify notes removed
+	t.Run("delete-cleans-notes", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task and add notes
+		runTk("add", "--id", "task-with-notes", "Task with notes")
+		runTk("note", "task-with-notes", "Note 1 for this task")
+		runTk("note", "task-with-notes", "Note 2 for this task")
+
+		// Create another task with notes to keep the notes map non-empty
+		runTk("add", "--id", "other-task", "Other task")
+		runTk("note", "other-task", "Other task note")
+
+		// Verify notes exist
+		output, err := runTk("notes", "task-with-notes")
+		if err != nil {
+			t.Fatalf("notes failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Note 1") {
+			t.Errorf("expected notes to exist: %s", output)
+		}
+
+		// Delete the task
+		output, err = runTk("delete", "task-with-notes")
+		if err != nil {
+			t.Fatalf("delete failed: %v\n%s", err, output)
+		}
+
+		// Verify notes for deleted task are gone (other-task notes still exist)
+		output, err = runTk("notes", "task-with-notes")
+		if err == nil {
+			t.Error("expected error when showing notes for deleted task")
+		}
+		if !strings.Contains(output, "no notes found") {
+			t.Errorf("expected 'no notes found' error: %s", output)
+		}
+
+		// Verify other-task notes still exist
+		output, err = runTk("notes", "other-task")
+		if err != nil {
+			t.Fatalf("notes for other-task failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Other task note") {
+			t.Errorf("expected other-task notes to remain: %s", output)
+		}
+	})
+
+	// Test delete-cleans-blockers: Create task A blocked by B, delete B, verify A's blocked_by is cleared
+	t.Run("delete-cleans-blockers", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create tasks
+		runTk("add", "--id", "task-a", "Task A")
+		runTk("add", "--id", "task-b", "Task B (blocker)")
+
+		// Block task-a by task-b
+		runTk("block", "task-a", "--by", "task-b")
+
+		// Verify task-a is blocked by task-b
+		output, err := runTk("show", "task-a")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "task-b") {
+			t.Errorf("expected task-a to be blocked by task-b: %s", output)
+		}
+
+		// Delete task-b
+		output, err = runTk("delete", "task-b")
+		if err != nil {
+			t.Fatalf("delete failed: %v\n%s", err, output)
+		}
+
+		// Verify task-a's blocked_by is cleared
+		output, err = runTk("show", "task-a")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if strings.Contains(output, "Blocked by") && strings.Contains(output, "task-b") {
+			t.Errorf("task-a should not be blocked by deleted task-b: %s", output)
+		}
+	})
+
+	// Test edit: Create task, edit description, verify updated
+	t.Run("edit", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task
+		runTk("add", "--id", "task-to-edit", "Original description")
+
+		// Edit the task
+		output, err := runTk("edit", "task-to-edit", "Updated description")
+		if err != nil {
+			t.Fatalf("edit failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Updated: task-to-edit") {
+			t.Errorf("expected update message: %s", output)
+		}
+
+		// Verify the description was updated
+		output, err = runTk("show", "task-to-edit")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Updated description") {
+			t.Errorf("expected updated description: %s", output)
+		}
+		if strings.Contains(output, "Original description") {
+			t.Errorf("should not contain original description: %s", output)
+		}
+	})
+
+	// Test pause: Create task, start it, pause it, verify status is ready and owner cleared
+	t.Run("pause", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create and start a task
+		runTk("add", "--id", "task-to-pause", "Task to pause")
+		runTk("start", "task-to-pause")
+
+		// Set an owner
+		runTk("owner", "task-to-pause", "agent-1")
+
+		// Verify task is in_progress with owner
+		output, err := runTk("show", "task-to-pause")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "in_progress") {
+			t.Errorf("expected in_progress status: %s", output)
+		}
+
+		// Pause the task
+		output, err = runTk("pause", "task-to-pause")
+		if err != nil {
+			t.Fatalf("pause failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Paused: task-to-pause") {
+			t.Errorf("expected pause message: %s", output)
+		}
+		if !strings.Contains(output, "now ready") {
+			t.Errorf("expected 'now ready' in message: %s", output)
+		}
+
+		// Verify status is ready and owner cleared
+		output, err = runTk("show", "task-to-pause")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "ready") {
+			t.Errorf("expected ready status: %s", output)
+		}
+		if strings.Contains(output, "in_progress") {
+			t.Errorf("should not be in_progress: %s", output)
+		}
+		// Owner should be cleared (not shown in output)
+		if strings.Contains(output, "Owner:") && strings.Contains(output, "agent-1") {
+			t.Errorf("owner should be cleared after pause: %s", output)
+		}
+	})
+
+	// Test pause-error: Try to pause a ready task, expect error
+	t.Run("pause-error", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task (starts as ready)
+		runTk("add", "--id", "ready-task", "A ready task")
+
+		// Try to pause a ready task
+		output, err := runTk("pause", "ready-task")
+		if err == nil {
+			t.Error("expected error when pausing a ready task")
+		}
+		if !strings.Contains(output, "not in_progress") {
+			t.Errorf("expected 'not in_progress' error: %s", output)
+		}
+	})
+
+	// Test owner-set: Create task, set owner, verify
+	t.Run("owner-set", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task
+		runTk("add", "--id", "task-owner", "Task for owner test")
+
+		// Set owner
+		output, err := runTk("owner", "task-owner", "agent-1")
+		if err != nil {
+			t.Fatalf("owner set failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Set owner of task-owner to: agent-1") {
+			t.Errorf("expected owner set message: %s", output)
+		}
+
+		// Verify owner in show output
+		output, err = runTk("show", "task-owner")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "agent-1") {
+			t.Errorf("expected owner in show output: %s", output)
+		}
+	})
+
+	// Test owner-clear: Set owner, clear with --clear flag, verify
+	t.Run("owner-clear", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task and set owner
+		runTk("add", "--id", "task-clear-owner", "Task to clear owner")
+		runTk("owner", "task-clear-owner", "agent-1")
+
+		// Clear owner
+		output, err := runTk("owner", "task-clear-owner", "--clear")
+		if err != nil {
+			t.Fatalf("owner clear failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Cleared owner of: task-clear-owner") {
+			t.Errorf("expected clear message: %s", output)
+		}
+
+		// Verify owner is cleared
+		output, err = runTk("owner", "task-clear-owner")
+		if err != nil {
+			t.Fatalf("owner show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "has no owner") {
+			t.Errorf("expected 'has no owner' message: %s", output)
+		}
+	})
+
+	// Test owner-show: Set owner, run owner command without args, verify output shows owner
+	t.Run("owner-show", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task and set owner
+		runTk("add", "--id", "task-show-owner", "Task to show owner")
+		runTk("owner", "task-show-owner", "agent-2")
+
+		// Show owner (just task ID, no owner name)
+		output, err := runTk("owner", "task-show-owner")
+		if err != nil {
+			t.Fatalf("owner show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Owner of task-show-owner: agent-2") {
+			t.Errorf("expected owner display message: %s", output)
+		}
+	})
+}
