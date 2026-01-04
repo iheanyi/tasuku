@@ -59,11 +59,17 @@ tk hooks install           # Install git hooks (optional)
         "id": "decision-id",
         "chose": "Option A",
         "over": ["Option B", "Option C"],
-        "because": "Reasoning"
+        "because": "Reasoning",
+        "created_at": "2024-01-04T10:00:00Z"
       }
     ],
     "notes": {
-      "task-id": ["Note 1", "Note 2"]
+      "task-id": [
+        {
+          "text": "Note 1",
+          "created_at": "2024-01-04T10:00:00Z"
+        }
+      ]
     }
   }
 }
