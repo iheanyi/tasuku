@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/iheanyi/tasuku/schema.json",
+  "title": "Tasuku File",
+  "description": "Schema for .tasuku.json task management file",
+  "type": "object",
+  "required": ["version", "tasks", "context"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Schema version number",
+      "const": 1
+    },
+    "tasks": {
+      "type": "object",
+      "description": "Map of task IDs to task objects",
+      "additionalProperties": {
+        "$ref": "#/definitions/Task"
+      }
+    },
+    "context": {
+      "$ref": "#/definitions/Context"
+    }
+  },
+  "definitions": {
+    "Task": {
+      "type": "object",
+      "required": ["status", "description", "blocked_by", "created_at", "updated_at"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["ready", "in_progress", "blocked", "done"],
+          "description": "Current status of the task"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the task"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "Priority level: 0=critical, 1=high, 2=normal (default), 3=low, 4=backlog"
+        },
+        "blocked_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of task IDs that block this task"
+        },
+        "owner": {
+          "type": ["string", "null"],
+          "description": "Agent or user currently working on this task"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of task creation"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of last update"
+        }
+      }
+    },
+    "Context": {
+      "type": "object",
+      "required": ["learnings", "decisions", "notes"],
+      "properties": {
+        "learnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Insights and knowledge discovered during work"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Decision"
+          },
+          "description": "Architectural and design decisions made"
+        },
+        "notes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Map of task IDs to arrays of notes"
+        }
+      }
+    },
+    "Decision": {
+      "type": "object",
+      "required": ["id", "chose", "over", "because"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the decision"
+        },
+        "chose": {
+          "type": "string",
+          "description": "The option that was chosen"
+        },
+        "over": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Alternative options that were considered"
+        },
+        "because": {
+          "type": "string",
+          "description": "Reasoning for the decision"
+        }
+      }
+    }
+  }
+}

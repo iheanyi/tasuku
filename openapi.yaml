@@ -1,0 +1,522 @@
+openapi: 3.0.3
+info:
+  title: Tasuku API
+  description: |
+    REST API for Tasuku, an agent-first task management system.
+
+    Tasuku is designed for AI agents working on codebases, prioritizing:
+    - Pull over push: Agents query when needed
+    - Parallel-safe: File locking for multiple agents
+    - Minimal context: Only load what's needed
+    - Human-readable: JSON file format
+  version: 0.1.0
+  contact:
+    name: Iheanyi Ekechukwu
+    url: https://github.com/iheanyi/tasuku
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Tasks
+    description: Task management operations
+  - name: Context
+    description: Project context and learnings
+  - name: System
+    description: System endpoints
+
+paths:
+  /tasks:
+    get:
+      summary: List all tasks
+      description: Returns a list of all tasks, optionally filtered by status
+      operationId: listTasks
+      tags:
+        - Tasks
+      parameters:
+        - name: status
+          in: query
+          description: Filter tasks by status
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: Create a new task
+      description: Creates a new task with the given description
+      operationId: createTask
+      tags:
+        - Tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: The generated or provided task ID
+                  status:
+                    type: string
+                    example: created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /tasks/{taskId}:
+    get:
+      summary: Get task details
+      description: Returns detailed information about a specific task
+      operationId: getTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update a task
+      description: Updates the status and/or priority of a task
+      operationId: updateTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    delete:
+      summary: Delete a task
+      description: Permanently removes a task
+      operationId: deleteTask
+      tags:
+        - Tasks
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: Task deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /ready:
+    get:
+      summary: List ready tasks
+      description: Returns tasks that are ready to work on (not blocked, sorted by priority)
+      operationId: listReadyTasks
+      tags:
+        - Tasks
+      responses:
+        '200':
+          description: List of ready tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReadyTaskResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /context:
+    get:
+      summary: Get full context
+      description: Returns the complete .tasuku.json file including all tasks, learnings, and decisions
+      operationId: getContext
+      tags:
+        - Context
+      responses:
+        '200':
+          description: Full project context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TasukuFile'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /learnings:
+    post:
+      summary: Add a learning
+      description: Records an insight or knowledge discovered during work
+      operationId: addLearning
+      tags:
+        - Context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - learning
+              properties:
+                learning:
+                  type: string
+                  description: The insight to record
+                  example: "Redis connection pooling significantly improves API latency"
+      responses:
+        '201':
+          description: Learning added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: added
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /decisions:
+    post:
+      summary: Record a decision
+      description: Records an architectural or design decision with reasoning
+      operationId: addDecision
+      tags:
+        - Context
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDecisionRequest'
+      responses:
+        '201':
+          description: Decision recorded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: added
+                  id:
+                    type: string
+                    description: The decision ID
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /schema:
+    get:
+      summary: Get JSON Schema
+      description: Returns the JSON Schema for .tasuku.json file validation
+      operationId: getSchema
+      tags:
+        - System
+      responses:
+        '200':
+          description: JSON Schema
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns the server health status
+      operationId: healthCheck
+      tags:
+        - System
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+components:
+  schemas:
+    TaskStatus:
+      type: string
+      enum:
+        - ready
+        - in_progress
+        - blocked
+        - done
+      description: |
+        Current status of the task:
+        - ready: Task can be started
+        - in_progress: Task is being worked on
+        - blocked: Task is waiting on dependencies
+        - done: Task is complete
+
+    TaskResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique task identifier
+          example: fix-auth-bug
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        description:
+          type: string
+          description: Human-readable task description
+          example: Fix authentication timeout issue
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: "Priority level: 0=critical, 1=high, 2=normal, 3=low, 4=backlog"
+          example: 2
+        blocked_by:
+          type: array
+          items:
+            type: string
+          description: List of task IDs blocking this task
+        owner:
+          type: string
+          nullable: true
+          description: Agent or user currently working on this task
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TaskDetail:
+      allOf:
+        - $ref: '#/components/schemas/TaskResponse'
+        - type: object
+          properties:
+            notes:
+              type: array
+              items:
+                type: string
+              description: Notes associated with this task
+
+    ReadyTaskResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+        priority:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - description
+      properties:
+        id:
+          type: string
+          description: Optional custom ID (auto-generated from description if not provided)
+          example: custom-task-id
+        description:
+          type: string
+          description: Task description
+          example: Implement user authentication
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: "Priority level (default: 2=normal)"
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 4
+
+    Decision:
+      type: object
+      required:
+        - id
+        - chose
+        - over
+        - because
+      properties:
+        id:
+          type: string
+          description: Unique decision identifier
+          example: database-choice
+        chose:
+          type: string
+          description: The option that was chosen
+          example: PostgreSQL
+        over:
+          type: array
+          items:
+            type: string
+          description: Alternative options that were considered
+          example: ["MongoDB", "MySQL"]
+        because:
+          type: string
+          description: Reasoning for the decision
+          example: Better support for complex queries and ACID compliance
+
+    CreateDecisionRequest:
+      type: object
+      required:
+        - id
+        - chose
+        - because
+      properties:
+        id:
+          type: string
+        chose:
+          type: string
+        over:
+          type: array
+          items:
+            type: string
+        because:
+          type: string
+
+    Context:
+      type: object
+      required:
+        - learnings
+        - decisions
+        - notes
+      properties:
+        learnings:
+          type: array
+          items:
+            type: string
+          description: Insights and knowledge discovered during work
+        decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Decision'
+          description: Architectural and design decisions made
+        notes:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: Map of task IDs to arrays of notes
+
+    TasukuFile:
+      type: object
+      required:
+        - version
+        - tasks
+        - context
+      properties:
+        version:
+          type: integer
+          const: 1
+          description: Schema version number
+        tasks:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/TaskResponse'
+          description: Map of task IDs to task objects
+        context:
+          $ref: '#/components/schemas/Context'
+
+  parameters:
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      description: The task ID
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: description required
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: task not found
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
