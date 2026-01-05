@@ -234,6 +234,11 @@ Examples:
 		fmt.Println("  tasks/    - Your task files")
 		fmt.Println("  archive/  - Archived completed tasks")
 		fmt.Println("  context/  - Learnings and decisions")
+		fmt.Println()
+		fmt.Println("Next steps:")
+		fmt.Println("  tk task add \"Your first task\"")
+		fmt.Println("  tk hooks install              # Optional: git hooks")
+		fmt.Println("  tk mcp install                # Optional: Claude Code integration")
 		return nil
 	},
 }
