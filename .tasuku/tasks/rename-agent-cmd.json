@@ -1,0 +1,11 @@
+{
+  "id": "rename-agent-cmd",
+  "status": "blocked",
+  "description": "Rename agent_cmd.go to something clearer (coordination or merge into task commands)",
+  "blocked_by": [
+    "cli-refactor-structure"
+  ],
+  "owner": null,
+  "created_at": "2026-01-05T19:33:48.12119Z",
+  "updated_at": "2026-01-05T19:33:54.689203Z"
+}

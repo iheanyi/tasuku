@@ -1,0 +1,11 @@
+{
+  "id": "move-cmd-to-internal",
+  "status": "blocked",
+  "description": "Move command implementations from cmd/tk/*.go to internal/cmd/ packages",
+  "blocked_by": [
+    "cli-refactor-structure"
+  ],
+  "owner": null,
+  "created_at": "2026-01-05T19:33:48.132151Z",
+  "updated_at": "2026-01-05T19:33:54.698617Z"
+}
