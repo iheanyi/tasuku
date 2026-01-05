@@ -31,6 +31,9 @@ func TestTools(t *testing.T) {
 		"tk_timer_start", "tk_timer_stop", "tk_timer_status",
 		"tk_field_set", "tk_field_remove",
 		"tk_tag_add", "tk_tag_remove",
+		"tk_archive", "tk_archive_restore", "tk_archive_list",
+		"tk_show", "tk_delete", "tk_edit", "tk_pause", "tk_unblock",
+		"tk_find", "tk_priority", "tk_owner", "tk_claim", "tk_release",
 	}
 
 	if len(tools) != len(expectedTools) {
@@ -345,8 +348,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 16 {
-		t.Errorf("expected 16 tools, got %d", len(tools))
+	if len(tools) != 29 {
+		t.Errorf("expected 29 tools, got %d", len(tools))
 	}
 }
 
@@ -382,6 +385,483 @@ func TestMCPProtocol_ToolsCall(t *testing.T) {
 	// Check second response (list)
 	if resp2.Error != nil {
 		t.Errorf("list error: %v", resp2.Error)
+	}
+}
+
+func TestHandleToolCall_Archive(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Test task for archive",
+		"id":          "archive-test",
+	})
+
+	// Complete the task
+	server.HandleToolCall("tk_done", map[string]interface{}{
+		"id": "archive-test",
+	})
+
+	// Archive the task
+	result, err := server.HandleToolCall("tk_archive", map[string]interface{}{
+		"task_id": "archive-test",
+		"summary": "Completed successfully",
+	})
+	if err != nil {
+		t.Fatalf("archive error: %v", err)
+	}
+
+	r := result.(map[string]string)
+	if r["status"] != "archived" {
+		t.Errorf("expected status 'archived', got %s", r["status"])
+	}
+	if r["id"] != "archive-test" {
+		t.Errorf("expected id 'archive-test', got %s", r["id"])
+	}
+
+	// List archived tasks
+	listResult, err := server.HandleToolCall("tk_archive_list", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("archive_list error: %v", err)
+	}
+
+	// Convert to JSON and back to verify structure
+	data, _ := json.Marshal(listResult)
+	var list []map[string]interface{}
+	if err := json.Unmarshal(data, &list); err != nil {
+		t.Fatalf("failed to unmarshal archive list: %v", err)
+	}
+
+	if len(list) != 1 {
+		t.Errorf("expected 1 archived task, got %d", len(list))
+	}
+
+	// Verify archived task has expected fields
+	if len(list) > 0 {
+		if list[0]["id"] != "archive-test" {
+			t.Errorf("expected archived task id 'archive-test', got %v", list[0]["id"])
+		}
+		if list[0]["summary"] != "Completed successfully" {
+			t.Errorf("expected summary 'Completed successfully', got %v", list[0]["summary"])
+		}
+	}
+
+	// Restore the task
+	restoreResult, err := server.HandleToolCall("tk_archive_restore", map[string]interface{}{
+		"task_id": "archive-test",
+	})
+	if err != nil {
+		t.Fatalf("archive_restore error: %v", err)
+	}
+
+	rr := restoreResult.(map[string]string)
+	if rr["status"] != "restored" {
+		t.Errorf("expected status 'restored', got %s", rr["status"])
+	}
+
+	// Verify task is back in active tasks
+	listActiveResult, err := server.HandleToolCall("tk_list", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+
+	data, _ = json.Marshal(listActiveResult)
+	var activeTasks []map[string]interface{}
+	json.Unmarshal(data, &activeTasks)
+
+	found := false
+	for _, task := range activeTasks {
+		if task["id"] == "archive-test" {
+			found = true
+			if task["status"] != "ready" {
+				t.Errorf("expected restored task status 'ready', got %v", task["status"])
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("restored task not found in active tasks")
+	}
+}
+
+func TestHandleToolCall_Show(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Test task for show",
+		"id":          "show-test",
+	})
+
+	// Add a note to the task
+	server.HandleToolCall("tk_note", map[string]interface{}{
+		"task_id": "show-test",
+		"note":    "Test note",
+	})
+
+	// Show the task
+	result, err := server.HandleToolCall("tk_show", map[string]interface{}{
+		"id": "show-test",
+	})
+	if err != nil {
+		t.Fatalf("show error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["id"] != "show-test" {
+		t.Errorf("expected id 'show-test', got %v", r["id"])
+	}
+	if r["description"] != "Test task for show" {
+		t.Errorf("expected description 'Test task for show', got %v", r["description"])
+	}
+	if r["status"] != "ready" {
+		t.Errorf("expected status 'ready', got %v", r["status"])
+	}
+
+	// Verify notes are included
+	notes, ok := r["notes"].([]interface{})
+	if !ok {
+		// Try the typed version
+		_, ok = r["notes"]
+		if !ok {
+			t.Error("expected notes field")
+		}
+	} else if len(notes) != 1 {
+		t.Errorf("expected 1 note, got %d", len(notes))
+	}
+}
+
+func TestHandleToolCall_Delete(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add two tasks
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Task to delete",
+		"id":          "delete-test",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Task that blocks",
+		"id":          "blocker-test",
+	})
+
+	// Block one task with another
+	server.HandleToolCall("tk_block", map[string]interface{}{
+		"id":         "delete-test",
+		"blocked_by": []interface{}{"blocker-test"},
+	})
+
+	// Delete the blocker
+	result, err := server.HandleToolCall("tk_delete", map[string]interface{}{
+		"id": "blocker-test",
+	})
+	if err != nil {
+		t.Fatalf("delete error: %v", err)
+	}
+
+	r := result.(map[string]string)
+	if r["status"] != "deleted" {
+		t.Errorf("expected status 'deleted', got %s", r["status"])
+	}
+
+	// Verify the blocked task is now unblocked (ready)
+	showResult, _ := server.HandleToolCall("tk_show", map[string]interface{}{
+		"id": "delete-test",
+	})
+	sr := showResult.(map[string]interface{})
+	if sr["status"] != "ready" {
+		t.Errorf("expected blocked task to become ready after blocker deleted, got %v", sr["status"])
+	}
+}
+
+func TestHandleToolCall_Edit(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Original description",
+		"id":          "edit-test",
+	})
+
+	// Edit the task
+	result, err := server.HandleToolCall("tk_edit", map[string]interface{}{
+		"id":          "edit-test",
+		"description": "Updated description",
+	})
+	if err != nil {
+		t.Fatalf("edit error: %v", err)
+	}
+
+	r := result.(map[string]string)
+	if r["status"] != "updated" {
+		t.Errorf("expected status 'updated', got %s", r["status"])
+	}
+	if r["description"] != "Updated description" {
+		t.Errorf("expected description 'Updated description', got %s", r["description"])
+	}
+
+	// Verify with show
+	showResult, _ := server.HandleToolCall("tk_show", map[string]interface{}{
+		"id": "edit-test",
+	})
+	sr := showResult.(map[string]interface{})
+	if sr["description"] != "Updated description" {
+		t.Errorf("show returned wrong description: %v", sr["description"])
+	}
+}
+
+func TestHandleToolCall_Pause(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add and start a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Task to pause",
+		"id":          "pause-test",
+	})
+	server.HandleToolCall("tk_start", map[string]interface{}{
+		"id": "pause-test",
+	})
+
+	// Pause the task
+	result, err := server.HandleToolCall("tk_pause", map[string]interface{}{
+		"id": "pause-test",
+	})
+	if err != nil {
+		t.Fatalf("pause error: %v", err)
+	}
+
+	r := result.(map[string]string)
+	if r["status"] != "ready" {
+		t.Errorf("expected status 'ready', got %s", r["status"])
+	}
+
+	// Verify with show
+	showResult, _ := server.HandleToolCall("tk_show", map[string]interface{}{
+		"id": "pause-test",
+	})
+	sr := showResult.(map[string]interface{})
+	if sr["status"] != "ready" {
+		t.Errorf("show returned wrong status: %v", sr["status"])
+	}
+}
+
+func TestHandleToolCall_Unblock(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add tasks
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "blocked-task",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "blocker-1",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "blocker-2",
+	})
+
+	// Block task
+	server.HandleToolCall("tk_block", map[string]interface{}{
+		"id":         "blocked-task",
+		"blocked_by": []interface{}{"blocker-1", "blocker-2"},
+	})
+
+	// Partial unblock
+	result, err := server.HandleToolCall("tk_unblock", map[string]interface{}{
+		"id":   "blocked-task",
+		"from": "blocker-1",
+	})
+	if err != nil {
+		t.Fatalf("unblock error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["removed"] != "blocker-1" {
+		t.Errorf("expected removed 'blocker-1', got %v", r["removed"])
+	}
+
+	// Full unblock
+	result2, err := server.HandleToolCall("tk_unblock", map[string]interface{}{
+		"id": "blocked-task",
+	})
+	if err != nil {
+		t.Fatalf("full unblock error: %v", err)
+	}
+
+	r2 := result2.(map[string]interface{})
+	if r2["status"] != "ready" {
+		t.Errorf("expected status 'ready', got %v", r2["status"])
+	}
+}
+
+func TestHandleToolCall_Find(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add tasks with various descriptions
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Fix authentication bug",
+		"id":          "auth-fix",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Add new feature",
+		"id":          "new-feature",
+	})
+	server.HandleToolCall("tk_learn", map[string]interface{}{
+		"insight": "Authentication requires special handling",
+	})
+
+	// Search for "auth"
+	result, err := server.HandleToolCall("tk_find", map[string]interface{}{
+		"query": "auth",
+	})
+	if err != nil {
+		t.Fatalf("find error: %v", err)
+	}
+
+	// Convert to check results
+	data, _ := json.Marshal(result)
+	var results []map[string]interface{}
+	json.Unmarshal(data, &results)
+
+	if len(results) < 2 {
+		t.Errorf("expected at least 2 results (task + learning), got %d", len(results))
+	}
+
+	// Verify we found both task and learning
+	foundTask := false
+	foundLearning := false
+	for _, r := range results {
+		if r["type"] == "task" && r["id"] == "auth-fix" {
+			foundTask = true
+		}
+		if r["type"] == "learning" {
+			foundLearning = true
+		}
+	}
+	if !foundTask {
+		t.Error("expected to find auth-fix task")
+	}
+	if !foundLearning {
+		t.Error("expected to find learning about authentication")
+	}
+}
+
+func TestHandleToolCall_Priority(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Priority test",
+		"id":          "priority-test",
+	})
+
+	// Set priority with string
+	result, err := server.HandleToolCall("tk_priority", map[string]interface{}{
+		"id":       "priority-test",
+		"priority": "critical",
+	})
+	if err != nil {
+		t.Fatalf("priority error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["status"] != "updated" {
+		t.Errorf("expected status 'updated', got %v", r["status"])
+	}
+	if r["priority"] != float64(0) && r["priority"] != 0 {
+		t.Errorf("expected priority 0 (critical), got %v", r["priority"])
+	}
+
+	// Set priority with number
+	result2, err := server.HandleToolCall("tk_priority", map[string]interface{}{
+		"id":       "priority-test",
+		"priority": "3",
+	})
+	if err != nil {
+		t.Fatalf("priority error: %v", err)
+	}
+
+	r2 := result2.(map[string]interface{})
+	if r2["priority"] != float64(3) && r2["priority"] != 3 {
+		t.Errorf("expected priority 3 (low), got %v", r2["priority"])
+	}
+}
+
+func TestHandleToolCall_Owner(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Owner test",
+		"id":          "owner-test",
+	})
+
+	// Set owner
+	result, err := server.HandleToolCall("tk_owner", map[string]interface{}{
+		"id":    "owner-test",
+		"owner": "agent-1",
+	})
+	if err != nil {
+		t.Fatalf("owner set error: %v", err)
+	}
+
+	r := result.(map[string]string)
+	if r["status"] != "owner_set" {
+		t.Errorf("expected status 'owner_set', got %s", r["status"])
+	}
+	if r["owner"] != "agent-1" {
+		t.Errorf("expected owner 'agent-1', got %s", r["owner"])
+	}
+
+	// Clear owner
+	result2, err := server.HandleToolCall("tk_owner", map[string]interface{}{
+		"id": "owner-test",
+	})
+	if err != nil {
+		t.Fatalf("owner clear error: %v", err)
+	}
+
+	r2 := result2.(map[string]string)
+	if r2["status"] != "owner_cleared" {
+		t.Errorf("expected status 'owner_cleared', got %s", r2["status"])
+	}
+}
+
+func TestHandleToolCall_ClaimRelease(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Claim test",
+		"id":          "claim-test",
+	})
+
+	// Claim the task
+	result, err := server.HandleToolCall("tk_claim", map[string]interface{}{
+		"id":    "claim-test",
+		"agent": "agent-1",
+	})
+	if err != nil {
+		t.Fatalf("claim error: %v", err)
+	}
+
+	r := result.(map[string]string)
+	if r["status"] != "claimed" {
+		t.Errorf("expected status 'claimed', got %s", r["status"])
+	}
+	if r["agent"] != "agent-1" {
+		t.Errorf("expected agent 'agent-1', got %s", r["agent"])
+	}
+
+	// Release the task
+	result2, err := server.HandleToolCall("tk_release", map[string]interface{}{
+		"id": "claim-test",
+	})
+	if err != nil {
+		t.Fatalf("release error: %v", err)
+	}
+
+	r2 := result2.(map[string]string)
+	if r2["status"] != "released" {
+		t.Errorf("expected status 'released', got %s", r2["status"])
 	}
 }
 
