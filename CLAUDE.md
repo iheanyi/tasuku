@@ -162,6 +162,20 @@ Every package should have `*_test.go` files:
 - `internal/store/store_test.go` - File operations, locking
 - `internal/task/task_test.go` - Domain logic
 - `internal/mcp/server_test.go` - MCP protocol
+- `internal/http/server_test.go` - HTTP REST API
+- `internal/tui/model_test.go` - Terminal UI
+
+**CLI command tests** (using `internal/cmd/testutil/harness.go`):
+- `internal/cmd/task/task_test.go` - Task subcommands
+- `internal/cmd/context/context_test.go` - Context commands
+- `internal/cmd/decision/decision_test.go` - Decision commands
+- `internal/cmd/learning/learning_test.go` - Learning commands
+- `internal/cmd/note/note_test.go` - Note commands
+- `internal/cmd/hooks/hooks_test.go` - Git hooks integration
+- `internal/cmd/pr/pr_test.go` - PR creation
+- `internal/cmd/server/server_test.go` - Server commands
+- `internal/cmd/mcpcmd/mcp_test.go` - MCP management
+- `internal/cmd/migrate/migrate_test.go` - Migration commands
 
 ### Integration Tests
 
@@ -298,6 +312,49 @@ defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 - Errors are wrapped with context: `fmt.Errorf("store: failed to read: %w", err)`
 - No magic - explicit is better than implicit
 
+### CLI Architecture (PlanetScale Pattern)
+
+Commands use the constructor pattern instead of `init()` functions:
+
+```go
+// Good: Constructor pattern
+func newTaskCmd() *cobra.Command {
+    cmd := &cobra.Command{
+        Use:   "task",
+        Short: "Manage tasks",
+    }
+    cmd.AddCommand(newListCmd())
+    cmd.AddCommand(newAddCmd())
+    return cmd
+}
+
+var Cmd = newTaskCmd()
+
+func newAddCmd() *cobra.Command {
+    cmd := &cobra.Command{
+        Use:   "add [description]",
+        RunE:  runAdd,
+    }
+    cmd.Flags().String("id", "", "Optional task ID")
+    cmd.Flags().Int("priority", 2, "Task priority (0-4)")
+    return cmd
+}
+
+// Bad: init() pattern (don't use)
+var addCmd = &cobra.Command{...}
+func init() {
+    Cmd.AddCommand(addCmd)
+    addCmd.Flags().String("id", "", "Optional task ID")
+}
+```
+
+**Why constructors:**
+- Explicit initialization order (predictable)
+- No global side effects
+- Easier to test commands in isolation
+- Flags stay local to functions (no package-level vars)
+- Industry standard (PlanetScale CLI, GitHub CLI)
+
 ## Key Decisions
 
 Record architectural decisions here as we make them:
@@ -326,6 +383,7 @@ Record architectural decisions here as we make them:
     - **Tasuku (tk)**: Project-level tasks (persistent, survives across sessions, visible to other agents)
     - When a task is a feature, bug, or project milestone → add to tk
     - When a task is an implementation step like "fix type error" → use TodoWrite only
+11. **Constructor pattern over init() for CLI commands** - Commands use `func newCmd() *cobra.Command` constructors instead of `var cmd` + `func init()`. This follows the PlanetScale CLI pattern for explicit initialization, better testability, and avoiding package-level flag variables.
 
 ## Agent Task Management
 

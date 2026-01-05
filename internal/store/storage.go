@@ -189,12 +189,33 @@ func NeedsMigration() bool {
 // GetV2StoreForMigration returns the V2 file store for migration purposes.
 // Returns nil if no V2 storage is detected.
 // This is the ONLY function that should access V2 storage directly.
+// Note: This directly checks for .tasuku.json file regardless of whether
+// .tasuku/ directory exists, so migration can detect "already migrated" state.
 func GetV2StoreForMigration() Storage {
-	storageType, dir := DetectStorageTypeUp()
-	if storageType == StorageTypeFile {
-		return New(filepath.Join(dir, DefaultFileName))
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil
 	}
-	return nil
+
+	for {
+		// Directly check for V2 file (don't use DetectStorageTypeUp which prioritizes dir)
+		filePath := filepath.Join(dir, DefaultFileName)
+		if _, err := os.Stat(filePath); err == nil {
+			return New(filePath)
+		}
+
+		// Stop at git root
+		gitPath := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitPath); err == nil {
+			return nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil
+		}
+		dir = parent
+	}
 }
 
 // DefaultStorage returns the auto-detected storage backend.

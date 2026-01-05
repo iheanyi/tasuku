@@ -76,10 +76,6 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.AddCommand(initCmd)
 	cmd.AddCommand(doctorCmd)
 
-	// Deprecated commands for backward compatibility
-	cmd.AddCommand(validateCmd)
-	cmd.AddCommand(hooks.DeprecatedHookCmd)
-
 	return cmd
 }
 
@@ -150,26 +146,6 @@ This command verifies:
 Run this when Tasuku tools aren't appearing in your AI assistant.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runDoctor()
-	},
-}
-
-var validateCmd = &cobra.Command{
-	Use:        "validate",
-	Hidden:     true,
-	Deprecated: "use 'tk context validate' instead",
-	Short:      "Validate Tasuku storage",
-	Long: `Validate the Tasuku storage for correctness.
-
-Checks performed:
-- Version is supported
-- All tasks have non-empty descriptions
-- All tasks have valid statuses
-- No circular dependencies in blocked_by relationships
-
-Examples:
-  tk validate`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return contextcmd.RunValidate(cmd, args)
 	},
 }
 

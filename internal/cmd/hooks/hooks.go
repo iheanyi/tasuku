@@ -49,66 +49,6 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 // Cmd is the parent command for all hooks operations
 var Cmd = newHooksCmd()
 
-func newDeprecatedHookCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:        "hook",
-		Hidden:     true,
-		Deprecated: "use 'tk hooks session' or 'tk hooks sync' instead",
-		Short:      "Run Claude Code integration hooks",
-		Long: `Run internal hooks for Claude Code integration.
-
-Available subcommands:
-  session    Display Tasuku context summary at session start
-  sync       Sync tasks from TodoWrite JSON input
-
-These are typically called automatically by Claude Code integration,
-but can be run manually for debugging.`,
-	}
-
-	cmd.AddCommand(deprecatedSessionCmd)
-	cmd.AddCommand(deprecatedSyncCmd)
-
-	return cmd
-}
-
-// DeprecatedHookCmd is the deprecated parent command for backward compatibility
-var DeprecatedHookCmd = newDeprecatedHookCmd()
-
-var deprecatedSessionCmd = &cobra.Command{
-	Use:        "session",
-	Hidden:     true,
-	Deprecated: "use 'tk hooks session' instead",
-	Short:      "Display Tasuku context summary",
-	Long: `Display a summary of Tasuku context for Claude Code session start.
-
-Shows:
-  - Task counts by status
-  - Number of learnings and decisions
-  - Suggested next task based on priority`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return hookSession()
-	},
-}
-
-var deprecatedSyncCmd = &cobra.Command{
-	Use:        "sync",
-	Hidden:     true,
-	Deprecated: "use 'tk hooks sync' instead",
-	Short:      "Sync tasks from TodoWrite JSON",
-	Long: `Sync tasks from Claude Code's TodoWrite tool.
-
-Reads JSON from stdin in TodoWrite format and applies the nudge rule.
-Only project-level tasks are synced to Tasuku.
-
-Examples:
-  tk hook sync < todos.json          # Sync from file
-  echo '[...]' | tk hook sync        # Sync from piped JSON`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return hookSync()
-	},
-}
-
-
 var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install Tasuku git hooks",
