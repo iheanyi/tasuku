@@ -14,8 +14,8 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// ErrNotInitialized is returned when the task file does not exist.
-var ErrNotInitialized = errors.New("no .tasuku.json found in current directory - run 'tk init' to create one")
+// ErrNotInitialized is returned when no Tasuku storage exists.
+var ErrNotInitialized = errors.New("no Tasuku storage found - run 'tk init' to create one")
 
 const (
 	DefaultFileName = ".tasuku.json"

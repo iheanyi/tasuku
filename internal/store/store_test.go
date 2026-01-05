@@ -359,7 +359,7 @@ func TestStore_ErrNotInitialized(t *testing.T) {
 	}
 
 	// Verify the error message is helpful
-	expectedMsg := "no .tasuku.json found in current directory - run 'tk init' to create one"
+	expectedMsg := "no Tasuku storage found - run 'tk init' to create one"
 	if err.Error() != expectedMsg {
 		t.Errorf("unexpected error message: %s", err.Error())
 	}
