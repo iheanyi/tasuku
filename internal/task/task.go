@@ -29,13 +29,36 @@ const (
 
 // Task represents a single task.
 type Task struct {
-	Status      Status    `json:"status"`
-	Description string    `json:"description"`
-	Priority    *int      `json:"priority,omitempty"` // 0=critical, 1=high, 2=normal (default), 3=low, 4=backlog
-	BlockedBy   []string  `json:"blocked_by"`
-	Owner       *string   `json:"owner"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Status      Status     `json:"status"`
+	Description string     `json:"description"`
+	Priority    *int       `json:"priority,omitempty"` // 0=critical, 1=high, 2=normal (default), 3=low, 4=backlog
+	BlockedBy   []string   `json:"blocked_by"`
+	Owner       *string    `json:"owner"`
+	ClaimedAt   *time.Time `json:"claimed_at,omitempty"` // When the task was claimed by an agent
+	Tags        []string   `json:"tags,omitempty"`       // V2.0: Tags for filtering and grouping
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// DefaultClaimTimeout is the duration after which a claim is considered stale.
+const DefaultClaimTimeout = 2 * time.Hour
+
+// IsClaimStale returns true if the claim is older than the timeout duration.
+func (t Task) IsClaimStale(timeout time.Duration) bool {
+	if t.ClaimedAt == nil {
+		return false
+	}
+	return time.Since(*t.ClaimedAt) > timeout
+}
+
+// HasTag returns true if the task has the specified tag.
+func (t Task) HasTag(tag string) bool {
+	for _, tg := range t.Tags {
+		if tg == tag {
+			return true
+		}
+	}
+	return false
 }
 
 // GetPriority returns the task's priority, defaulting to Normal (2) if not set.

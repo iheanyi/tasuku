@@ -1637,3 +1637,357 @@ func TestTaskCRUDCommands(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// V2.0 Agent Coordination Tests
+// =============================================================================
+
+func TestAgentCoordination(t *testing.T) {
+	// Build the binary for testing
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tk")
+
+	cmd := exec.Command("go", "build", "-o", binary, "./")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build tk: %v\n%s", err, output)
+	}
+
+	// Helper to create a fresh test directory
+	setupTestDir := func(t *testing.T) (string, func(args ...string) (string, error)) {
+		testDir := filepath.Join(dir, t.Name())
+		os.MkdirAll(testDir, 0755)
+
+		runTk := func(args ...string) (string, error) {
+			cmd := exec.Command(binary, args...)
+			cmd.Dir = testDir
+			output, err := cmd.CombinedOutput()
+			return string(output), err
+		}
+
+		// Initialize .tasuku.json
+		if _, err := runTk("init"); err != nil {
+			t.Fatalf("failed to init: %v", err)
+		}
+
+		return testDir, runTk
+	}
+
+	// Test claim: Create task, claim it, verify owner is set
+	t.Run("claim", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task
+		runTk("add", "--id", "claim-task", "Task to claim")
+
+		// Claim the task
+		output, err := runTk("task", "claim", "claim-task", "agent-1")
+		if err != nil {
+			t.Fatalf("claim failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "claimed by agent-1") {
+			t.Errorf("expected claim message: %s", output)
+		}
+
+		// Verify owner is set in show output
+		output, err = runTk("show", "claim-task")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "agent-1") {
+			t.Errorf("expected owner in show output: %s", output)
+		}
+	})
+
+	// Test claim-conflict: Two agents try to claim the same task
+	t.Run("claim-conflict", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create a task
+		runTk("add", "--id", "conflict-task", "Task for conflict test")
+
+		// First agent claims
+		runTk("task", "claim", "conflict-task", "agent-1")
+
+		// Second agent tries to claim - should fail
+		output, err := runTk("task", "claim", "conflict-task", "agent-2")
+		if err == nil {
+			t.Error("expected error when second agent claims")
+		}
+		if !strings.Contains(output, "already claimed") {
+			t.Errorf("expected 'already claimed' error: %s", output)
+		}
+	})
+
+	// Test release: Claim then release task
+	t.Run("release", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create and claim a task
+		runTk("add", "--id", "release-task", "Task to release")
+		runTk("task", "claim", "release-task", "agent-1")
+
+		// Release the task
+		output, err := runTk("task", "release", "release-task")
+		if err != nil {
+			t.Fatalf("release failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "released") {
+			t.Errorf("expected release message: %s", output)
+		}
+
+		// Verify owner is cleared
+		output, err = runTk("show", "release-task")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if strings.Contains(output, "Owner:") && strings.Contains(output, "agent-1") {
+			t.Errorf("owner should be cleared after release: %s", output)
+		}
+	})
+
+	// Test who: Show claimed tasks
+	t.Run("who", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create and claim tasks
+		runTk("add", "--id", "who-task-1", "Task 1")
+		runTk("add", "--id", "who-task-2", "Task 2")
+		runTk("task", "claim", "who-task-1", "agent-1")
+		runTk("task", "claim", "who-task-2", "agent-1")
+
+		// Check who command
+		output, err := runTk("task", "who")
+		if err != nil {
+			t.Fatalf("who failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "agent-1") {
+			t.Errorf("expected agent-1 in who output: %s", output)
+		}
+		if !strings.Contains(output, "who-task-1") {
+			t.Errorf("expected who-task-1 in output: %s", output)
+		}
+		if !strings.Contains(output, "who-task-2") {
+			t.Errorf("expected who-task-2 in output: %s", output)
+		}
+	})
+
+	// Test who with filter
+	t.Run("who-filter", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create and claim tasks by different agents
+		runTk("add", "--id", "filter-task-1", "Task 1")
+		runTk("add", "--id", "filter-task-2", "Task 2")
+		runTk("task", "claim", "filter-task-1", "agent-1")
+		runTk("task", "claim", "filter-task-2", "agent-2")
+
+		// Filter by agent-1
+		output, err := runTk("task", "who", "agent-1")
+		if err != nil {
+			t.Fatalf("who filter failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "filter-task-1") {
+			t.Errorf("expected filter-task-1 in output: %s", output)
+		}
+		if strings.Contains(output, "filter-task-2") {
+			t.Errorf("should not contain filter-task-2: %s", output)
+		}
+	})
+}
+
+// =============================================================================
+// V2.0 Tags/Labels Tests
+// =============================================================================
+
+func TestTagsAndLabels(t *testing.T) {
+	// Build the binary for testing
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tk")
+
+	cmd := exec.Command("go", "build", "-o", binary, "./")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build tk: %v\n%s", err, output)
+	}
+
+	// Helper to create a fresh test directory
+	setupTestDir := func(t *testing.T) (string, func(args ...string) (string, error)) {
+		testDir := filepath.Join(dir, t.Name())
+		os.MkdirAll(testDir, 0755)
+
+		runTk := func(args ...string) (string, error) {
+			cmd := exec.Command(binary, args...)
+			cmd.Dir = testDir
+			output, err := cmd.CombinedOutput()
+			return string(output), err
+		}
+
+		// Initialize .tasuku.json
+		if _, err := runTk("init"); err != nil {
+			t.Fatalf("failed to init: %v", err)
+		}
+
+		return testDir, runTk
+	}
+
+	// Test add with tag
+	t.Run("add-with-tag", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Add task with tags
+		output, err := runTk("add", "--id", "tagged-task", "A tagged task", "--tag", "backend,api")
+		if err != nil {
+			t.Fatalf("add failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "[backend, api]") {
+			t.Errorf("expected tags in output: %s", output)
+		}
+
+		// Verify tags in show output
+		output, err = runTk("show", "tagged-task")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "backend") {
+			t.Errorf("expected backend tag in show output: %s", output)
+		}
+		if !strings.Contains(output, "api") {
+			t.Errorf("expected api tag in show output: %s", output)
+		}
+	})
+
+	// Test tag add command
+	t.Run("tag-add", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create task
+		runTk("add", "--id", "tag-add-task", "Task for tag add")
+
+		// Add tag
+		output, err := runTk("task", "tag", "add", "tag-add-task", "frontend")
+		if err != nil {
+			t.Fatalf("tag add failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Added tag 'frontend'") {
+			t.Errorf("expected add message: %s", output)
+		}
+
+		// Verify tag in show output
+		output, err = runTk("show", "tag-add-task")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "frontend") {
+			t.Errorf("expected frontend tag in show: %s", output)
+		}
+	})
+
+	// Test tag remove command
+	t.Run("tag-remove", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create task with tag
+		runTk("add", "--id", "tag-remove-task", "Task for tag remove", "--tag", "temp")
+
+		// Remove tag
+		output, err := runTk("task", "tag", "remove", "tag-remove-task", "temp")
+		if err != nil {
+			t.Fatalf("tag remove failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Removed tag 'temp'") {
+			t.Errorf("expected remove message: %s", output)
+		}
+
+		// Verify tag is removed
+		output, err = runTk("show", "tag-remove-task")
+		if err != nil {
+			t.Fatalf("show failed: %v\n%s", err, output)
+		}
+		if strings.Contains(output, "Tags:") && strings.Contains(output, "temp") {
+			t.Errorf("tag should be removed: %s", output)
+		}
+	})
+
+	// Test tag list for task
+	t.Run("tag-list-task", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create task with tags
+		runTk("add", "--id", "tag-list-task", "Task for tag list", "--tag", "bug,urgent")
+
+		// List tags for task
+		output, err := runTk("task", "tag", "list", "tag-list-task")
+		if err != nil {
+			t.Fatalf("tag list failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "bug") || !strings.Contains(output, "urgent") {
+			t.Errorf("expected tags in list output: %s", output)
+		}
+	})
+
+	// Test tag list for project
+	t.Run("tag-list-project", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create tasks with tags
+		runTk("add", "--id", "proj-task-1", "Task 1", "--tag", "backend")
+		runTk("add", "--id", "proj-task-2", "Task 2", "--tag", "frontend,api")
+		runTk("add", "--id", "proj-task-3", "Task 3", "--tag", "api")
+
+		// List all tags in project
+		output, err := runTk("task", "tag", "list")
+		if err != nil {
+			t.Fatalf("tag list failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "backend") {
+			t.Errorf("expected backend tag: %s", output)
+		}
+		if !strings.Contains(output, "frontend") {
+			t.Errorf("expected frontend tag: %s", output)
+		}
+		if !strings.Contains(output, "api") {
+			t.Errorf("expected api tag: %s", output)
+		}
+	})
+
+	// Test list with tag filter
+	t.Run("list-with-tag-filter", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create tasks with different tags
+		runTk("add", "--id", "filter-task-a", "Task A", "--tag", "backend")
+		runTk("add", "--id", "filter-task-b", "Task B", "--tag", "frontend")
+		runTk("add", "--id", "filter-task-c", "Task C", "--tag", "backend,api")
+
+		// Filter by backend tag
+		output, err := runTk("list", "--tag", "backend")
+		if err != nil {
+			t.Fatalf("list with tag filter failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "filter-task-a") {
+			t.Errorf("expected filter-task-a: %s", output)
+		}
+		if !strings.Contains(output, "filter-task-c") {
+			t.Errorf("expected filter-task-c: %s", output)
+		}
+		if strings.Contains(output, "filter-task-b") {
+			t.Errorf("should not contain filter-task-b: %s", output)
+		}
+	})
+
+	// Test tag remove error for non-existent tag
+	t.Run("tag-remove-error", func(t *testing.T) {
+		_, runTk := setupTestDir(t)
+
+		// Create task
+		runTk("add", "--id", "tag-error-task", "Task for error test")
+
+		// Try to remove non-existent tag
+		output, err := runTk("task", "tag", "remove", "tag-error-task", "nonexistent")
+		if err == nil {
+			t.Error("expected error when removing non-existent tag")
+		}
+		if !strings.Contains(output, "does not have tag") {
+			t.Errorf("expected 'does not have tag' error: %s", output)
+		}
+	})
+}

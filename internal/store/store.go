@@ -333,3 +333,110 @@ func (s *Store) ClearOwner(id string) error {
 		return nil
 	})
 }
+
+// ClaimTask claims a task for an agent, setting owner and ClaimedAt.
+func (s *Store) ClaimTask(id string, owner string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		// Check if already claimed by another agent
+		if t.Owner != nil && *t.Owner != owner {
+			// Check if claim is stale
+			if !t.IsClaimStale(task.DefaultClaimTimeout) {
+				return fmt.Errorf("store: task %q is already claimed by %q", id, *t.Owner)
+			}
+			// Claim is stale, allow takeover
+		}
+
+		now := time.Now().UTC()
+		t.Owner = &owner
+		t.ClaimedAt = &now
+		t.UpdatedAt = now
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// ReleaseTask releases a task claim, clearing owner and ClaimedAt.
+func (s *Store) ReleaseTask(id string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		t.Owner = nil
+		t.ClaimedAt = nil
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// AddTag adds a tag to a task.
+func (s *Store) AddTag(id string, tag string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		// Check if tag already exists
+		for _, existing := range t.Tags {
+			if existing == tag {
+				return nil // Already has tag, no-op
+			}
+		}
+
+		t.Tags = append(t.Tags, tag)
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// RemoveTag removes a tag from a task.
+func (s *Store) RemoveTag(id string, tag string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		newTags := make([]string, 0, len(t.Tags))
+		found := false
+		for _, existing := range t.Tags {
+			if existing == tag {
+				found = true
+			} else {
+				newTags = append(newTags, existing)
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("store: task %q does not have tag %q", id, tag)
+		}
+
+		t.Tags = newTags
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// AddTaskWithTags adds a new task with tags and optional priority.
+func (s *Store) AddTaskWithTags(id, description string, priority *int, tags []string) error {
+	return s.Update(func(f *task.File) error {
+		if _, exists := f.Tasks[id]; exists {
+			return fmt.Errorf("store: task %q already exists", id)
+		}
+		t := task.NewTask(description)
+		t.Priority = priority
+		t.Tags = tags
+		f.Tasks[id] = t
+		return nil
+	})
+}

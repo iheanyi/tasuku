@@ -476,19 +476,9 @@
         "created_at": "0001-01-01T00:00:00Z"
       },
       {
-        "id": "428a70",
+        "id": "2f15dd",
         "text": "taskResult type in MCP server is local - use JSON marshal/unmarshal for testing",
-        "created_at": "0001-01-01T00:00:00Z"
-      },
-      {
-        "id": "71f97f",
-        "text": "-h",
-        "created_at": "0001-01-01T00:00:00Z"
-      },
-      {
-        "id": "29461c",
-        "text": "--help",
-        "created_at": "0001-01-01T00:00:00Z"
+        "created_at": "2026-01-05T01:51:12.148186Z"
       }
     ],
     "decisions": [

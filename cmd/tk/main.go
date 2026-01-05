@@ -80,6 +80,10 @@ func init() {
 	taskCmd.AddCommand(ownerCmd)
 	taskCmd.AddCommand(taskStatsCmd)
 	taskCmd.AddCommand(taskDepsCmd)
+	taskCmd.AddCommand(claimCmd)
+	taskCmd.AddCommand(releaseCmd)
+	taskCmd.AddCommand(whoCmd)
+	taskCmd.AddCommand(tagCmd)
 	rootCmd.AddCommand(taskCmd)
 
 	// Non-task root commands
@@ -154,11 +158,17 @@ Subcommands:
   find      Search across all content
   priority  Set task priority
   owner     Manage task ownership
+  claim     Claim a task for an agent (V2.0)
+  release   Release a claimed task (V2.0)
+  who       Show claimed tasks by owner (V2.0)
+  tag       Manage task tags (V2.0)
 
 Examples:
   tk task list                 # List all tasks
   tk task add "New feature"    # Add a new task
   tk task start my-task        # Start working on a task
+  tk task claim my-task agent1 # Claim task for agent1
+  tk task list --tag backend   # Filter by tag
   tk t ls                      # Short alias for list
   tk tasks ready               # Show ready tasks`,
 }
@@ -218,15 +228,19 @@ Sort Order:
 
 Filtering:
   Use --status to show only tasks with a specific status.
+  Use --tag to show only tasks with a specific tag.
 
 Examples:
   tk list                    # List all tasks
   tk list -s ready           # Show only ready tasks
   tk list --status done      # Show completed tasks
+  tk list --tag backend      # Show tasks with 'backend' tag
+  tk list -t bug -s ready    # Combine filters
   tk list -f json            # Output as JSON
   tk ls                      # Alias for 'list'`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		status, _ := cmd.Flags().GetString("status")
+		tagFilter, _ := cmd.Flags().GetString("tag")
 
 		s := store.Default()
 		f, err := s.Read()
@@ -238,6 +252,9 @@ Examples:
 
 		for id, t := range f.Tasks {
 			if status != "" && string(t.Status) != status {
+				continue
+			}
+			if tagFilter != "" && !t.HasTag(tagFilter) {
 				continue
 			}
 			tasks = append(tasks, taskEntry{ID: id, Task: t})
@@ -267,6 +284,7 @@ Examples:
 
 func init() {
 	listCmd.Flags().StringP("status", "s", "", "Filter by status: ready, in_progress, blocked, done")
+	listCmd.Flags().StringP("tag", "t", "", "Filter by tag")
 }
 
 var addCmd = &cobra.Command{
@@ -284,18 +302,23 @@ Priority Levels (optional --priority flag):
   3 or low       - Can wait
   4 or backlog   - Future consideration
 
+Tags (optional --tag flag):
+  Add tags to categorize tasks. Use comma-separated values for multiple tags.
+
 New tasks start with "ready" status.
 
 Examples:
   tk add "Implement user authentication"
   tk add "Fix critical bug" -p 0               # Critical priority
   tk add "Refactor database layer" --id db-refactor
-  tk add "Update documentation" --priority low`,
+  tk add "Update documentation" --priority low
+  tk add "Add login page" --tag frontend,auth  # Add with tags`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		description := args[0]
 		id, _ := cmd.Flags().GetString("id")
 		priority, _ := cmd.Flags().GetInt("priority")
+		tagStr, _ := cmd.Flags().GetString("tag")
 
 		if id == "" {
 			id = generateID(description)
@@ -308,7 +331,18 @@ Examples:
 			priorityPtr = &priority
 		}
 
-		if err := s.AddTaskWithPriority(id, description, priorityPtr); err != nil {
+		// Parse tags
+		var tags []string
+		if tagStr != "" {
+			for _, t := range strings.Split(tagStr, ",") {
+				t = strings.TrimSpace(t)
+				if t != "" {
+					tags = append(tags, t)
+				}
+			}
+		}
+
+		if err := s.AddTaskWithTags(id, description, priorityPtr, tags); err != nil {
 			return err
 		}
 
@@ -316,7 +350,11 @@ Examples:
 		if priorityPtr != nil {
 			priorityStr = fmt.Sprintf(" (priority: %s)", task.PriorityName(*priorityPtr))
 		}
-		fmt.Printf("Created task: %s%s\n", id, priorityStr)
+		tagStr = ""
+		if len(tags) > 0 {
+			tagStr = fmt.Sprintf(" [%s]", strings.Join(tags, ", "))
+		}
+		fmt.Printf("Created task: %s%s%s\n", id, priorityStr, tagStr)
 		return nil
 	},
 }
@@ -324,6 +362,7 @@ Examples:
 func init() {
 	addCmd.Flags().String("id", "", "Task ID (auto-generated if not provided)")
 	addCmd.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
+	addCmd.Flags().StringP("tag", "t", "", "Comma-separated tags (e.g., backend,api)")
 }
 
 var showCmd = &cobra.Command{
@@ -965,6 +1004,7 @@ var listCmdAlias = &cobra.Command{
 
 func init() {
 	listCmdAlias.Flags().StringP("status", "s", "", "Filter by status: ready, in_progress, blocked, done")
+	listCmdAlias.Flags().StringP("tag", "t", "", "Filter by tag")
 	rootCmd.AddCommand(listCmdAlias)
 }
 
@@ -982,6 +1022,7 @@ var addCmdAlias = &cobra.Command{
 func init() {
 	addCmdAlias.Flags().String("id", "", "Task ID (auto-generated if not provided)")
 	addCmdAlias.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
+	addCmdAlias.Flags().StringP("tag", "t", "", "Comma-separated tags (e.g., backend,api)")
 	rootCmd.AddCommand(addCmdAlias)
 }
 
@@ -3191,6 +3232,9 @@ func outputTaskDetail(id string, t task.Task, notes []task.Note, allTasks map[st
 		if t.Priority != nil {
 			fmt.Printf("Priority:    %s\n", task.PriorityName(*t.Priority))
 		}
+		if len(t.Tags) > 0 {
+			fmt.Printf("Tags:        %s\n", strings.Join(t.Tags, ", "))
+		}
 		if len(t.BlockedBy) > 0 {
 			fmt.Printf("Blocked by:  %s\n", strings.Join(t.BlockedBy, ", "))
 		}
@@ -3198,7 +3242,11 @@ func outputTaskDetail(id string, t task.Task, notes []task.Note, allTasks map[st
 			fmt.Printf("Blocks:      %s\n", strings.Join(blocks, ", "))
 		}
 		if t.Owner != nil {
-			fmt.Printf("Owner:       %s\n", *t.Owner)
+			ownerStr := *t.Owner
+			if t.ClaimedAt != nil {
+				ownerStr += fmt.Sprintf(" (claimed %s)", formatRelativeTime(*t.ClaimedAt))
+			}
+			fmt.Printf("Owner:       %s\n", ownerStr)
 		}
 		fmt.Printf("Created:     %s\n", t.CreatedAt.Format("2006-01-02 15:04:05"))
 		fmt.Printf("Updated:     %s\n", t.UpdatedAt.Format("2006-01-02 15:04:05"))
