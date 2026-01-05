@@ -530,6 +530,61 @@ func (s *Store) AddTaskWithTags(id, description string, priority *int, tags []st
 	})
 }
 
+// AddSubtask adds a new task as a subtask of an existing task.
+func (s *Store) AddSubtask(id, description, parentID string) error {
+	return s.Update(func(f *task.File) error {
+		if _, exists := f.Tasks[id]; exists {
+			return fmt.Errorf("store: task %q already exists", id)
+		}
+		if _, exists := f.Tasks[parentID]; !exists {
+			return fmt.Errorf("store: parent task %q not found", parentID)
+		}
+		t := task.NewTask(description)
+		t.ParentID = &parentID
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// SetParent sets or clears the parent of a task.
+func (s *Store) SetParent(id string, parentID *string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+		if parentID != nil && *parentID != "" {
+			if _, exists := f.Tasks[*parentID]; !exists {
+				return fmt.Errorf("store: parent task %q not found", *parentID)
+			}
+			// Prevent self-parenting
+			if *parentID == id {
+				return fmt.Errorf("store: task cannot be its own parent")
+			}
+		}
+		t.ParentID = parentID
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// GetSubtasks returns all subtasks of a given task.
+func (s *Store) GetSubtasks(parentID string) (map[string]task.Task, error) {
+	f, err := s.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]task.Task)
+	for id, t := range f.Tasks {
+		if t.ParentID != nil && *t.ParentID == parentID {
+			result[id] = t
+		}
+	}
+	return result, nil
+}
+
 // SetField sets a custom field on a task.
 func (s *Store) SetField(id string, key, value string) error {
 	return s.Update(func(f *task.File) error {

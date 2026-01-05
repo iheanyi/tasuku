@@ -2929,9 +2929,181 @@ Examples:
 	},
 }
 
+var migrateV3Cmd = &cobra.Command{
+	Use:   "v3",
+	Short: "Migrate to V3 directory-based storage format",
+	Long: `Migrate from the single .tasuku.json file to the V3 directory-based format.
+
+The V3 format uses a .tasuku/ directory with one file per task:
+  .tasuku/
+  ├── config.json       # Version and settings
+  ├── tasks/            # One JSON file per task
+  │   ├── task-1.json
+  │   └── task-2.json
+  ├── archive/          # Archived tasks
+  └── context/          # Learnings, decisions, notes
+
+Benefits of V3 format:
+  - No merge conflicts when multiple agents work in parallel
+  - Each task can be edited independently
+  - Cleaner git history (changes show which task was modified)
+  - Archive/restore is just moving files
+
+The original .tasuku.json will be renamed to .tasuku.json.bak.
+
+Use --dry-run to preview what would be migrated without making changes.
+
+Examples:
+  tk migrate v3            # Migrate to V3 format
+  tk migrate v3 --dry-run  # Preview migration`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		return migrateToV3(dryRun)
+	},
+}
+
+func migrateToV3(dryRun bool) error {
+	// Check for existing .tasuku.json
+	oldStore := store.DefaultWithFindUp()
+	if !oldStore.Exists() {
+		return fmt.Errorf("no .tasuku.json found to migrate")
+	}
+
+	oldPath := oldStore.Path()
+	newPath := filepath.Join(filepath.Dir(oldPath), ".tasuku")
+
+	// Check if already migrated
+	if info, err := os.Stat(newPath); err == nil && info.IsDir() {
+		return fmt.Errorf(".tasuku/ directory already exists - already migrated?")
+	}
+
+	// Read old format
+	f, err := oldStore.Read()
+	if err != nil {
+		return fmt.Errorf("failed to read .tasuku.json: %w", err)
+	}
+
+	fmt.Println("V3 Migration Preview")
+	fmt.Println("====================")
+	fmt.Printf("Source: %s\n", oldPath)
+	fmt.Printf("Target: %s/\n", newPath)
+	fmt.Println()
+
+	fmt.Printf("Tasks to migrate: %d\n", len(f.Tasks))
+	fmt.Printf("Archived tasks: %d\n", len(f.Archive))
+	fmt.Printf("Learnings: %d\n", len(f.Context.Learnings))
+	fmt.Printf("Decisions: %d\n", len(f.Context.Decisions))
+
+	noteCount := 0
+	for _, notes := range f.Context.Notes {
+		noteCount += len(notes)
+	}
+	fmt.Printf("Notes: %d\n", noteCount)
+	fmt.Println()
+
+	if dryRun {
+		fmt.Println("Dry run - no changes made.")
+		fmt.Println("Run without --dry-run to perform migration.")
+		return nil
+	}
+
+	// Create new directory store
+	newStore := store.NewDirStore(newPath)
+	if err := newStore.Init(); err != nil {
+		return fmt.Errorf("failed to create .tasuku/ directory: %w", err)
+	}
+
+	// Migrate tasks
+	for id, t := range f.Tasks {
+		if err := newStore.AddTaskWithTags(id, t.Description, t.Priority, t.Tags); err != nil {
+			return fmt.Errorf("failed to migrate task %s: %w", id, err)
+		}
+		// Update additional fields
+		newStore.Update(func(nf *task.File) error {
+			nt := nf.Tasks[id]
+			nt.Status = t.Status
+			nt.BlockedBy = t.BlockedBy
+			nt.Owner = t.Owner
+			nt.ClaimedAt = t.ClaimedAt
+			nt.Fields = t.Fields
+			nt.TimerStart = t.TimerStart
+			nt.Duration = t.Duration
+			nt.ParentID = t.ParentID
+			nt.CreatedAt = t.CreatedAt
+			nt.UpdatedAt = t.UpdatedAt
+			nf.Tasks[id] = nt
+			return nil
+		})
+		fmt.Printf("  ✓ Task: %s\n", id)
+	}
+
+	// Migrate learnings
+	for _, l := range f.Context.Learnings {
+		newStore.AddLearningWithRule(l.Text, &l.IsRule)
+	}
+	if len(f.Context.Learnings) > 0 {
+		fmt.Printf("  ✓ Learnings: %d\n", len(f.Context.Learnings))
+	}
+
+	// Migrate decisions
+	for _, d := range f.Context.Decisions {
+		newStore.AddDecision(d)
+	}
+	if len(f.Context.Decisions) > 0 {
+		fmt.Printf("  ✓ Decisions: %d\n", len(f.Context.Decisions))
+	}
+
+	// Migrate notes
+	for taskID, notes := range f.Context.Notes {
+		for _, note := range notes {
+			newStore.AddNote(taskID, note.Text)
+		}
+	}
+	if noteCount > 0 {
+		fmt.Printf("  ✓ Notes: %d\n", noteCount)
+	}
+
+	// Migrate archive
+	for id, archived := range f.Archive {
+		// Create task, set status to done, then archive
+		newStore.AddTask(id, archived.Description)
+		newStore.Update(func(nf *task.File) error {
+			t := nf.Tasks[id]
+			t.Status = task.StatusDone
+			t.Priority = archived.Priority
+			t.Tags = archived.Tags
+			t.Fields = archived.Fields
+			t.Duration = archived.Duration
+			t.CreatedAt = archived.CreatedAt
+			t.UpdatedAt = archived.UpdatedAt
+			nf.Tasks[id] = t
+			return nil
+		})
+		newStore.ArchiveTask(id, archived.Summary)
+		fmt.Printf("  ✓ Archived: %s\n", id)
+	}
+
+	// Backup old file
+	backupPath := oldPath + ".bak"
+	if err := os.Rename(oldPath, backupPath); err != nil {
+		return fmt.Errorf("failed to backup old file: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Println("Migration complete!")
+	fmt.Printf("  Old file backed up to: %s\n", backupPath)
+	fmt.Printf("  New format at: %s/\n", newPath)
+	fmt.Println()
+	fmt.Println("You can safely delete the backup file after verifying the migration.")
+
+	return nil
+}
+
 func init() {
 	migrateBeadsCmd.Flags().Bool("dry-run", false, "Preview migration without making changes")
+	migrateV3Cmd.Flags().Bool("dry-run", false, "Preview migration without making changes")
 	migrateCmd.AddCommand(migrateBeadsCmd)
+	migrateCmd.AddCommand(migrateV3Cmd)
 }
 
 // =============================================================================

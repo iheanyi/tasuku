@@ -115,7 +115,8 @@ func (t Task) CurrentDuration() time.Duration {
 type Task struct {
 	Status      Status     `json:"status"`
 	Description string     `json:"description"`
-	Priority    *int       `json:"priority,omitempty"` // 0=critical, 1=high, 2=normal (default), 3=low, 4=backlog
+	Priority    *int       `json:"priority,omitempty"`   // 0=critical, 1=high, 2=normal (default), 3=low, 4=backlog
+	ParentID    *string    `json:"parent_id,omitempty"`  // V3.0: Parent task ID for subtasks
 	BlockedBy   []string   `json:"blocked_by"`
 	Owner       *string    `json:"owner"`
 	ClaimedAt   *time.Time `json:"claimed_at,omitempty"` // When the task was claimed by an agent
@@ -146,6 +147,19 @@ func (t Task) HasTag(tag string) bool {
 		}
 	}
 	return false
+}
+
+// IsSubtask returns true if this task has a parent.
+func (t Task) IsSubtask() bool {
+	return t.ParentID != nil && *t.ParentID != ""
+}
+
+// GetParentID returns the parent ID or empty string if not a subtask.
+func (t Task) GetParentID() string {
+	if t.ParentID == nil {
+		return ""
+	}
+	return *t.ParentID
 }
 
 // GetPriority returns the task's priority, defaulting to Normal (2) if not set.
