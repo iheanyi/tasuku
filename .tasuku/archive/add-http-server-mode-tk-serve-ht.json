@@ -1,0 +1,10 @@
+{
+  "status": "done",
+  "description": "Add HTTP server mode: tk serve --http :port with REST API",
+  "priority": 1,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T20:25:01.3933Z",
+  "updated_at": "2026-01-04T20:32:32.545738Z",
+  "archived_at": "2026-01-05T05:34:43.724421Z"
+}

@@ -1,0 +1,10 @@
+{
+  "status": "done",
+  "description": "Add tk stats command for task statistics and progress",
+  "priority": 3,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T21:17:28.955244Z",
+  "updated_at": "2026-01-04T21:41:31.485316Z",
+  "archived_at": "2026-01-05T05:34:43.728603Z"
+}

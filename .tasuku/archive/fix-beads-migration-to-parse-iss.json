@@ -1,0 +1,9 @@
+{
+  "status": "done",
+  "description": "Fix Beads migration to parse issues.jsonl format",
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T20:37:03.376376Z",
+  "updated_at": "2026-01-04T20:37:10.817Z",
+  "archived_at": "2026-01-05T05:34:43.933925Z"
+}

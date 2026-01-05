@@ -1,0 +1,10 @@
+{
+  "status": "done",
+  "description": "Add tk owner command for owner field management",
+  "priority": 2,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T21:17:06.937749Z",
+  "updated_at": "2026-01-04T21:41:25.740959Z",
+  "archived_at": "2026-01-05T05:34:43.667941Z"
+}

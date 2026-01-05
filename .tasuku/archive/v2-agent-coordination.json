@@ -1,0 +1,10 @@
+{
+  "status": "done",
+  "description": "V2.0: Agent coordination - claim/release commands for multi-agent work",
+  "priority": 1,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-05T01:39:32.824757Z",
+  "updated_at": "2026-01-05T01:51:59.756067Z",
+  "archived_at": "2026-01-05T05:34:43.775372Z"
+}

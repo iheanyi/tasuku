@@ -1,0 +1,10 @@
+{
+  "status": "done",
+  "description": "Fix hooks install to merge with existing hooks instead of clobbering",
+  "priority": 2,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T21:17:30.089611Z",
+  "updated_at": "2026-01-04T21:41:30.076379Z",
+  "archived_at": "2026-01-05T05:34:43.690911Z"
+}

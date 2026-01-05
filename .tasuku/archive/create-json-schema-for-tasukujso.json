@@ -1,0 +1,9 @@
+{
+  "status": "done",
+  "description": "Create JSON Schema for .tasuku.json and add tk schema command",
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T20:24:51.89442Z",
+  "updated_at": "2026-01-04T20:30:37.073127Z",
+  "archived_at": "2026-01-05T05:34:43.672946Z"
+}

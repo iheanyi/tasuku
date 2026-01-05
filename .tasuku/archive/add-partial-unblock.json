@@ -1,0 +1,10 @@
+{
+  "status": "done",
+  "description": "Add partial unblock with --from flag to remove specific blockers",
+  "priority": 2,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T21:17:08.090974Z",
+  "updated_at": "2026-01-04T21:41:29.971676Z",
+  "archived_at": "2026-01-05T05:34:43.784334Z"
+}

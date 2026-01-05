@@ -1,0 +1,10 @@
+{
+  "status": "done",
+  "description": "Add tk decisions command to list recorded decisions",
+  "priority": 1,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T21:17:10.324412Z",
+  "updated_at": "2026-01-04T21:41:27.708403Z",
+  "archived_at": "2026-01-05T05:34:43.945987Z"
+}

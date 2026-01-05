@@ -1,0 +1,33 @@
+[
+  {
+    "id": "e254f9",
+    "text": "CLI command is 'tk' to avoid collisions",
+    "created_at": "2026-01-05T05:34:43.658162Z"
+  },
+  {
+    "id": "4b7d8d",
+    "text": "Using flock for file locking (works on macOS/Linux)",
+    "created_at": "2026-01-05T05:34:43.658238Z"
+  },
+  {
+    "id": "2b245a",
+    "text": "JSON chosen over YAML for faster parsing and less ambiguity",
+    "created_at": "2026-01-05T05:34:43.658311Z"
+  },
+  {
+    "id": "8d6dde",
+    "text": "MCP server will use stdio mode for Claude Code integration",
+    "created_at": "2026-01-05T05:34:43.658395Z"
+  },
+  {
+    "id": "4e75ce",
+    "text": "taskResult type in MCP server is local - use JSON marshal/unmarshal for testing",
+    "created_at": "2026-01-05T05:34:43.658484Z"
+  },
+  {
+    "id": "7f67e4",
+    "text": "CLI/MCP Parity Principle: Every CLI command must have a corresponding MCP tool. Agents interact via MCP, humans via CLI - same capabilities, different interfaces. When adding new CLI commands, always add the MCP tool equivalent.",
+    "is_rule": true,
+    "created_at": "2026-01-05T05:34:43.658568Z"
+  }
+]

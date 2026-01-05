@@ -1,0 +1,10 @@
+{
+  "status": "done",
+  "description": "Add tk undecide command to remove decisions",
+  "priority": 2,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-04T21:17:23.300398Z",
+  "updated_at": "2026-01-04T21:41:27.809827Z",
+  "archived_at": "2026-01-05T05:34:43.927591Z"
+}
