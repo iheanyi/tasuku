@@ -99,8 +99,9 @@ tk task list --format json    # Output as JSON
 
 | Command | Description |
 |---------|-------------|
-| `tk serve` | Start MCP server (stdio mode) |
-| `tk serve --http :3000` | Start HTTP REST API server |
+| `tk serve mcp` | Start MCP server (stdio mode for AI tools) |
+| `tk serve http` | Start HTTP REST API server on :3000 |
+| `tk serve http --port 8080` | Start HTTP server on custom port |
 | `tk mcp install` | Install MCP server in Claude Code |
 | `tk mcp uninstall` | Remove MCP server from Claude Code |
 | `tk migrate v3` | Migrate from V2 (.tasuku.json) to V3 (.tasuku/) |
@@ -214,7 +215,8 @@ Regenerate with the same command after upgrading tk.
 Start the REST API server:
 
 ```bash
-tk serve --http :3000
+tk serve http              # Starts on :3000 by default
+tk serve http --port 8080  # Custom port
 ```
 
 ### Endpoints
@@ -307,14 +309,14 @@ Once installed, Claude has access to these tools:
 
 ### Manual Configuration
 
-If you prefer manual setup, add this to `~/.claude/settings.json`:
+If you prefer manual setup, add this to `~/.claude.json`:
 
 ```json
 {
   "mcpServers": {
     "tasuku": {
       "command": "/path/to/tk",
-      "args": ["serve"]
+      "args": ["serve", "mcp"]
     }
   }
 }

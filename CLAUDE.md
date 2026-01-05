@@ -63,8 +63,9 @@ tk decide <id> --chose X --over Y,Z --because "reason"
 tk context show            # Dump full context (for agent consumption)
 
 # Server
-tk serve                   # Start MCP server
-tk serve --http :3000      # Start HTTP REST API
+tk serve mcp               # Start MCP server (for AI tools)
+tk serve http              # Start HTTP REST API on :3000
+tk serve http --port 8080  # Start HTTP on custom port
 
 # Migration
 tk migrate v3              # Migrate from .tasuku.json to .tasuku/

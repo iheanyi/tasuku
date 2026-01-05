@@ -19,7 +19,7 @@ import (
 	"github.com/iheanyi/tasuku/internal/cmd/migrate"
 	"github.com/iheanyi/tasuku/internal/cmd/note"
 	"github.com/iheanyi/tasuku/internal/cmd/pr"
-	"github.com/iheanyi/tasuku/internal/cmd/server"
+	"github.com/iheanyi/tasuku/internal/cmd/serve"
 	"github.com/iheanyi/tasuku/internal/cmd/task"
 	"github.com/iheanyi/tasuku/internal/cmd/ui"
 	"github.com/iheanyi/tasuku/internal/mcp"
@@ -50,7 +50,7 @@ Getting Started:
 
 AI Tool Integration:
   tk mcp install           # Auto-configure MCP for Claude Code/Cursor
-  tk mcp serve             # Start MCP server (for AI tools)
+  tk serve mcp             # Start MCP server (for AI tools)
 
 For full documentation: https://github.com/iheanyi/tasuku`,
 		Version: Version,
@@ -65,7 +65,7 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.AddCommand(decision.Cmd)
 	cmd.AddCommand(note.Cmd)
 	cmd.AddCommand(contextcmd.Cmd)
-	cmd.AddCommand(server.Cmd)
+	cmd.AddCommand(serve.Cmd)
 	cmd.AddCommand(mcpcmd.Cmd)
 	cmd.AddCommand(hooks.Cmd)
 	cmd.AddCommand(migrate.Cmd)

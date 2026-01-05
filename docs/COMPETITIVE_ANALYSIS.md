@@ -349,7 +349,8 @@ This enables Codex to use Tasuku via its native function calling.
 
 **Solution:** Add optional HTTP mode:
 ```bash
-tk serve --http :3000
+tk serve http              # Starts on :3000
+tk serve http --port 8080  # Custom port
 ```
 
 #### Gap 4: No Agent-Agnostic Schema
@@ -390,7 +391,7 @@ Or document how to use `tk context | aider --message-file -`
 - [x] Add `tk schema` command to output schema - `tk server schema`
 
 #### Phase 2: HTTP API (v1.2) - ✅ COMPLETE
-- [x] Add `tk serve --http :3000` - `tk server http`
+- [x] Add `tk serve http` - HTTP REST API server
 - [x] OpenAPI 3.0 specification - `/schema` endpoint
 - [ ] Swagger UI at `/docs` - Not yet
 - [x] CORS headers for web clients - Implemented

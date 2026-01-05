@@ -236,8 +236,9 @@ tk task claim <id>               # Claim task (with lock)
 tk task release <id>             # Release claim
 
 # Servers
-tk serve                         # Start MCP server (stdio mode)
-tk serve --http :3000            # Start HTTP REST API
+tk serve mcp                     # Start MCP server (stdio mode)
+tk serve http                    # Start HTTP REST API on :3000
+tk serve http --port 8080        # Start HTTP on custom port
 
 # Migration
 tk migrate v3                    # Migrate from V2 to V3 format
@@ -336,7 +337,7 @@ Full CLI parity - every CLI command has a corresponding MCP tool:
   "mcpServers": {
     "tasuku": {
       "command": "tk",
-      "args": ["serve"]
+      "args": ["serve", "mcp"]
     }
   }
 }

@@ -16,14 +16,14 @@ import (
 func newMCPCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "mcp",
-		Short: "MCP server for AI tool integration",
-		Long: `Model Context Protocol (MCP) server for AI tool integration.
+		Short: "MCP configuration for AI tool integration",
+		Long: `Model Context Protocol (MCP) configuration for AI tool integration.
 
 Available subcommands:
-  serve      Start the MCP server (stdio mode for AI tools)
   install    Auto-configure Tasuku MCP in Claude Code, Cursor, etc.
   uninstall  Remove Tasuku MCP configuration from AI tools
   config     Display MCP configuration JSON for manual setup
+  serve      Alias for 'tk serve mcp' (backwards compatibility)
 
 The MCP server enables AI tools like Claude Code and Cursor to
 interact with Tasuku directly, allowing them to list, create,
@@ -31,8 +31,8 @@ and update tasks.
 
 Examples:
   tk mcp install    # Auto-configure in Claude Code/Cursor
-  tk mcp serve      # Start MCP server (used by AI tools)
-  tk mcp config     # Show config for manual setup`,
+  tk mcp config     # Show config for manual setup
+  tk serve mcp      # Start MCP server (preferred)`,
 	}
 
 	cmd.AddCommand(serveCmd)
@@ -48,8 +48,10 @@ var Cmd = newMCPCmd()
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start the MCP server",
+	Short: "Start the MCP server (alias for 'tk serve mcp')",
 	Long: `Start the MCP (Model Context Protocol) server in stdio mode.
+
+This is an alias for 'tk serve mcp'. Prefer using 'tk serve mcp' directly.
 
 This is the mode used by AI tools like Claude Code and Cursor.
 The server communicates via stdin/stdout using the MCP protocol.
@@ -158,7 +160,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 		mcpServers["tasuku"] = map[string]interface{}{
 			"command": executable,
-			"args":    []string{"server", "start"},
+			"args":    []string{"serve", "mcp"},
 			"type":    "stdio",
 		}
 		settings[tool.MCPKey] = mcpServers
@@ -274,7 +276,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
 	config := map[string]interface{}{
 		"tasuku": map[string]interface{}{
 			"command": executable,
-			"args":    []string{"server", "start"},
+			"args":    []string{"serve", "mcp"},
 			"type":    "stdio",
 		},
 	}

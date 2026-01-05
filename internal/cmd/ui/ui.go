@@ -35,7 +35,7 @@ Keybindings:
 Colors based on iheanyi.com dark theme.
 
 For a web-based dashboard, use:
-  tk serve --http :8080
+  tk serve http --port 8080
 
 Then open http://localhost:8080 in your browser.`,
 	RunE: runUI,

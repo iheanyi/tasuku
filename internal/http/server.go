@@ -106,7 +106,7 @@ func getProcessUsingPort(addr string) string {
 func (s *Server) Run(addr string) error {
 	// Check if port is available before starting
 	if err := checkPortAvailable(addr); err != nil {
-		return fmt.Errorf("cannot start server: %w\n\nTo fix this:\n  1. Stop the existing process, or\n  2. Use a different port: tk serve --http :8081", err)
+		return fmt.Errorf("cannot start server: %w\n\nTo fix this:\n  1. Stop the existing process, or\n  2. Use a different port: tk serve http --port 8081", err)
 	}
 
 	fmt.Printf("Starting HTTP server on %s\n", addr)
