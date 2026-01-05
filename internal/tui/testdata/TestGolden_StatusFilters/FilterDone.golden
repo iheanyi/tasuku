@@ -1,0 +1,21 @@
+Ready: 2  In Progress: 1  Blocked: 1  Done: 1                                                                     
+Progress: 1/5 ███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░                        
+                                                                                                                  
+  Tasks (Done)                                                                                                    
+                                                                                                                  
+                                                                                                                  
+  1 item                                                                                                          
+                                                                                                                  
+> ✓ · deploy-staging                                                                                              
+  Deploy to staging environment                                                                                   
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+                                                                                                                  
+  ↑/k up • ↓/j down • / filter • q quit • ? more                                                                  
+n:new  e:edit  s:start  d:done  t:timer  a:archive  A:archive all done  enter:details  /:filter  r:refresh  q:quit
+0-4:status  p:priority sort  N:notes  L:learnings  D:decisions  ?:help                                            

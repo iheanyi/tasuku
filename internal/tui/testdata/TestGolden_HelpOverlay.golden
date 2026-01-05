@@ -1,0 +1,24 @@
+Ready: 2  In Progre╭───────────────────────────────────────╮                                                                                  
+Progress: 1/5 █████│                                       │░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░                        
+                   │   Help                                │                                                      
+  Tasks            │                                       │                                                      
+                   │   n - New task                        │                                                      
+                   │   e - Edit task description           │                                                      
+  5 items          │   s - Start a ready task              │                                                      
+                   │   d - Mark in-progress task as done   │                                                      
+> ● · fix-bug-123  │   t - Toggle timer on task            │                                                      
+  Fix login page re│   a - Archive done task               │                                                      
+                   │   A - Archive all done tasks          │                                                      
+  ○ · write-tests  │   enter - View task details           │                                                      
+  Write unit tests │   / - Filter tasks                    │                                                      
+                   │   r - Refresh task list               │                                                      
+                   │   0-4 - Status filters                │                                                      
+                   │   p - Toggle priority sort            │                                                      
+  •••              │   N - View notes for task             │                                                      
+                   │   L - View learnings                  │                                                      
+  ↑/k up • ↓/j down│   D - View decisions                  │                                                      
+n:new  e:edit  s:st│   ? - Toggle help                     │e all done  enter:details  /:filter  r:refresh  q:quit
+0-4:status  p:prior│   q - Quit                            │ns  ?:help                                            
+                   │                                       │    
+                   │   Press ? or esc to close             │    
+                   │                                       │    

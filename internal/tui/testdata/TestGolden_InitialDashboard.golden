@@ -1,0 +1,21 @@
+[?25l[?2004hReady: 2  In Progress: 1  Blocked: 1  Done: 1                                   
+Progress: 1/5 ███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+                                                                                
+  Tasks                                                                         
+                                                                                
+                                                                                
+  5 items                                                                       
+                                                                                
+> ● · fix-bug-123                                                               
+  Fix login page redirect bug                                                   
+                                                                                
+  ○ · write-tests                                                               
+  Write unit tests for auth module                                              
+                                                                                
+                                                                                
+                                                                                
+  •••                                                                           
+                                                                                
+  ↑/k up • ↓/j down • / filter • q quit • ? more                                
+n:new  e:edit  s:start  d:done  t:timer  a:archive  A:archive all done  enter:de
+0-4:status  p:priority sort  N:notes  L:learnings  D:decisions  ?:help          [2K[?2004l[?25h[?1002l[?1003l[?1006l
