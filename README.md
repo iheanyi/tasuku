@@ -2,6 +2,8 @@
 
 Agent-first task management for codebases. Designed for AI agents working alongside humans.
 
+![Tasuku TUI Demo](assets/demo.gif)
+
 ## Why Tasuku?
 
 Traditional task management is built for humans pushing updates. Tasuku flips this:
