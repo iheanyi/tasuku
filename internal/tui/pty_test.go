@@ -149,17 +149,17 @@ func (p *ptyTest) writeKey(key string) {
 
 	// Map common key names to escape sequences
 	keys := map[string]string{
-		"enter":   "\r",
-		"escape":  "\x1b",
-		"esc":     "\x1b",
-		"up":      "\x1b[A",
-		"down":    "\x1b[B",
-		"left":    "\x1b[C",
-		"right":   "\x1b[D",
-		"ctrl+c":  "\x03",
-		"ctrl+d":  "\x04",
-		"tab":     "\t",
-		"space":   " ",
+		"enter":  "\r",
+		"escape": "\x1b",
+		"esc":    "\x1b",
+		"up":     "\x1b[A",
+		"down":   "\x1b[B",
+		"left":   "\x1b[C",
+		"right":  "\x1b[D",
+		"ctrl+c": "\x03",
+		"ctrl+d": "\x04",
+		"tab":    "\t",
+		"space":  " ",
 	}
 
 	seq, ok := keys[strings.ToLower(key)]
@@ -178,11 +178,11 @@ func stripANSI(s string) string {
 	// - Private mode sequences: \x1b[?...letter
 	// - Other escape sequences: \x1b followed by various patterns
 	patterns := []string{
-		`\x1b\[[0-9;?]*[a-zA-Z]`,          // CSI sequences
+		`\x1b\[[0-9;?]*[a-zA-Z]`,            // CSI sequences
 		`\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)`, // OSC sequences (BEL or ST terminated)
-		`\x1b\][^\x07]*`,                   // OSC sequences (unterminated)
-		`\x1b[PX^_][^\x1b]*\x1b\\`,         // DCS/SOS/PM/APC sequences
-		`\x1b.`,                            // Other 2-char escapes
+		`\x1b\][^\x07]*`,                    // OSC sequences (unterminated)
+		`\x1b[PX^_][^\x1b]*\x1b\\`,          // DCS/SOS/PM/APC sequences
+		`\x1b.`,                             // Other 2-char escapes
 	}
 	combined := strings.Join(patterns, "|")
 	re := regexp.MustCompile(combined)

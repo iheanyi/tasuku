@@ -6,10 +6,10 @@ import "github.com/charmbracelet/lipgloss"
 // Theme colors based on iheanyi.com dark theme
 var (
 	// Base colors
-	ColorBg      = lipgloss.Color("#1a1a1a") // Near-black background
-	ColorFg      = lipgloss.Color("#f0f0f0") // Light gray foreground
-	ColorMuted   = lipgloss.Color("#6b7280") // Gray for comments/muted text
-	ColorSlate   = lipgloss.Color("#94a3b8") // Slate for punctuation/dim
+	ColorBg    = lipgloss.Color("#1a1a1a") // Near-black background
+	ColorFg    = lipgloss.Color("#f0f0f0") // Light gray foreground
+	ColorMuted = lipgloss.Color("#6b7280") // Gray for comments/muted text
+	ColorSlate = lipgloss.Color("#94a3b8") // Slate for punctuation/dim
 
 	// Accent colors
 	ColorAccent  = lipgloss.Color("#5eead4") // Teal/cyan for highlights

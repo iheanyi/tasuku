@@ -1,14 +1,24 @@
-╭────────────────────────────────────────────────────────────────────────────╮
-│                                                                            │
-│  Decisions                                                                 │
-│                                                                            │
-│                                                                            │
-│    ✓ JWT tokens                                                            │
-│      over: Session cookies, OAuth only                                     │
-│      "Better for API-first architecture and mobile clients"                │
-│      2024-01-15 10:30                                                      │
-│                                                                            │
-│                                                                            │
-│  Press esc to go back                                                      │
-│                                                                            │
-╰────────────────────────────────────────────────────────────────────────────╯
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+ ╭────────────────────────────────────────────────────────────────────────────╮ 
+ │                                                                            │ 
+ │  Decisions                                                                 │ 
+ │                                                                            │ 
+ │    * JWT tokens                                                            │ 
+ │      over: Session cookies, OAuth only                                     │ 
+ │      "Better for API-first architecture and mobile clients"                │ 
+ │      2024-01-15 10:30                                                      │ 
+ │                                                                            │ 
+ │  esc: back                                                                 │ 
+ │                                                                            │ 
+ ╰────────────────────────────────────────────────────────────────────────────╯ 
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                

@@ -1,18 +1,24 @@
-╭─────────────────────────────────────────────────────────────────────╮
-│                                                                     │
-│  fix-bug-123                                                        │
-│                                                                     │
-│                                                                     │
-│  Status: ● in_progress                                              │
-│  Priority: · normal                                                 │
-│                                                                     │
-│  Description                                                        │
-│  Fix login page redirect bug                                        │
-│                                                                     │
-│  Notes                                                              │
-│    • Root cause identified: missing null check in redirect handler  │
-│                                                                     │
-│                                                                     │
-│  Press esc to go back                                               │
-│                                                                     │
-╰─────────────────────────────────────────────────────────────────────╯
+                                                                                
+                                                                                
+                                                                                
+ ╭────────────────────────────────────────────────────────────────────────────╮ 
+ │                                                                            │ 
+ │  fix-bug-123                                                               │ 
+ │                                                                            │ 
+ │                                                                            │ 
+ │  Status: ● in_progress                                                     │ 
+ │  Priority: · normal                                                        │ 
+ │                                                                            │ 
+ │  Description                                                               │ 
+ │  Fix login page redirect bug                                               │ 
+ │                                                                            │ 
+ │  Notes                                                                     │ 
+ │    - Root cause identified: missing null check in redirect handler         │ 
+ │                                                                            │ 
+ │  esc: back                                                                 │ 
+ │                                                                            │ 
+ ╰────────────────────────────────────────────────────────────────────────────╯ 
+                                                                                
+                                                                                
+                                                                                
+                                                                                

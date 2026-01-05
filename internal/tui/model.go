@@ -919,8 +919,8 @@ func (m Model) viewDashboard() string {
 	progressBar := m.progress.ViewAs(progressPercent)
 	progressLine := lipgloss.NewStyle().MarginBottom(1).Render(progressLabel + progressBar)
 
-	help1 := HelpStyle.Render("n:new  e:edit  s:start  d:done  t:timer  a:archive  A:archive all done  enter:details  /:filter  r:refresh  q:quit")
-	help2 := HelpStyle.Render("0-4:status  p:priority sort  N:notes  L:learnings  D:decisions  ?:help")
+	help1 := HelpStyle.Render("n:new  e:edit  s:start  d:done  t:timer  a:archive  A:archive all  enter:details  /:filter  r:refresh  q:quit")
+	help2 := HelpStyle.Render("0-4:status  p:priority  N:notes  L:learnings  D:decisions  ?:help")
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		stats,
@@ -932,10 +932,8 @@ func (m Model) viewDashboard() string {
 }
 
 func (m Model) viewConfirmOverlay() string {
-	// Get the dashboard view as background
 	background := m.viewDashboard()
 
-	// Create the confirmation modal
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ColorAmber).
@@ -951,13 +949,10 @@ func (m Model) viewConfirmOverlay() string {
 		MarginTop(1).
 		MarginBottom(1)
 
-	helpStyle := lipgloss.NewStyle().
-		Foreground(ColorMuted)
-
 	modalContent := lipgloss.JoinVertical(lipgloss.Center,
-		titleStyle.Render("Confirm Action"),
+		titleStyle.Render("Confirm"),
 		messageStyle.Render(m.confirmMessage),
-		helpStyle.Render("y: confirm  n/esc: cancel"),
+		HelpStyle.Render("y: confirm  n/esc: cancel"),
 	)
 
 	modal := modalStyle.Render(modalContent)
@@ -965,27 +960,15 @@ func (m Model) viewConfirmOverlay() string {
 	// Center the modal on the screen
 	modalWidth := lipgloss.Width(modal)
 	modalHeight := lipgloss.Height(modal)
+	x := max((m.width-modalWidth)/2, 0)
+	y := max((m.height-modalHeight)/2, 0)
 
-	// Calculate position to center
-	x := (m.width - modalWidth) / 2
-	y := (m.height - modalHeight) / 2
-
-	if x < 0 {
-		x = 0
-	}
-	if y < 0 {
-		y = 0
-	}
-
-	// Place modal over background
 	return placeOverlay(x, y, modal, background, m.width, m.height)
 }
 
 func (m Model) viewHelpOverlay() string {
-	// Get the dashboard view as background
 	background := m.viewDashboard()
 
-	// Create the help modal
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ColorAccent).
@@ -996,28 +979,34 @@ func (m Model) viewHelpOverlay() string {
 		Foreground(ColorAccent).
 		Bold(true)
 
+	// Group help items by category for better readability
 	helpContent := lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("Help"),
+		titleStyle.Render("Keyboard Shortcuts"),
 		"",
-		KeyStyle.Render("n")+" - New task",
-		KeyStyle.Render("e")+" - Edit task description",
-		KeyStyle.Render("s")+" - Start a ready task",
-		KeyStyle.Render("d")+" - Mark in-progress task as done",
-		KeyStyle.Render("t")+" - Toggle timer on task",
-		KeyStyle.Render("a")+" - Archive done task",
-		KeyStyle.Render("A")+" - Archive all done tasks",
-		KeyStyle.Render("enter")+" - View task details",
-		KeyStyle.Render("/")+" - Filter tasks",
-		KeyStyle.Render("r")+" - Refresh task list",
-		KeyStyle.Render("0-4")+" - Status filters",
-		KeyStyle.Render("p")+" - Toggle priority sort",
-		KeyStyle.Render("N")+" - View notes for task",
-		KeyStyle.Render("L")+" - View learnings",
-		KeyStyle.Render("D")+" - View decisions",
-		KeyStyle.Render("?")+" - Toggle help",
-		KeyStyle.Render("q")+" - Quit",
+		HelpStyle.Render("Tasks"),
+		"  "+KeyStyle.Render("n")+"      New task",
+		"  "+KeyStyle.Render("e")+"      Edit task description",
+		"  "+KeyStyle.Render("s")+"      Start ready task",
+		"  "+KeyStyle.Render("d")+"      Mark done",
+		"  "+KeyStyle.Render("t")+"      Toggle timer",
+		"  "+KeyStyle.Render("a")+"      Archive done task",
+		"  "+KeyStyle.Render("A")+"      Archive all done",
+		"  "+KeyStyle.Render("enter")+"  View details",
 		"",
-		HelpStyle.Render("Press ? or esc to close"),
+		HelpStyle.Render("Navigation"),
+		"  "+KeyStyle.Render("/")+"      Filter tasks",
+		"  "+KeyStyle.Render("0-4")+"    Status filter",
+		"  "+KeyStyle.Render("p")+"      Priority sort",
+		"  "+KeyStyle.Render("N")+"      Notes",
+		"  "+KeyStyle.Render("L")+"      Learnings",
+		"  "+KeyStyle.Render("D")+"      Decisions",
+		"",
+		HelpStyle.Render("General"),
+		"  "+KeyStyle.Render("r")+"      Refresh",
+		"  "+KeyStyle.Render("?")+"      Help",
+		"  "+KeyStyle.Render("q")+"      Quit",
+		"",
+		HelpStyle.Render("?/esc: close"),
 	)
 
 	modal := modalStyle.Render(helpContent)
@@ -1025,16 +1014,8 @@ func (m Model) viewHelpOverlay() string {
 	// Center the modal on the screen
 	modalWidth := lipgloss.Width(modal)
 	modalHeight := lipgloss.Height(modal)
-
-	x := (m.width - modalWidth) / 2
-	y := (m.height - modalHeight) / 2
-
-	if x < 0 {
-		x = 0
-	}
-	if y < 0 {
-		y = 0
-	}
+	x := max((m.width-modalWidth)/2, 0)
+	y := max((m.height-modalHeight)/2, 0)
 
 	return placeOverlay(x, y, modal, background, m.width, m.height)
 }
@@ -1086,13 +1067,20 @@ func placeOverlay(x, y int, fg, bg string, width, height int) string {
 func (m Model) viewTaskDetail() string {
 	t, exists := m.file.Tasks[m.selected]
 	if !exists {
-		return "Task not found. Press esc to go back."
+		errorPanel := PanelStyle.Width(m.width - 4).Render(
+			HelpStyle.Render("Task not found.\n\nPress esc to go back"),
+		)
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, errorPanel)
 	}
 
 	var b strings.Builder
 
 	// Title
-	b.WriteString(TitleStyle.Render(m.selected))
+	titleStyle := lipgloss.NewStyle().
+		Foreground(ColorPrimary).
+		Bold(true).
+		MarginBottom(1)
+	b.WriteString(titleStyle.Render(m.selected))
 	b.WriteString("\n\n")
 
 	// Status and Priority
@@ -1101,17 +1089,20 @@ func (m Model) viewTaskDetail() string {
 	b.WriteString("\n")
 
 	// Description
-	b.WriteString(SubtitleStyle.Render("Description"))
+	sectionStyle := lipgloss.NewStyle().
+		Foreground(ColorAccent).
+		Bold(true)
+	b.WriteString(sectionStyle.Render("Description"))
 	b.WriteString("\n")
 	b.WriteString(t.Description)
 	b.WriteString("\n\n")
 
 	// Timer
 	if t.Duration > 0 || t.IsTimerRunning() {
-		b.WriteString(SubtitleStyle.Render("Time Tracking"))
+		b.WriteString(sectionStyle.Render("Time Tracking"))
 		b.WriteString("\n")
 		if t.IsTimerRunning() {
-			b.WriteString(TimerRunningStyle.Render("⏱️ Timer running"))
+			b.WriteString(TimerRunningStyle.Render("Timer running"))
 			b.WriteString(" - ")
 		}
 		b.WriteString(fmt.Sprintf("Total: %s\n", task.Duration(t.CurrentDuration()).FormatHumanReadable()))
@@ -1120,7 +1111,7 @@ func (m Model) viewTaskDetail() string {
 
 	// Tags
 	if len(t.Tags) > 0 {
-		b.WriteString(SubtitleStyle.Render("Tags"))
+		b.WriteString(sectionStyle.Render("Tags"))
 		b.WriteString("\n")
 		for _, tag := range t.Tags {
 			b.WriteString(TagStyle.Render(tag))
@@ -1131,7 +1122,7 @@ func (m Model) viewTaskDetail() string {
 
 	// Custom fields
 	if len(t.Fields) > 0 {
-		b.WriteString(SubtitleStyle.Render("Custom Fields"))
+		b.WriteString(sectionStyle.Render("Custom Fields"))
 		b.WriteString("\n")
 		for k, v := range t.Fields {
 			b.WriteString(fmt.Sprintf("  %s: %s\n", KeyStyle.Render(k), v))
@@ -1141,10 +1132,10 @@ func (m Model) viewTaskDetail() string {
 
 	// Notes
 	if notes, exists := m.file.Context.Notes[m.selected]; exists && len(notes) > 0 {
-		b.WriteString(SubtitleStyle.Render("Notes"))
+		b.WriteString(sectionStyle.Render("Notes"))
 		b.WriteString("\n")
 		for _, note := range notes {
-			b.WriteString(fmt.Sprintf("  • %s\n", note.Text))
+			b.WriteString(fmt.Sprintf("  - %s\n", note.Text))
 		}
 		b.WriteString("\n")
 	}
@@ -1153,13 +1144,52 @@ func (m Model) viewTaskDetail() string {
 	if len(t.BlockedBy) > 0 {
 		b.WriteString(TaskBlockedStyle.Render("Blocked by: "))
 		b.WriteString(strings.Join(t.BlockedBy, ", "))
-		b.WriteString("\n")
+		b.WriteString("\n\n")
 	}
 
-	b.WriteString("\n")
-	b.WriteString(HelpStyle.Render("Press esc to go back"))
+	b.WriteString(HelpStyle.Render("esc: back"))
 
-	return PanelStyle.Render(b.String())
+	panel := PanelStyle.Width(m.width - 4).Render(b.String())
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, panel)
+}
+
+// renderEmptyState creates a consistent empty state message with a CLI hint.
+func (m Model) renderEmptyState(message string, cliCommand string) string {
+	var b strings.Builder
+	b.WriteString(HelpStyle.Render(message))
+	b.WriteString("\n")
+	b.WriteString(HelpStyle.Render("Use '"))
+	b.WriteString(KeyStyle.Render(cliCommand))
+	b.WriteString(HelpStyle.Render("' to add entries."))
+	return b.String()
+}
+
+// renderModal creates a consistent modal dialog with title, content, and help text.
+func (m Model) renderModal(title string, borderColor lipgloss.Color, content string, helpText string) string {
+	modalStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Padding(1, 3)
+
+	titleStyle := lipgloss.NewStyle().
+		Foreground(borderColor).
+		Bold(true)
+
+	inputStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(ColorSlate).
+		Padding(0, 1).
+		Width(50)
+
+	modalContent := lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render(title),
+		"",
+		inputStyle.Render(content),
+		"",
+		HelpStyle.Render(helpText),
+	)
+
+	return modalStyle.Render(modalContent)
 }
 
 // generateTaskID creates a kebab-case ID from description.
@@ -1182,85 +1212,25 @@ func generateTaskID(desc string) string {
 }
 
 func (m Model) viewCreate() string {
-	// Modal style - clean centered modal without background overlay
-	modalStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ColorAccent).
-		Padding(1, 3)
-
-	titleStyle := lipgloss.NewStyle().
-		Foreground(ColorAccent).
-		Bold(true)
-
-	helpStyle := lipgloss.NewStyle().
-		Foreground(ColorMuted)
-
-	// Style the text input
-	inputStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(ColorSlate).
-		Padding(0, 1).
-		Width(50)
-
-	modalContent := lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("New Task"),
-		"",
-		inputStyle.Render(m.createInput.View()),
-		"",
-		helpStyle.Render("enter: create  esc: cancel"),
+	modal := m.renderModal(
+		"New Task",
+		ColorAccent,
+		m.createInput.View(),
+		"enter: create  esc: cancel",
 	)
-
-	modal := modalStyle.Render(modalContent)
-
-	// Center the modal on the screen using lipgloss.Place
-	return lipgloss.Place(m.width, m.height,
-		lipgloss.Center, lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-	)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
 
 func (m Model) viewEdit() string {
-	// Modal style - clean centered modal without background overlay
-	modalStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ColorPrimary).
-		Padding(1, 3)
-
-	titleStyle := lipgloss.NewStyle().
-		Foreground(ColorPrimary).
-		Bold(true)
-
-	idStyle := lipgloss.NewStyle().
-		Foreground(ColorMuted)
-
-	helpStyle := lipgloss.NewStyle().
-		Foreground(ColorMuted)
-
-	// Style the text input
-	inputStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(ColorSlate).
-		Padding(0, 1).
-		Width(50)
-
-	modalContent := lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("Edit Task"),
-		idStyle.Render(m.editTaskID),
-		"",
-		inputStyle.Render(m.editInput.View()),
-		"",
-		helpStyle.Render("enter: save  esc: cancel"),
+	idLabel := HelpStyle.Render(m.editTaskID)
+	content := lipgloss.JoinVertical(lipgloss.Left, idLabel, "", m.editInput.View())
+	modal := m.renderModal(
+		"Edit Task",
+		ColorPrimary,
+		content,
+		"enter: save  esc: cancel",
 	)
-
-	modal := modalStyle.Render(modalContent)
-
-	// Center the modal on the screen using lipgloss.Place
-	return lipgloss.Place(m.width, m.height,
-		lipgloss.Center, lipgloss.Center,
-		modal,
-		lipgloss.WithWhitespaceChars(" "),
-	)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
 
 func (m Model) viewNotes() string {
@@ -1268,37 +1238,29 @@ func (m Model) viewNotes() string {
 
 	titleStyle := lipgloss.NewStyle().
 		Foreground(ColorAccent).
-		Bold(true).
-		MarginBottom(1)
-
-	noteStyle := lipgloss.NewStyle().
-		Foreground(ColorFg)
-
-	timestampStyle := lipgloss.NewStyle().
-		Foreground(ColorMuted)
-
-	mutedStyle := lipgloss.NewStyle().
-		Foreground(ColorMuted)
+		Bold(true)
 
 	b.WriteString(titleStyle.Render(fmt.Sprintf("Notes for %s", m.selected)))
 	b.WriteString("\n\n")
 
 	notes, exists := m.file.Context.Notes[m.selected]
 	if !exists || len(notes) == 0 {
-		b.WriteString(mutedStyle.Render("No notes recorded for this task."))
-		b.WriteString("\n")
-		b.WriteString(mutedStyle.Render("Use 'tk note <task-id> \"note text\"' to add notes."))
+		b.WriteString(m.renderEmptyState(
+			"No notes recorded for this task.",
+			"tk note <task-id> \"note text\"",
+		))
 	} else {
 		for i, n := range notes {
-			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, noteStyle.Render(n.Text)))
-			b.WriteString(fmt.Sprintf("     %s\n", timestampStyle.Render(n.CreatedAt.Format("2006-01-02 15:04"))))
+			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, n.Text))
+			b.WriteString(fmt.Sprintf("     %s\n", HelpStyle.Render(n.CreatedAt.Format("2006-01-02 15:04"))))
 		}
 	}
 
 	b.WriteString("\n")
-	b.WriteString(HelpStyle.Render("Press esc to go back"))
+	b.WriteString(HelpStyle.Render("esc: back"))
 
-	return PanelStyle.Width(m.width - 4).Render(b.String())
+	panel := PanelStyle.Width(m.width - 4).Render(b.String())
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, panel)
 }
 
 func (m Model) viewLearnings() string {
@@ -1306,26 +1268,20 @@ func (m Model) viewLearnings() string {
 
 	titleStyle := lipgloss.NewStyle().
 		Foreground(ColorAccent).
-		Bold(true).
-		MarginBottom(1)
-
-	ruleStyle := lipgloss.NewStyle().
-		Foreground(ColorAmber).
 		Bold(true)
 
-	learningStyle := lipgloss.NewStyle().
-		Foreground(ColorFg)
-
-	mutedStyle := lipgloss.NewStyle().
-		Foreground(ColorMuted)
+	sectionStyle := lipgloss.NewStyle().
+		Foreground(ColorAccent).
+		Bold(true)
 
 	b.WriteString(titleStyle.Render("Learnings"))
 	b.WriteString("\n\n")
 
 	if len(m.file.Context.Learnings) == 0 {
-		b.WriteString(mutedStyle.Render("No learnings recorded yet."))
-		b.WriteString("\n")
-		b.WriteString(mutedStyle.Render("Use 'tk learn \"insight\"' to add learnings."))
+		b.WriteString(m.renderEmptyState(
+			"No learnings recorded yet.",
+			"tk learn \"insight\"",
+		))
 	} else {
 		// Separate rules from regular learnings
 		var rules, regular []task.Learning
@@ -1339,29 +1295,30 @@ func (m Model) viewLearnings() string {
 
 		// Show rules first (never/always)
 		if len(rules) > 0 {
-			b.WriteString(ruleStyle.Render("Rules (Never/Always)"))
+			b.WriteString(RuleStyle.Render("Rules (Never/Always)"))
 			b.WriteString("\n")
 			for _, r := range rules {
-				b.WriteString(fmt.Sprintf("  %s %s\n", ruleStyle.Render("⚠"), r.Text))
+				b.WriteString(fmt.Sprintf("  %s %s\n", RuleStyle.Render("!"), r.Text))
 			}
 			b.WriteString("\n")
 		}
 
 		// Then regular learnings
 		if len(regular) > 0 {
-			b.WriteString(learningStyle.Render("Insights"))
+			b.WriteString(sectionStyle.Render("Insights"))
 			b.WriteString("\n")
 			for _, l := range regular {
-				b.WriteString(fmt.Sprintf("  • %s\n", l.Text))
-				b.WriteString(fmt.Sprintf("    %s\n", mutedStyle.Render(l.CreatedAt.Format("2006-01-02 15:04"))))
+				b.WriteString(fmt.Sprintf("  - %s\n", l.Text))
+				b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(l.CreatedAt.Format("2006-01-02 15:04"))))
 			}
 		}
 	}
 
 	b.WriteString("\n")
-	b.WriteString(HelpStyle.Render("Press esc to go back"))
+	b.WriteString(HelpStyle.Render("esc: back"))
 
-	return PanelStyle.Width(m.width - 4).Render(b.String())
+	panel := PanelStyle.Width(m.width - 4).Render(b.String())
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, panel)
 }
 
 func (m Model) viewDecisions() string {
@@ -1369,8 +1326,7 @@ func (m Model) viewDecisions() string {
 
 	titleStyle := lipgloss.NewStyle().
 		Foreground(ColorPurple).
-		Bold(true).
-		MarginBottom(1)
+		Bold(true)
 
 	choseStyle := lipgloss.NewStyle().
 		Foreground(ColorAccent).
@@ -1384,32 +1340,30 @@ func (m Model) viewDecisions() string {
 		Foreground(ColorFg).
 		Italic(true)
 
-	mutedStyle := lipgloss.NewStyle().
-		Foreground(ColorMuted)
-
 	b.WriteString(titleStyle.Render("Decisions"))
 	b.WriteString("\n\n")
 
 	if len(m.file.Context.Decisions) == 0 {
-		b.WriteString(mutedStyle.Render("No decisions recorded yet."))
-		b.WriteString("\n")
-		b.WriteString(mutedStyle.Render("Use 'tk decide --chose X --over Y,Z --because \"reason\"' to record decisions."))
+		b.WriteString(m.renderEmptyState(
+			"No decisions recorded yet.",
+			"tk decide --chose X --over Y,Z --because \"reason\"",
+		))
 	} else {
 		for _, d := range m.file.Context.Decisions {
-			b.WriteString(fmt.Sprintf("  %s %s\n", choseStyle.Render("✓"), choseStyle.Render(d.Chose)))
+			b.WriteString(fmt.Sprintf("  %s %s\n", choseStyle.Render("*"), choseStyle.Render(d.Chose)))
 			if len(d.Over) > 0 {
 				b.WriteString(fmt.Sprintf("    over: %s\n", overStyle.Render(strings.Join(d.Over, ", "))))
 			}
 			if d.Because != "" {
 				b.WriteString(fmt.Sprintf("    %s\n", reasonStyle.Render("\""+d.Because+"\"")))
 			}
-			b.WriteString(fmt.Sprintf("    %s\n", mutedStyle.Render(d.CreatedAt.Format("2006-01-02 15:04"))))
+			b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(d.CreatedAt.Format("2006-01-02 15:04"))))
 			b.WriteString("\n")
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(HelpStyle.Render("Press esc to go back"))
+	b.WriteString(HelpStyle.Render("esc: back"))
 
-	return PanelStyle.Width(m.width - 4).Render(b.String())
+	panel := PanelStyle.Width(m.width - 4).Render(b.String())
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, panel)
 }

@@ -1,13 +1,24 @@
-╭────────────────────────────────────────────────────────────────────────────╮
-│                                                                            │
-│  Learnings                                                                 │
-│                                                                            │
-│                                                                            │
-│  Rules (Never/Always)                                                      │
-│    ⚠ Always validate user input on both client and server side             │
-│    ⚠ Never store passwords in plain text                                   │
-│                                                                            │
-│                                                                            │
-│  Press esc to go back                                                      │
-│                                                                            │
-╰────────────────────────────────────────────────────────────────────────────╯
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+ ╭────────────────────────────────────────────────────────────────────────────╮ 
+ │                                                                            │ 
+ │  Learnings                                                                 │ 
+ │                                                                            │ 
+ │  Rules (Never/Always)                                                      │ 
+ │    ! Always validate user input on both client and server side             │ 
+ │    ! Never store passwords in plain text                                   │ 
+ │                                                                            │ 
+ │                                                                            │ 
+ │  esc: back                                                                 │ 
+ │                                                                            │ 
+ ╰────────────────────────────────────────────────────────────────────────────╯ 
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                

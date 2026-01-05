@@ -324,6 +324,48 @@ If you prefer manual setup, add this to `~/.claude.json`:
 }
 ```
 
+## Hooks
+
+Tasuku provides hooks for automating task management workflows with git and Claude Code.
+
+### Installation
+
+```bash
+# Install all hooks (git + Claude Code)
+tk hooks install
+
+# Install only git hooks
+tk hooks install --git
+
+# Install only Claude Code hooks
+tk hooks install --claude
+
+# Overwrite existing hooks
+tk hooks install --force
+```
+
+### Git Hooks
+
+- **pre-commit**: Validates task files before committing
+- **post-commit**: Auto-updates task status based on commit messages
+
+### Claude Code Hooks
+
+- **ExitPlanMode**: Syncs tasks when Claude exits plan mode, extracting tasks from plan files
+
+### Additional Commands
+
+```bash
+# Extract tasks from a plan file
+tk hooks plan-sync
+
+# Display session context summary
+tk hooks session
+
+# Remove all hooks
+tk hooks uninstall
+```
+
 ## Data Format
 
 ### V3 Format (Default)

@@ -1,16 +1,24 @@
-╭───────────────────────────╮
-│                           │
-│  prod-deploy              │
-│                           │
-│                           │
-│  Status: ◌ blocked        │
-│  Priority: · normal       │
-│                           │
-│  Description              │
-│  Deploy to production     │
-│                           │
-│  Blocked by: write-tests  │
-│                           │
-│  Press esc to go back     │
-│                           │
-╰───────────────────────────╯
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+ ╭────────────────────────────────────────────────────────────────────────────╮ 
+ │                                                                            │ 
+ │  prod-deploy                                                               │ 
+ │                                                                            │ 
+ │                                                                            │ 
+ │  Status: ◌ blocked                                                         │ 
+ │  Priority: · normal                                                        │ 
+ │                                                                            │ 
+ │  Description                                                               │ 
+ │  Deploy to production                                                      │ 
+ │                                                                            │ 
+ │  Blocked by: write-tests                                                   │ 
+ │                                                                            │ 
+ │  esc: back                                                                 │ 
+ │                                                                            │ 
+ ╰────────────────────────────────────────────────────────────────────────────╯ 
+                                                                                
+                                                                                
+                                                                                
+                                                                                
