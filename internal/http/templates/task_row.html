@@ -1,0 +1,97 @@
+{{define "task_row"}}
+<div class="task-row {{if eq .Status "done"}}task-done{{end}}" id="task-{{.ID}}">
+    <div class="task-status status-{{.Status}}">
+        {{if eq .Status "ready"}}&#9675;{{end}}
+        {{if eq .Status "in_progress"}}&#9679;{{end}}
+        {{if eq .Status "blocked"}}&#9676;{{end}}
+        {{if eq .Status "done"}}&#10003;{{end}}
+    </div>
+    <div class="task-content">
+        <div class="task-description">{{.Description}}</div>
+        <div class="task-meta">
+            <span class="task-id">{{.ID}}</span>
+            {{if .Priority}}
+            <span class="task-priority priority-{{.PriorityName}}">{{.PriorityName}}</span>
+            {{end}}
+            {{if .Tags}}
+            <span class="task-tags">
+                {{range .Tags}}
+                <span class="task-tag">{{.}}</span>
+                {{end}}
+            </span>
+            {{end}}
+            {{if .TimerRunning}}
+            <span class="task-timer">Timer running</span>
+            {{else if .Duration}}
+            <span>{{.Duration}}</span>
+            {{end}}
+        </div>
+    </div>
+    <div class="task-actions">
+        {{if eq .Status "ready"}}
+        <button class="btn btn-start"
+                hx-put="/tasks/{{.ID}}"
+                hx-vals='{"status": "in_progress"}'
+                hx-headers='{"Content-Type": "application/json"}'
+                hx-target="#task-{{.ID}}"
+                hx-swap="outerHTML"
+                hx-on::after-request="htmx.trigger(document.body, 'taskUpdated')">
+            Start
+        </button>
+        {{end}}
+        {{if eq .Status "in_progress"}}
+        <button class="btn btn-done"
+                hx-put="/tasks/{{.ID}}"
+                hx-vals='{"status": "done"}'
+                hx-headers='{"Content-Type": "application/json"}'
+                hx-target="#task-{{.ID}}"
+                hx-swap="outerHTML"
+                hx-on::after-request="htmx.trigger(document.body, 'taskUpdated')">
+            Done
+        </button>
+        {{end}}
+        {{if eq .Status "done"}}
+        <button class="btn btn-archive"
+                hx-post="/tasks/{{.ID}}/archive"
+                hx-headers='{"Content-Type": "application/json"}'
+                hx-target="#task-{{.ID}}"
+                hx-swap="outerHTML"
+                hx-on::after-request="htmx.trigger(document.body, 'taskUpdated')">
+            Archive
+        </button>
+        {{end}}
+        {{if eq .Status "blocked"}}
+        <button class="btn"
+                hx-put="/tasks/{{.ID}}"
+                hx-vals='{"status": "ready"}'
+                hx-headers='{"Content-Type": "application/json"}'
+                hx-target="#task-{{.ID}}"
+                hx-swap="outerHTML"
+                hx-on::after-request="htmx.trigger(document.body, 'taskUpdated')">
+            Unblock
+        </button>
+        {{end}}
+    </div>
+</div>
+{{end}}
+
+{{define "stats"}}
+<div class="stats-grid" id="stats" hx-get="/partials/stats" hx-trigger="taskUpdated from:body" hx-swap="outerHTML">
+    <div class="stat-card stat-ready">
+        <div class="stat-value">{{.Ready}}</div>
+        <div class="stat-label">Ready</div>
+    </div>
+    <div class="stat-card stat-in-progress">
+        <div class="stat-value">{{.InProgress}}</div>
+        <div class="stat-label">In Progress</div>
+    </div>
+    <div class="stat-card stat-blocked">
+        <div class="stat-value">{{.Blocked}}</div>
+        <div class="stat-label">Blocked</div>
+    </div>
+    <div class="stat-card stat-done">
+        <div class="stat-value">{{.Done}}</div>
+        <div class="stat-label">Done</div>
+    </div>
+</div>
+{{end}}

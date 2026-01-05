@@ -1,0 +1,135 @@
+{{define "content"}}
+<div class="stats-grid" id="stats" hx-get="/partials/stats" hx-trigger="taskUpdated from:body" hx-swap="outerHTML">
+    <div class="stat-card stat-ready">
+        <div class="stat-value">{{.Stats.Ready}}</div>
+        <div class="stat-label">Ready</div>
+    </div>
+    <div class="stat-card stat-in-progress">
+        <div class="stat-value">{{.Stats.InProgress}}</div>
+        <div class="stat-label">In Progress</div>
+    </div>
+    <div class="stat-card stat-blocked">
+        <div class="stat-value">{{.Stats.Blocked}}</div>
+        <div class="stat-label">Blocked</div>
+    </div>
+    <div class="stat-card stat-done">
+        <div class="stat-value">{{.Stats.Done}}</div>
+        <div class="stat-label">Done</div>
+    </div>
+</div>
+
+<div class="progress-section" id="progress" hx-get="/partials/progress" hx-trigger="taskUpdated from:body" hx-swap="outerHTML">
+    {{template "progress" .}}
+</div>
+
+<div class="filter-tabs">
+    <button class="filter-tab {{if eq .Filter ""}}active{{end}}"
+            hx-get="/partials/tasks"
+            hx-target="#task-list"
+            hx-swap="innerHTML">
+        All ({{.Stats.Total}})
+    </button>
+    <button class="filter-tab {{if eq .Filter "ready"}}active{{end}}"
+            hx-get="/partials/tasks?status=ready"
+            hx-target="#task-list"
+            hx-swap="innerHTML">
+        Ready ({{.Stats.Ready}})
+    </button>
+    <button class="filter-tab {{if eq .Filter "in_progress"}}active{{end}}"
+            hx-get="/partials/tasks?status=in_progress"
+            hx-target="#task-list"
+            hx-swap="innerHTML">
+        In Progress ({{.Stats.InProgress}})
+    </button>
+    <button class="filter-tab {{if eq .Filter "blocked"}}active{{end}}"
+            hx-get="/partials/tasks?status=blocked"
+            hx-target="#task-list"
+            hx-swap="innerHTML">
+        Blocked ({{.Stats.Blocked}})
+    </button>
+    <button class="filter-tab {{if eq .Filter "done"}}active{{end}}"
+            hx-get="/partials/tasks?status=done"
+            hx-target="#task-list"
+            hx-swap="innerHTML">
+        Done ({{.Stats.Done}})
+    </button>
+</div>
+
+<div class="section-title">
+    Tasks <span class="count">{{len .Tasks}}</span>
+    <span class="htmx-indicator"><span class="loading-spinner"></span></span>
+</div>
+
+<div id="task-list" class="task-list">
+    {{if .Tasks}}
+        {{range .Tasks}}
+            {{template "task_row" .}}
+        {{end}}
+    {{else}}
+        <div class="empty-state">
+            <h3>No tasks found</h3>
+            <p>Create a task with <code>tk add "description"</code></p>
+        </div>
+    {{end}}
+</div>
+
+{{if .Archived}}
+<div style="margin-top: 2rem;">
+    <div class="section-title">
+        Archived <span class="count">{{len .Archived}}</span>
+    </div>
+    <div class="task-list">
+        {{range .Archived}}
+        <div class="task-row task-done">
+            <div class="task-status status-done">&#10003;</div>
+            <div class="task-content">
+                <div class="task-description">{{.Description}}</div>
+                <div class="task-meta">
+                    <span class="task-id">{{.ID}}</span>
+                    {{if .TotalTime}}<span>{{.TotalTime}}</span>{{end}}
+                    <span>Archived {{.ArchivedAt.Format "Jan 2, 2006"}}</span>
+                </div>
+            </div>
+            <div class="task-actions">
+                <button class="btn"
+                        hx-post="/archive/{{.ID}}/restore"
+                        hx-swap="none"
+                        hx-on::after-request="htmx.trigger(document.body, 'taskUpdated'); location.reload();">
+                    Restore
+                </button>
+            </div>
+        </div>
+        {{end}}
+    </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "progress"}}
+<div class="progress-bar-container" id="progress">
+    {{if gt .Stats.Total 0}}
+    <div class="progress-segment progress-done" style="width: {{printf "%.1f" .Stats.DonePercent}}%"></div>
+    <div class="progress-segment progress-in-progress" style="width: {{printf "%.1f" .Stats.InProgressPercent}}%"></div>
+    <div class="progress-segment progress-ready" style="width: {{printf "%.1f" .Stats.ReadyPercent}}%"></div>
+    <div class="progress-segment progress-blocked" style="width: {{printf "%.1f" .Stats.BlockedPercent}}%"></div>
+    {{end}}
+</div>
+<div class="progress-legend">
+    <div class="legend-item">
+        <div class="legend-dot" style="background: var(--color-done);"></div>
+        <span>Done ({{printf "%.0f" .Stats.DonePercent}}%)</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background: var(--color-in-progress);"></div>
+        <span>In Progress ({{printf "%.0f" .Stats.InProgressPercent}}%)</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background: var(--color-ready);"></div>
+        <span>Ready ({{printf "%.0f" .Stats.ReadyPercent}}%)</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background: var(--color-blocked);"></div>
+        <span>Blocked ({{printf "%.0f" .Stats.BlockedPercent}}%)</span>
+    </div>
+</div>
+{{end}}

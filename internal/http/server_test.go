@@ -566,3 +566,281 @@ func TestCORSHeaders(t *testing.T) {
 		t.Error("expected CORS header Access-Control-Allow-Origin: *")
 	}
 }
+
+func TestListArchivedTasksEmpty(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/archive", nil)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var tasks []map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &tasks); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if len(tasks) != 0 {
+		t.Errorf("expected 0 archived tasks, got %d", len(tasks))
+	}
+}
+
+func TestArchiveTask(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a task
+	body := bytes.NewBufferString(`{"id": "archive-test", "description": "Task to archive"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Mark it as done
+	body = bytes.NewBufferString(`{"status": "done"}`)
+	req = httptest.NewRequest("PUT", "/tasks/archive-test", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Archive the task
+	body = bytes.NewBufferString(`{"summary": "Completed successfully"}`)
+	req = httptest.NewRequest("POST", "/tasks/archive-test/archive", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp["status"] != "archived" {
+		t.Errorf("expected status 'archived', got '%s'", resp["status"])
+	}
+
+	// Verify task is no longer in active tasks
+	req = httptest.NewRequest("GET", "/tasks/archive-test", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404 (task should be archived), got %d", w.Code)
+	}
+
+	// Verify task is in archive
+	req = httptest.NewRequest("GET", "/archive", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var archivedTasks []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &archivedTasks)
+
+	if len(archivedTasks) != 1 {
+		t.Errorf("expected 1 archived task, got %d", len(archivedTasks))
+	}
+
+	if archivedTasks[0]["id"] != "archive-test" {
+		t.Errorf("expected archived task id 'archive-test', got '%v'", archivedTasks[0]["id"])
+	}
+
+	if archivedTasks[0]["summary"] != "Completed successfully" {
+		t.Errorf("expected summary 'Completed successfully', got '%v'", archivedTasks[0]["summary"])
+	}
+}
+
+func TestArchiveTaskNotDone(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a task (status will be "ready")
+	body := bytes.NewBufferString(`{"id": "not-done-task", "description": "Task not done"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Try to archive it without marking done (should fail)
+	body = bytes.NewBufferString(`{"summary": "Trying to archive"}`)
+	req = httptest.NewRequest("POST", "/tasks/not-done-task/archive", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestRestoreArchivedTask(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create and complete a task
+	body := bytes.NewBufferString(`{"id": "restore-test", "description": "Task to restore"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Mark it as done
+	body = bytes.NewBufferString(`{"status": "done"}`)
+	req = httptest.NewRequest("PUT", "/tasks/restore-test", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Archive the task
+	body = bytes.NewBufferString(`{}`)
+	req = httptest.NewRequest("POST", "/tasks/restore-test/archive", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Restore the task
+	req = httptest.NewRequest("POST", "/archive/restore-test/restore", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp["status"] != "restored" {
+		t.Errorf("expected status 'restored', got '%s'", resp["status"])
+	}
+
+	// Verify task is back in active tasks
+	req = httptest.NewRequest("GET", "/tasks/restore-test", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200 (task should be restored), got %d", w.Code)
+	}
+
+	// Verify task is no longer in archive
+	req = httptest.NewRequest("GET", "/archive", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var archivedTasks []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &archivedTasks)
+
+	if len(archivedTasks) != 0 {
+		t.Errorf("expected 0 archived tasks, got %d", len(archivedTasks))
+	}
+}
+
+func TestRestoreNonexistentArchivedTask(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("POST", "/archive/nonexistent/restore", nil)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestClearArchive(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create and archive multiple tasks
+	for i := 0; i < 3; i++ {
+		id := "clear-test-" + string(rune('a'+i))
+		body := bytes.NewBufferString(`{"id": "` + id + `", "description": "Task ` + id + `"}`)
+		req := httptest.NewRequest("POST", "/tasks", body)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		// Mark as done
+		body = bytes.NewBufferString(`{"status": "done"}`)
+		req = httptest.NewRequest("PUT", "/tasks/"+id, body)
+		req.Header.Set("Content-Type", "application/json")
+		w = httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+
+		// Archive
+		req = httptest.NewRequest("POST", "/tasks/"+id+"/archive", bytes.NewBufferString(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		w = httptest.NewRecorder()
+		srv.ServeHTTP(w, req)
+	}
+
+	// Verify 3 tasks are archived
+	req := httptest.NewRequest("GET", "/archive", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var archivedTasks []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &archivedTasks)
+
+	if len(archivedTasks) != 3 {
+		t.Errorf("expected 3 archived tasks, got %d", len(archivedTasks))
+	}
+
+	// Clear the archive
+	req = httptest.NewRequest("DELETE", "/archive", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp["status"] != "cleared" {
+		t.Errorf("expected status 'cleared', got '%v'", resp["status"])
+	}
+
+	if resp["count"] != float64(3) {
+		t.Errorf("expected count 3, got '%v'", resp["count"])
+	}
+
+	// Verify archive is empty
+	req = httptest.NewRequest("GET", "/archive", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	json.Unmarshal(w.Body.Bytes(), &archivedTasks)
+
+	if len(archivedTasks) != 0 {
+		t.Errorf("expected 0 archived tasks after clear, got %d", len(archivedTasks))
+	}
+}
+
+func TestArchiveCORSHeaders(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("OPTIONS", "/archive", nil)
+	w := httptest.NewRecorder()
+
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200 for OPTIONS, got %d", w.Code)
+	}
+
+	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Error("expected CORS header Access-Control-Allow-Origin: *")
+	}
+}

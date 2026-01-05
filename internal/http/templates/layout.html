@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Tasuku</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <style>
+        :root {
+            /* Base colors from TUI theme */
+            --color-bg: #1a1a1a;
+            --color-fg: #f0f0f0;
+            --color-muted: #6b7280;
+            --color-slate: #94a3b8;
+
+            /* Accent colors */
+            --color-accent: #5eead4;
+            --color-primary: #5c9eff;
+            --color-purple: #c4b5fd;
+            --color-amber: #fbbf24;
+
+            /* Status colors */
+            --color-ready: #5eead4;
+            --color-in-progress: #fbbf24;
+            --color-blocked: #ef4444;
+            --color-done: #6b7280;
+            --color-critical: #ef4444;
+            --color-high: #f97316;
+
+            /* Derived colors */
+            --color-card-bg: #242424;
+            --color-card-border: #333;
+            --color-hover: #2d2d2d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-fg);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--color-card-border);
+        }
+
+        .logo {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--color-accent);
+        }
+
+        nav {
+            display: flex;
+            gap: 1rem;
+        }
+
+        nav a {
+            color: var(--color-muted);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        nav a:hover, nav a.active {
+            color: var(--color-fg);
+            background: var(--color-hover);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--color-card-bg);
+            border: 1px solid var(--color-card-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            color: var(--color-muted);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-ready .stat-value { color: var(--color-ready); }
+        .stat-in-progress .stat-value { color: var(--color-in-progress); }
+        .stat-blocked .stat-value { color: var(--color-blocked); }
+        .stat-done .stat-value { color: var(--color-done); }
+
+        .progress-section {
+            margin-bottom: 2rem;
+        }
+
+        .progress-bar-container {
+            background: var(--color-card-bg);
+            border-radius: 8px;
+            height: 24px;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .progress-segment {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-done { background: var(--color-done); }
+        .progress-in-progress { background: var(--color-in-progress); }
+        .progress-ready { background: var(--color-ready); }
+        .progress-blocked { background: var(--color-blocked); }
+
+        .progress-legend {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--color-muted);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-tab {
+            background: var(--color-card-bg);
+            border: 1px solid var(--color-card-border);
+            color: var(--color-muted);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .filter-tab:hover {
+            border-color: var(--color-slate);
+            color: var(--color-fg);
+        }
+
+        .filter-tab.active {
+            background: var(--color-primary);
+            border-color: var(--color-primary);
+            color: var(--color-bg);
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .task-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: var(--color-card-bg);
+            border: 1px solid var(--color-card-border);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .task-row:hover {
+            border-color: var(--color-slate);
+            background: var(--color-hover);
+        }
+
+        .task-status {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .status-ready {
+            border: 2px solid var(--color-ready);
+            color: var(--color-ready);
+        }
+        .status-in_progress {
+            background: var(--color-in-progress);
+            color: var(--color-bg);
+        }
+        .status-blocked {
+            border: 2px solid var(--color-blocked);
+            color: var(--color-blocked);
+        }
+        .status-done {
+            background: var(--color-done);
+            color: var(--color-bg);
+        }
+
+        .task-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .task-description {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .task-done .task-description {
+            text-decoration: line-through;
+            color: var(--color-muted);
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--color-muted);
+        }
+
+        .task-id {
+            color: var(--color-slate);
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+
+        .task-priority {
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.625rem;
+            text-transform: uppercase;
+        }
+
+        .priority-critical { background: var(--color-critical); color: #fff; }
+        .priority-high { background: var(--color-high); color: #fff; }
+        .priority-normal { background: var(--color-slate); color: var(--color-bg); }
+        .priority-low { background: var(--color-muted); color: var(--color-bg); }
+
+        .task-tags {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .task-tag {
+            background: rgba(196, 181, 253, 0.2);
+            color: var(--color-purple);
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+
+        .task-timer {
+            color: var(--color-amber);
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            background: var(--color-card-bg);
+            border: 1px solid var(--color-card-border);
+            color: var(--color-fg);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .btn:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+
+        .btn-start { border-color: var(--color-in-progress); color: var(--color-in-progress); }
+        .btn-start:hover { background: var(--color-in-progress); color: var(--color-bg); }
+
+        .btn-done { border-color: var(--color-ready); color: var(--color-ready); }
+        .btn-done:hover { background: var(--color-ready); color: var(--color-bg); }
+
+        .btn-archive { border-color: var(--color-muted); color: var(--color-muted); }
+        .btn-archive:hover { background: var(--color-muted); color: var(--color-bg); }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--color-muted);
+        }
+
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: var(--color-fg);
+        }
+
+        .section-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--color-fg);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-title .count {
+            background: var(--color-card-bg);
+            color: var(--color-muted);
+            padding: 0.125rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: normal;
+        }
+
+        footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--color-card-border);
+            text-align: center;
+            color: var(--color-muted);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+
+        .htmx-request .htmx-indicator,
+        .htmx-request.htmx-indicator {
+            opacity: 1;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--color-muted);
+            border-top-color: var(--color-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .task-row {
+                flex-wrap: wrap;
+            }
+
+            .task-actions {
+                width: 100%;
+                justify-content: flex-end;
+                margin-top: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="/" class="logo">tasuku<span>.</span></a>
+            <nav>
+                <a href="/" class="active">Dashboard</a>
+                <a href="/health">Health</a>
+            </nav>
+        </header>
+
+        <main>
+            {{template "content" .}}
+        </main>
+
+        <footer>
+            Powered by <a href="https://github.com/iheanyi/tasuku">Tasuku</a> - Agent-first task management
+        </footer>
+    </div>
+</body>
+</html>
