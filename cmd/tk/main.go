@@ -352,7 +352,7 @@ Priority Levels (optional --priority flag):
   4 or backlog   - Future consideration
 
 Tags (optional --tag flag):
-  Add tags to categorize tasks. Use comma-separated values for multiple tags.
+  Add tags to categorize tasks. Use --tag multiple times or comma-separated.
 
 Subtasks (optional --parent flag):
   Create a subtask under an existing parent task.
@@ -364,14 +364,15 @@ Examples:
   tk add "Fix critical bug" -p 0               # Critical priority
   tk add "Refactor database layer" --id db-refactor
   tk add "Update documentation" --priority low
-  tk add "Add login page" --tag frontend,auth  # Add with tags
-  tk add "Write unit tests" --parent feature-x # Create subtask`,
+  tk add "Add login page" --tag frontend --tag auth  # Multiple tags (repeated)
+  tk add "Add login page" --tag frontend,auth        # Multiple tags (comma-separated)
+  tk add "Write unit tests" --parent feature-x       # Create subtask`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		description := args[0]
 		id, _ := cmd.Flags().GetString("id")
 		priority, _ := cmd.Flags().GetInt("priority")
-		tagStr, _ := cmd.Flags().GetString("tag")
+		tags, _ := cmd.Flags().GetStringSlice("tag")
 		parentID, _ := cmd.Flags().GetString("parent")
 
 		if id == "" {
@@ -385,15 +386,9 @@ Examples:
 			priorityPtr = &priority
 		}
 
-		// Parse tags
-		var tags []string
-		if tagStr != "" {
-			for _, t := range strings.Split(tagStr, ",") {
-				t = strings.TrimSpace(t)
-				if t != "" {
-					tags = append(tags, t)
-				}
-			}
+		// Trim whitespace from tags
+		for i := range tags {
+			tags[i] = strings.TrimSpace(tags[i])
 		}
 
 		// Create task - either as subtask or regular task
@@ -418,15 +413,15 @@ Examples:
 		if priorityPtr != nil {
 			priorityStr = fmt.Sprintf(" (priority: %s)", task.PriorityName(*priorityPtr))
 		}
-		tagStr = ""
+		tagDisplay := ""
 		if len(tags) > 0 {
-			tagStr = fmt.Sprintf(" [%s]", strings.Join(tags, ", "))
+			tagDisplay = fmt.Sprintf(" [%s]", strings.Join(tags, ", "))
 		}
 		parentStr := ""
 		if parentID != "" {
 			parentStr = fmt.Sprintf(" (subtask of: %s)", parentID)
 		}
-		fmt.Printf("Created task: %s%s%s%s\n", id, priorityStr, tagStr, parentStr)
+		fmt.Printf("Created task: %s%s%s%s\n", id, priorityStr, tagDisplay, parentStr)
 		return nil
 	},
 }
@@ -434,7 +429,7 @@ Examples:
 func init() {
 	addCmd.Flags().String("id", "", "Task ID (auto-generated if not provided)")
 	addCmd.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
-	addCmd.Flags().StringP("tag", "t", "", "Comma-separated tags (e.g., backend,api)")
+	addCmd.Flags().StringSliceP("tag", "t", nil, "Tags (repeatable or comma-separated)")
 	addCmd.Flags().String("parent", "", "Parent task ID to create a subtask")
 }
 
@@ -559,14 +554,15 @@ When all blocking tasks are marked as "done", use 'tk unblock' to
 make this task ready again.
 
 Examples:
-  tk block my-task --by other-task        # Blocked by one task
-  tk block feature --by "api,database"    # Blocked by multiple tasks`,
+  tk block my-task --by other-task              # Blocked by one task
+  tk block feature --by api --by database       # Blocked by multiple (repeated flag)
+  tk block feature --by api,database            # Blocked by multiple (comma-separated)`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		by, _ := cmd.Flags().GetString("by")
+		blockers, _ := cmd.Flags().GetStringSlice("by")
 
-		blockers := strings.Split(by, ",")
+		// Trim whitespace from each blocker
 		for i := range blockers {
 			blockers[i] = strings.TrimSpace(blockers[i])
 		}
@@ -582,7 +578,7 @@ Examples:
 }
 
 func init() {
-	blockCmd.Flags().String("by", "", "Comma-separated list of blocking task IDs")
+	blockCmd.Flags().StringSlice("by", nil, "Blocking task IDs (repeatable or comma-separated)")
 	blockCmd.MarkFlagRequired("by")
 }
 
@@ -1095,7 +1091,7 @@ var addCmdAlias = &cobra.Command{
 func init() {
 	addCmdAlias.Flags().String("id", "", "Task ID (auto-generated if not provided)")
 	addCmdAlias.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
-	addCmdAlias.Flags().StringP("tag", "t", "", "Comma-separated tags (e.g., backend,api)")
+	addCmdAlias.Flags().StringSliceP("tag", "t", nil, "Tags (repeatable or comma-separated)")
 	rootCmd.AddCommand(addCmdAlias)
 }
 
@@ -1156,7 +1152,7 @@ var blockCmdAlias = &cobra.Command{
 }
 
 func init() {
-	blockCmdAlias.Flags().String("by", "", "Comma-separated list of blocking task IDs")
+	blockCmdAlias.Flags().StringSlice("by", nil, "Blocking task IDs (repeatable or comma-separated)")
 	blockCmdAlias.MarkFlagRequired("by")
 	rootCmd.AddCommand(blockCmdAlias)
 }
@@ -1655,11 +1651,11 @@ Required Flags:
   --because  The reasoning behind the choice
 
 Optional Flags:
-  --over     Comma-separated list of alternatives that were considered
+  --over     Alternatives considered (repeatable or comma-separated)
 
 Examples:
-  tk decision add --id db-choice --chose PostgreSQL --over "MySQL,SQLite" --because "Better JSON support"
-  tk decision add --id auth-method --chose JWT --over "sessions,OAuth" --because "Stateless and scalable"
+  tk decision add --id db-choice --chose PostgreSQL --over MySQL --over SQLite --because "Better JSON support"
+  tk decision add --id auth-method --chose JWT --over sessions,OAuth --because "Stateless and scalable"
   tk decision add --id framework --chose Cobra --because "Standard Go CLI library"`,
 	RunE: runDecisionAdd,
 }
@@ -1680,7 +1676,7 @@ func init() {
 	// Decision add subcommand flags
 	decisionAddCmd.Flags().String("id", "", "Decision ID")
 	decisionAddCmd.Flags().String("chose", "", "The option chosen")
-	decisionAddCmd.Flags().String("over", "", "Comma-separated alternatives considered")
+	decisionAddCmd.Flags().StringSlice("over", nil, "Alternatives considered (repeatable or comma-separated)")
 	decisionAddCmd.Flags().String("because", "", "Reasoning")
 	decisionAddCmd.MarkFlagRequired("id")
 	decisionAddCmd.MarkFlagRequired("chose")
@@ -1737,14 +1733,14 @@ func runDecisionList(cmd *cobra.Command, args []string) error {
 func runDecisionAdd(cmd *cobra.Command, args []string) error {
 	id, _ := cmd.Flags().GetString("id")
 	chose, _ := cmd.Flags().GetString("chose")
-	over, _ := cmd.Flags().GetString("over")
+	alternatives, _ := cmd.Flags().GetStringSlice("over")
 	because, _ := cmd.Flags().GetString("because")
 
 	if id == "" || chose == "" || because == "" {
 		return fmt.Errorf("usage: tk decision add --id <id> --chose <choice> --over <options> --because <reason>")
 	}
 
-	alternatives := strings.Split(over, ",")
+	// Trim whitespace from alternatives
 	for i := range alternatives {
 		alternatives[i] = strings.TrimSpace(alternatives[i])
 	}
@@ -2294,23 +2290,23 @@ Required Flags:
   --because  The reasoning behind the choice
 
 Optional Flags:
-  --over     Comma-separated list of alternatives that were considered
+  --over     Alternatives considered (repeatable or comma-separated)
 
 Examples:
-  tk decide --id db-choice --chose PostgreSQL --over "MySQL,SQLite" --because "Better JSON support"
-  tk decide --id auth-method --chose JWT --over "sessions,OAuth" --because "Stateless and scalable"
+  tk decide --id db-choice --chose PostgreSQL --over MySQL --over SQLite --because "Better JSON support"
+  tk decide --id auth-method --chose JWT --over sessions,OAuth --because "Stateless and scalable"
   tk decide --id framework --chose Cobra --because "Standard Go CLI library"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id, _ := cmd.Flags().GetString("id")
 		chose, _ := cmd.Flags().GetString("chose")
-		over, _ := cmd.Flags().GetString("over")
+		alternatives, _ := cmd.Flags().GetStringSlice("over")
 		because, _ := cmd.Flags().GetString("because")
 
 		if id == "" || chose == "" || because == "" {
 			return fmt.Errorf("usage: tk decide --id <id> --chose <choice> --over <options> --because <reason>")
 		}
 
-		alternatives := strings.Split(over, ",")
+		// Trim whitespace from alternatives
 		for i := range alternatives {
 			alternatives[i] = strings.TrimSpace(alternatives[i])
 		}
@@ -2335,7 +2331,7 @@ Examples:
 func init() {
 	decideCmd.Flags().String("id", "", "Decision ID")
 	decideCmd.Flags().String("chose", "", "The option chosen")
-	decideCmd.Flags().String("over", "", "Comma-separated alternatives considered")
+	decideCmd.Flags().StringSlice("over", nil, "Alternatives considered (repeatable or comma-separated)")
 	decideCmd.Flags().String("because", "", "Reasoning")
 	decideCmd.MarkFlagRequired("id")
 	decideCmd.MarkFlagRequired("chose")
