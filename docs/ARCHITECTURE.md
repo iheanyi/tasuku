@@ -9,7 +9,8 @@ Tasuku is an agent-first task management system designed for AI agents working o
 - **Pull over push**: Agents query when needed rather than having context constantly injected
 - **Parallel-safe**: Multiple agents can work simultaneously without data corruption
 - **Minimal context**: Only load what's needed for the current task
-- **Human-readable**: Single JSON file that can be edited by hand
+- **Human-readable**: JSON files that can be edited by hand
+- **Git-friendly**: One file per task for clean diffs and fewer merge conflicts
 
 ## System Architecture
 
@@ -30,7 +31,7 @@ Tasuku is an agent-first task management system designed for AI agents working o
                                │
                                ▼
                     ┌─────────────────────┐
-                    │      Store          │
+                    │  Storage Interface  │
                     │  internal/store/    │
                     │                     │
                     │  ┌───────────────┐  │
@@ -39,12 +40,16 @@ Tasuku is an agent-first task management system designed for AI agents working o
                     │  └───────────────┘  │
                     └─────────────────────┘
                                │
-                               ▼
-                    ┌─────────────────────┐
-                    │    .tasuku.json     │
-                    │  (single source     │
-                    │   of truth)         │
-                    └─────────────────────┘
+            ┌──────────────────┴──────────────────┐
+            ▼                                      ▼
+┌─────────────────────┐              ┌─────────────────────┐
+│   V3: .tasuku/      │              │   V2: .tasuku.json  │
+│   (directory)       │              │   (single file)     │
+│                     │              │   [Legacy]          │
+│   tasks/            │              │                     │
+│   archive/          │              └─────────────────────┘
+│   context/          │
+└─────────────────────┘
 ```
 
 ## Directory Structure
@@ -55,49 +60,87 @@ tasuku/
 │   ├── main.go            # Cobra command definitions
 │   └── main_test.go       # Integration tests
 ├── internal/
-│   ├── store/             # JSON file operations with flock locking
-│   │   ├── store.go       # Read/Write/Update operations
-│   │   └── store_test.go  # Store unit tests
+│   ├── store/             # Storage backends with flock locking
+│   │   ├── storage.go     # Storage interface and auto-detection
+│   │   ├── store.go       # V2 single-file storage
+│   │   ├── dirstore.go    # V3 directory-based storage
+│   │   └── *_test.go      # Store unit tests
 │   ├── task/              # Task domain logic and types
 │   │   ├── task.go        # Task, Decision, File types
 │   │   └── task_test.go   # Task logic tests
 │   ├── http/              # HTTP REST API server
 │   │   ├── server.go      # HTTP handlers and routing
 │   │   └── server_test.go # HTTP endpoint tests
-│   └── mcp/               # MCP (Model Context Protocol) server
-│       ├── server.go      # MCP tool implementations
-│       └── server_test.go # MCP protocol tests
-├── schema.json            # JSON Schema for .tasuku.json validation
+│   ├── mcp/               # MCP (Model Context Protocol) server
+│   │   ├── server.go      # MCP tool implementations
+│   │   └── server_test.go # MCP protocol tests
+│   └── tui/               # Terminal UI (Bubble Tea)
+│       └── model.go       # TUI model and views
+├── schema.json            # JSON Schema for validation
 ├── openapi.yaml           # OpenAPI spec for HTTP REST API
 └── docs/
     └── ARCHITECTURE.md    # This file
+```
+
+### V3 Storage Layout
+
+```
+.tasuku/                   # Created by `tk init`
+├── tasks/                 # Active task files
+│   ├── auth-fix.json
+│   └── add-logout.json
+├── archive/               # Completed/archived tasks
+│   └── old-task.json
+└── context/               # Shared context
+    ├── learnings.json     # Array of learning entries
+    └── decisions.json     # Array of decision entries
 ```
 
 ## Core Components
 
 ### 1. Store Layer (`internal/store/`)
 
-The store provides atomic read-modify-write operations with file locking.
+The store provides atomic read-modify-write operations with file locking via a common interface.
 
 ```go
-type Store struct {
-    path string
+// Storage interface - both V2 and V3 implement this
+type Storage interface {
+    Read() (*task.File, error)
+    Update(fn func(*task.File) error) error
+    Init() error
 }
 
-// Read reads the current state
-func (s *Store) Read() (*task.File, error)
-
-// Update performs atomic read-modify-write with exclusive lock
-func (s *Store) Update(fn func(*task.File) error) error
+// Auto-detection picks the right backend
+func AutoDetect() Storage {
+    if exists(".tasuku/") {
+        return NewDirStore(".tasuku")  // V3
+    }
+    if exists(".tasuku.json") {
+        return New(".tasuku.json")      // V2
+    }
+    return NewDirStore(".tasuku")       // Default to V3
+}
 ```
+
+**V3 DirStore** (directory-based):
+- Each task stored in separate file: `.tasuku/tasks/<id>.json`
+- Per-file locking for better parallelism
+- Archived tasks in `.tasuku/archive/`
+- Context in `.tasuku/context/learnings.json` and `decisions.json`
+
+**V2 Store** (single file):
+- All data in `.tasuku.json`
+- Whole-file locking
+- Supported for backwards compatibility
 
 **File Locking Strategy:**
 
-Tasuku uses POSIX `flock` for cooperative file locking:
+Both backends use POSIX `flock` for cooperative file locking:
 
 ```go
-func (s *Store) Update(fn func(*task.File) error) error {
-    f, err := os.OpenFile(s.path, os.O_RDWR, 0644)
+func (s *DirStore) updateTask(id string, fn func(*task.Task) error) error {
+    path := filepath.Join(s.dir, "tasks", id+".json")
+    f, err := os.OpenFile(path, os.O_RDWR, 0644)
     if err != nil {
         return err
     }
@@ -109,27 +152,14 @@ func (s *Store) Update(fn func(*task.File) error) error {
     }
     defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 
-    // Read current state
-    data, _ := io.ReadAll(f)
-    var file task.File
-    json.Unmarshal(data, &file)
-
-    // Apply modification
-    if err := fn(&file); err != nil {
-        return err
-    }
-
-    // Write back atomically
-    f.Seek(0, 0)
-    f.Truncate(0)
-    enc := json.NewEncoder(f)
-    enc.SetIndent("", "  ")
-    return enc.Encode(file)
+    // Read, modify, write back atomically
+    // ...
 }
 ```
 
 This ensures:
 - Multiple agents can safely read/write simultaneously
+- V3: Agents editing different tasks don't block each other
 - No partial writes or corruption
 - Lock acquisition is blocking (agents wait their turn)
 
@@ -148,32 +178,49 @@ const (
 )
 
 type Task struct {
-    Status      Status    `json:"status"`
-    Description string    `json:"description"`
-    Priority    *int      `json:"priority,omitempty"`
-    BlockedBy   []string  `json:"blocked_by"`
-    Owner       *string   `json:"owner,omitempty"`
-    CreatedAt   time.Time `json:"created_at"`
-    UpdatedAt   time.Time `json:"updated_at"`
+    Status      Status            `json:"status"`
+    Description string            `json:"description"`
+    Priority    *int              `json:"priority,omitempty"`
+    ParentID    string            `json:"parent_id,omitempty"`    // V3: subtask support
+    BlockedBy   []string          `json:"blocked_by"`
+    Owner       *string           `json:"owner,omitempty"`
+    Tags        []string          `json:"tags,omitempty"`         // V3: labels
+    Fields      map[string]string `json:"fields,omitempty"`       // V3: custom fields
+    TimeSpent   int64             `json:"time_spent,omitempty"`   // V3: time tracking (seconds)
+    Notes       []Note            `json:"notes,omitempty"`        // V3: notes stored with task
+    CreatedAt   time.Time         `json:"created_at"`
+    UpdatedAt   time.Time         `json:"updated_at"`
+}
+
+type Note struct {
+    Text      string    `json:"text"`
+    CreatedAt time.Time `json:"created_at"`
 }
 
 type Decision struct {
-    ID      string   `json:"id"`
-    Chose   string   `json:"chose"`
-    Over    []string `json:"over"`
-    Because string   `json:"because"`
+    ID        string    `json:"id"`
+    Chose     string    `json:"chose"`
+    Over      []string  `json:"over"`
+    Because   string    `json:"because"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+type Learning struct {
+    Text      string    `json:"text"`
+    CreatedAt time.Time `json:"created_at"`
 }
 
 type Context struct {
-    Learnings []string            `json:"learnings"`
+    Learnings []Learning          `json:"learnings"`   // V3: structured learnings
     Decisions []Decision          `json:"decisions"`
-    Notes     map[string][]string `json:"notes"`
+    Notes     map[string][]Note   `json:"notes"`       // V2 compatibility
 }
 
 type File struct {
-    Version int             `json:"version"`
-    Tasks   map[string]Task `json:"tasks"`
-    Context Context         `json:"context"`
+    Version  int             `json:"version"`  // 1=original, 2=enhanced, 3=directory
+    Tasks    map[string]Task `json:"tasks"`
+    Archived map[string]Task `json:"archived,omitempty"`  // V3: archived tasks
+    Context  Context         `json:"context"`
 }
 ```
 
@@ -189,30 +236,37 @@ Built with [Cobra](https://github.com/spf13/cobra), providing:
 
 ```
 tk
-├── init          # Create .tasuku.json
-├── list          # List tasks (--format, --status)
-├── add           # Add task (--id, --priority)
-├── show          # Show task details
-├── start         # Mark in_progress
-├── done          # Mark complete
-├── block         # Set blocked_by
-├── unblock       # Clear blocked_by
-├── ready         # List unblocked ready tasks
-├── find          # Search tasks/learnings/decisions
-├── priority      # Set task priority
-├── learn         # Add learning (--permanent)
-├── learnings     # List learnings
-├── unlearn       # Remove learning
-├── promote       # Move learning to context file
-├── decide        # Record decision
-├── note          # Add note to task
-├── context       # Output full JSON
-├── validate      # Validate .tasuku.json
-├── serve         # Start MCP or HTTP server
-├── mcp           # MCP installation commands
-├── migrate       # Import from other formats
-├── hooks         # Git hook management
-└── completion    # Shell completion scripts
+├── init              # Create .tasuku/ directory (--format v2 for legacy)
+├── task              # Task management subcommand
+│   ├── list          # List tasks (--format, --status, --tree)
+│   ├── add           # Add task (--id, --priority, --parent)
+│   ├── show          # Show task details
+│   ├── start         # Mark in_progress
+│   ├── done          # Mark complete
+│   ├── block         # Set blocked_by
+│   ├── unblock       # Clear blocked_by
+│   ├── delete        # Delete task
+│   ├── priority      # Set task priority
+│   ├── find          # Search tasks/learnings/decisions
+│   ├── tag           # Manage task tags
+│   ├── field         # Manage custom fields
+│   ├── timer         # Time tracking (start/stop/status)
+│   └── archive       # Archive management
+├── ready             # List unblocked ready tasks
+├── learn             # Add learning (--permanent)
+├── learnings         # List learnings
+├── unlearn           # Remove learning
+├── promote           # Move learning to context file
+├── decide            # Record decision
+├── note              # Add note to task
+├── context           # Context subcommand (show)
+├── validate          # Validate task files
+├── serve             # Start MCP or HTTP server
+├── mcp               # MCP installation commands
+├── migrate           # Migration (v3, beads)
+├── hooks             # Git hook management
+├── ui                # Launch terminal UI
+└── completion        # Shell completion scripts
 ```
 
 ### 4. HTTP REST API (`internal/http/`)
@@ -242,7 +296,7 @@ Each endpoint sets CORS headers for browser access and returns JSON responses.
 
 ```go
 type Server struct {
-    store *store.Store
+    store store.Storage  // Uses Storage interface for V2/V3 compatibility
 }
 
 func (s *Server) handleToolCall(name string, args json.RawMessage) (interface{}, error) {
@@ -251,12 +305,16 @@ func (s *Server) handleToolCall(name string, args json.RawMessage) (interface{},
         return s.list(args)
     case "tk_add":
         return s.add(args)
-    // ... other tools
+    case "tk_timer_start":
+        return s.timerStart(args)
+    case "tk_tag_add":
+        return s.tagAdd(args)
+    // ... 25+ tools with full CLI parity
     }
 }
 ```
 
-The MCP server runs over stdio, communicating with Claude Code via JSON-RPC.
+The MCP server runs over stdio, communicating with Claude Code via JSON-RPC. All CLI functionality is exposed via MCP tools for agent parity.
 
 ## Data Flow
 
@@ -416,5 +474,16 @@ go test -race ./...
 1. **Remote storage** - Currently file-based; could add Redis/SQLite backends
 2. **Multi-repo** - Support for distributed task files
 3. **Webhooks** - Notify external systems on task changes
-4. **Time tracking** - Duration tracking per task
-5. **Tags/labels** - Additional task categorization
+
+## Recent Additions (V2.0/V3.0)
+
+The following features have been implemented:
+
+- ✅ **Time tracking** - `tk task timer start/stop/status`
+- ✅ **Tags/labels** - `tk task tag add/remove`
+- ✅ **Custom fields** - `tk task field set/remove`
+- ✅ **Subtasks** - `tk task add --parent <id>` with tree view
+- ✅ **Directory-based storage** - `.tasuku/` with per-file locking
+- ✅ **Archival** - Move completed tasks to archive folder
+- ✅ **Terminal UI** - `tk ui` for interactive task management
+- ✅ **Auto-detection** - Seamlessly works with V2 or V3 format

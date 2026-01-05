@@ -7,9 +7,10 @@ Agent-first task management for codebases. Designed for AI agents working alongs
 Traditional task management is built for humans pushing updates. Tasuku flips this:
 
 - **Pull over push**: Agents query when needed, no constant context injections
-- **Parallel-safe**: File locking for multiple agents working simultaneously
+- **Parallel-safe**: Per-file locking for multiple agents working simultaneously
 - **Minimal context**: Only load what's needed for the current task
-- **Human-readable**: Single JSON file, can be edited by hand
+- **Human-readable**: JSON files in `.tasuku/` directory, can be edited by hand
+- **Git-friendly**: One file per task means clean diffs and fewer merge conflicts
 
 ## Installation
 
@@ -33,23 +34,26 @@ go install github.com/iheanyi/tasuku/cmd/tk@latest
 ```bash
 # Initialize in your project
 cd your-project
-tk init
+tk init                     # Creates .tasuku/ directory
 
 # Add some tasks
-tk add "Implement user authentication"
-tk add "Write API documentation" --priority 1  # high priority
-tk add "Set up CI pipeline"
+tk task add "Implement user authentication"
+tk task add "Write API documentation" --priority high
+tk task add "Set up CI pipeline"
+
+# Add subtasks
+tk task add "Create login form" --parent implement-user-authentication
 
 # Start working on a task
-tk start implement-user-authentication
+tk task start implement-user-authentication
 
 # Mark it done
-tk done implement-user-authentication
+tk task done implement-user-authentication
 
 # See all tasks
-tk list
-tk list --format json  # Output as JSON
-tk list --format yaml  # Output as YAML
+tk task list                  # Table view
+tk task list --tree           # Hierarchical subtask view
+tk task list --format json    # Output as JSON
 ```
 
 ## CLI Commands
@@ -58,20 +62,24 @@ tk list --format yaml  # Output as YAML
 
 | Command | Description |
 |---------|-------------|
-| `tk init` | Create `.tasuku.json` in current directory |
-| `tk list` | List all tasks (use `--status` to filter) |
-| `tk add "description"` | Add a new task |
-| `tk add "desc" --id custom-id` | Add with custom ID |
-| `tk add "desc" --priority 0` | Add with priority (0=critical, 1=high, 2=normal, 3=low, 4=backlog) |
-| `tk show <id>` | Show task details |
-| `tk start <id>` | Mark task as in progress |
-| `tk done <id>` | Mark task as complete |
-| `tk block <id> --by <other>` | Mark task as blocked |
-| `tk unblock <id>` | Remove all blockers from task |
+| `tk init` | Create `.tasuku/` directory (V3 format) |
+| `tk init --format v2` | Create legacy `.tasuku.json` file |
+| `tk task list` | List all tasks (use `--status` to filter) |
+| `tk task list --tree` | Show hierarchical subtask view |
+| `tk task add "description"` | Add a new task |
+| `tk task add "desc" --id custom-id` | Add with custom ID |
+| `tk task add "desc" --parent parent-id` | Add as subtask |
+| `tk task add "desc" --priority high` | Add with priority (critical/high/normal/low/backlog) |
+| `tk task show <id>` | Show task details |
+| `tk task start <id>` | Mark task as in progress |
+| `tk task done <id>` | Mark task as complete |
+| `tk task block <id> --by <other>` | Mark task as blocked |
+| `tk task unblock <id>` | Remove all blockers from task |
+| `tk task delete <id>` | Delete a task |
+| `tk task find <query>` | Search tasks, learnings, and decisions |
+| `tk task priority <id> <level>` | Set task priority |
 | `tk ready` | List tasks ready to work on (sorted by priority) |
-| `tk find <query>` | Search tasks, learnings, and decisions |
-| `tk priority <id> <level>` | Set task priority |
-| `tk validate` | Check `.tasuku.json` for errors |
+| `tk validate` | Check task files for errors |
 
 ### Context & Knowledge
 
@@ -84,8 +92,8 @@ tk list --format yaml  # Output as YAML
 | `tk promote <index or text>` | Move learning to permanent documentation |
 | `tk promote 1 --to AGENTS.md` | Promote to specific file |
 | `tk decide --id <id> --chose X --over Y,Z --because "reason"` | Record a decision |
-| `tk note <task-id> "note"` | Add a note to a task |
-| `tk context` | Output full context as JSON |
+| `tk note add <task-id> "note"` | Add a note to a task |
+| `tk context show` | Output full context as JSON |
 
 ### Server & Integration
 
@@ -95,6 +103,7 @@ tk list --format yaml  # Output as YAML
 | `tk serve --http :3000` | Start HTTP REST API server |
 | `tk mcp install` | Install MCP server in Claude Code |
 | `tk mcp uninstall` | Remove MCP server from Claude Code |
+| `tk migrate v3` | Migrate from V2 (.tasuku.json) to V3 (.tasuku/) |
 | `tk migrate beads` | Migrate from Beads format |
 | `tk migrate beads --dry-run` | Preview migration without changes |
 
@@ -313,38 +322,41 @@ If you prefer manual setup, add this to `~/.claude/settings.json`:
 
 ## Data Format
 
-Tasuku stores everything in `.tasuku.json`:
+### V3 Format (Default)
 
+Tasuku stores tasks in the `.tasuku/` directory:
+
+```
+.tasuku/
+├── tasks/
+│   └── task-id.json        # One file per task
+├── archive/
+│   └── old-task.json       # Completed/archived tasks
+└── context/
+    ├── learnings.json      # Array of learnings
+    └── decisions.json      # Array of decisions
+```
+
+**Task file** (`.tasuku/tasks/task-id.json`):
 ```json
 {
-  "version": 1,
-  "tasks": {
-    "task-id": {
-      "status": "ready",
-      "description": "What needs to be done",
-      "priority": 2,
-      "blocked_by": [],
-      "owner": null,
-      "created_at": "2024-01-04T10:00:00Z",
-      "updated_at": "2024-01-04T10:00:00Z"
-    }
-  },
-  "context": {
-    "learnings": ["Things discovered while working"],
-    "decisions": [
-      {
-        "id": "decision-id",
-        "chose": "Option A",
-        "over": ["Option B", "Option C"],
-        "because": "Reasoning"
-      }
-    ],
-    "notes": {
-      "task-id": ["Note 1", "Note 2"]
-    }
-  }
+  "status": "ready",
+  "description": "What needs to be done",
+  "priority": 2,
+  "parent_id": null,
+  "blocked_by": [],
+  "owner": null,
+  "tags": ["backend"],
+  "notes": [{"text": "Note 1", "created_at": "..."}],
+  "created_at": "2024-01-04T10:00:00Z",
+  "updated_at": "2024-01-04T10:00:00Z"
 }
 ```
+
+### V2 Format (Legacy)
+
+Single `.tasuku.json` file with all data. Auto-detected for backwards compatibility.
+Use `tk migrate v3` to upgrade.
 
 ### Task Statuses
 
@@ -369,11 +381,27 @@ Tasuku uses `flock` for file locking, making it safe for multiple agents to work
 
 ```bash
 # Agent 1                    # Agent 2
-tk start auth-task           tk start api-task
+tk task start auth-task      tk task start api-task
 # Both acquire locks safely, no corruption
 ```
 
-## Migrating from Beads
+V3's per-file locking means agents working on different tasks never block each other.
+
+## Migration
+
+### From V2 to V3
+
+If you have an existing `.tasuku.json`:
+
+```bash
+# Preview the migration
+tk migrate v3 --dry-run
+
+# Run the migration
+tk migrate v3
+```
+
+### From Beads
 
 If you have an existing `.beads/` directory:
 

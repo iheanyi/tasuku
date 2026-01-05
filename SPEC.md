@@ -1,8 +1,8 @@
 # Tasuku Specification
 
-**Version:** 1.0.0-draft
-**Status:** Draft
-**Last Updated:** 2024-01-04
+**Version:** 3.0.0
+**Status:** Stable
+**Last Updated:** 2025-01-04
 
 ## 1. Introduction
 
@@ -36,19 +36,22 @@ Tasuku is an agent-first task management system designed for AI agents working o
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │   CLI (tk)   │  │  MCP Server  │  │  Git Hooks   │       │
+│  │   CLI (tk)   │  │  MCP Server  │  │  HTTP API    │       │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
 │         │                 │                 │                │
 │         └────────────┬────┴────────────────┘                │
 │                      │                                       │
 │              ┌───────▼───────┐                              │
-│              │     Store     │                              │
-│              │  (JSON + flock)│                              │
+│              │    Storage    │                              │
+│              │  (Interface)  │                              │
 │              └───────┬───────┘                              │
 │                      │                                       │
-│              ┌───────▼───────┐                              │
-│              │ .tasuku.json  │                              │
-│              └───────────────┘                              │
+│         ┌────────────┴────────────┐                         │
+│         │                         │                         │
+│  ┌──────▼──────┐          ┌──────▼──────┐                   │
+│  │  .tasuku/   │          │.tasuku.json │                   │
+│  │ (V3 - Dir)  │          │ (V2 - File) │                   │
+│  └─────────────┘          └─────────────┘                   │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -62,111 +65,95 @@ Tasuku is an agent-first task management system designed for AI agents working o
 | Locking | flock | Advisory locks, SQLite WAL | Simple, works on macOS/Linux, sufficient for local |
 | CLI Name | `tk` | `t`, `tasuku`, `tsk` | Short, no collisions, memorable |
 | Agent Model | Hierarchical + Parallel | Pure parallel, Sequential | Best token efficiency |
+| Storage V3 | Directory | Single file | Cleaner git diffs, per-file locking, better archival |
+| Subtasks | parent_id field | Nested directories | Flat storage with references, enables tree view |
 
 ## 3. Data Model
 
-### 3.1 File Location
+### 3.1 Storage Location
 
-The task file lives at `.tasuku.json` in the repository root. It travels with the code.
+**V3 (Default)**: Directory-based storage at `.tasuku/`
+```
+.tasuku/
+├── tasks/           # Active task files (one per task)
+│   └── <id>.json
+├── archive/         # Archived completed tasks
+│   └── <id>.json
+└── context/         # Shared context
+    ├── learnings.json
+    └── decisions.json
+```
 
-### 3.2 Schema
+**V2 (Legacy)**: Single file at `.tasuku.json` in repository root.
+
+### 3.2 V3 Task Schema
+
+Individual task file (`.tasuku/tasks/<id>.json`):
 
 ```json
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": ["version", "tasks", "context"],
-  "properties": {
-    "version": {
-      "type": "integer",
-      "description": "Schema version for migrations",
-      "const": 1
-    },
-    "tasks": {
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/definitions/Task"
-      }
-    },
-    "context": {
-      "$ref": "#/definitions/Context"
-    }
-  },
-  "definitions": {
-    "Task": {
-      "type": "object",
-      "required": ["status", "description", "created_at", "updated_at"],
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": ["ready", "in_progress", "blocked", "done"]
-        },
-        "description": {
-          "type": "string"
-        },
-        "blocked_by": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "owner": {
-          "type": ["string", "null"]
-        },
-        "created_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updated_at": {
-          "type": "string",
-          "format": "date-time"
-        }
-      }
-    },
-    "Context": {
-      "type": "object",
-      "properties": {
-        "learnings": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "decisions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Decision"
-          }
-        },
-        "notes": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "array",
-            "items": { "type": "string" }
-          }
-        }
-      }
-    },
-    "Decision": {
-      "type": "object",
-      "required": ["id", "chose", "over", "because"],
-      "properties": {
-        "id": { "type": "string" },
-        "chose": { "type": "string" },
-        "over": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "because": { "type": "string" }
-      }
-    }
+  "status": "ready|in_progress|blocked|done",
+  "description": "What needs to be done",
+  "priority": 2,
+  "parent_id": "optional-parent-task-id",
+  "blocked_by": ["other-task-id"],
+  "owner": "agent-1",
+  "tags": ["backend", "api"],
+  "fields": {"estimate": "2h", "sprint": "3"},
+  "time_spent": 3600,
+  "notes": [
+    {"text": "Note text", "created_at": "2025-01-04T10:00:00Z"}
+  ],
+  "created_at": "2025-01-04T10:00:00Z",
+  "updated_at": "2025-01-04T11:30:00Z"
+}
+```
+
+### 3.3 V3 Context Schema
+
+Learnings (`.tasuku/context/learnings.json`):
+```json
+[
+  {"text": "Discovery about the codebase", "created_at": "2025-01-04T10:00:00Z"}
+]
+```
+
+Decisions (`.tasuku/context/decisions.json`):
+```json
+[
+  {
+    "id": "decision-id",
+    "chose": "Option A",
+    "over": ["Option B", "Option C"],
+    "because": "Reasoning for the choice",
+    "created_at": "2025-01-04T10:00:00Z"
+  }
+]
+```
+
+### 3.4 V2 Schema (Legacy)
+
+Single `.tasuku.json` file with all data:
+```json
+{
+  "version": 2,
+  "tasks": { "<id>": { /* task object */ } },
+  "archived": { "<id>": { /* archived task */ } },
+  "context": {
+    "learnings": [{ "text": "...", "created_at": "..." }],
+    "decisions": [{ /* decision object */ }],
+    "notes": { "<task-id>": [{ "text": "...", "created_at": "..." }] }
   }
 }
 ```
 
-### 3.3 Task States
+### 3.5 Task States
 
 ```
      ┌─────────┐
      │  ready  │ ◄── Initial state
      └────┬────┘
-          │ tk start
+          │ tk task start
           ▼
    ┌──────────────┐
    │ in_progress  │
@@ -178,14 +165,18 @@ The task file lives at `.tasuku.json` in the repository root. It travels with th
 ┌────────┐  ┌─────────┐
 │  done  │  │ blocked │
 └────────┘  └────┬────┘
-                 │ blocker resolved
-                 ▼
-            ┌─────────┐
-            │  ready  │
-            └─────────┘
+     │           │ blocker resolved
+     │           ▼
+     │      ┌─────────┐
+     │      │  ready  │
+     │      └─────────┘
+     ▼
+┌──────────┐
+│ archived │  (moved to .tasuku/archive/)
+└──────────┘
 ```
 
-### 3.4 Task ID Format
+### 3.6 Task ID Format
 
 Task IDs are kebab-case strings: `auth-fix`, `add-logout-button`, `store-core`.
 
@@ -200,44 +191,63 @@ Generated automatically from description if not provided:
 
 ```bash
 # Initialization
-tk init                         # Create .tasuku.json in current directory
+tk init                          # Create .tasuku/ directory (V3)
+tk init --format v2              # Create legacy .tasuku.json
 
-# Task Management
-tk add "description"            # Add new task, returns ID
-tk add "description" --id myid  # Add with specific ID
-tk list                         # List all tasks
-tk list --status ready          # Filter by status
-tk list --blocked               # Show blocked tasks only
-tk show <id>                    # Show task details
+# Task Management (noun-verb style)
+tk task add "description"        # Add new task, returns ID
+tk task add "desc" --id myid     # Add with specific ID
+tk task add "desc" --parent id   # Add as subtask
+tk task list                     # List all tasks
+tk task list --tree              # Show hierarchical subtask view
+tk task list --status ready      # Filter by status
+tk task show <id>                # Show task details
 
 # Status Changes
-tk start <id>                   # Mark as in_progress, set owner
-tk done <id>                    # Mark as done
-tk block <id> --by <other-id>   # Mark as blocked
-tk unblock <id>                 # Remove all blockers, set to ready
+tk task start <id>               # Mark as in_progress, set owner
+tk task done <id>                # Mark as done
+tk task block <id> --by <other>  # Mark as blocked
+tk task unblock <id>             # Remove all blockers, set to ready
+tk task delete <id>              # Delete a task
+
+# Tags and Custom Fields
+tk task tag add <id> <tag>       # Add tag to task
+tk task tag remove <id> <tag>    # Remove tag
+tk task field set <id> <k> <v>   # Set custom field
+tk task field remove <id> <k>    # Remove custom field
+
+# Time Tracking
+tk task timer start <id>         # Start timer on task
+tk task timer stop <id>          # Stop timer, record elapsed
+tk task timer status             # Show running timers
+
+# Archiving
+tk task archive add <id>         # Archive a done task
+tk task archive list             # List archived tasks
+tk task archive restore <id>     # Restore archived task
 
 # Context Management
-tk learn "insight"              # Add a learning
+tk learn "insight"               # Add a learning
 tk decide <id> --chose X --over "Y,Z" --because "reason"
-tk note <task-id> "note text"   # Add note to specific task
-tk context                      # Output full context as JSON
+tk note add <task-id> "note"     # Add note to specific task
+tk context show                  # Output full context as JSON
 
 # Agent Coordination
-tk claim <id>                   # Claim task (with lock)
-tk release <id>                 # Release claim
-tk who                          # Show current owner
+tk task claim <id>               # Claim task (with lock)
+tk task release <id>             # Release claim
 
-# MCP Server
-tk serve                        # Start MCP server (stdio mode)
-tk serve --port 3000            # Start HTTP mode (for testing)
+# Servers
+tk serve                         # Start MCP server (stdio mode)
+tk serve --http :3000            # Start HTTP REST API
 
 # Migration
-tk migrate beads                # Migrate from Beads
-tk migrate beads --dry-run      # Preview migration
+tk migrate v3                    # Migrate from V2 to V3 format
+tk migrate beads                 # Migrate from Beads
+tk migrate beads --dry-run       # Preview migration
 
 # Git Hooks
-tk hooks install                # Install git hooks
-tk hooks uninstall              # Remove git hooks
+tk hooks install                 # Install git hooks
+tk hooks uninstall               # Remove git hooks
 ```
 
 ### 4.2 Output Formats
@@ -279,18 +289,46 @@ Secondary: HTTP (for testing/debugging)
 
 ### 5.2 Tools
 
+Full CLI parity - every CLI command has a corresponding MCP tool:
+
 | Tool | Parameters | Description |
 |------|------------|-------------|
+| **Core Task Operations** |||
 | `tk_list` | `status?: string` | List tasks, optionally filtered |
-| `tk_add` | `description: string, id?: string` | Create new task |
+| `tk_add` | `description: string, id?: string, parent?: string` | Create new task |
+| `tk_show` | `id: string` | Get task details |
 | `tk_start` | `id: string` | Mark task in_progress |
 | `tk_done` | `id: string` | Mark task done |
+| `tk_pause` | `id: string` | Revert to ready |
+| `tk_edit` | `id: string, description: string` | Update description |
+| `tk_delete` | `id: string` | Delete task |
+| `tk_priority` | `id: string, priority: string` | Set priority |
+| **Blocking & Dependencies** |||
 | `tk_block` | `id: string, by: string[]` | Mark blocked |
-| `tk_learn` | `insight: string` | Add learning |
-| `tk_decide` | `id: string, chose: string, over: string[], because: string` | Record decision |
-| `tk_context` | none | Get full context |
+| `tk_unblock` | `id: string` | Remove blockers |
+| **Ownership** |||
+| `tk_owner` | `id: string, owner?: string` | Set/clear owner |
 | `tk_claim` | `id: string, owner: string` | Claim task for agent |
 | `tk_release` | `id: string` | Release task claim |
+| **Tags & Fields** |||
+| `tk_tag_add` | `id: string, tag: string` | Add tag |
+| `tk_tag_remove` | `id: string, tag: string` | Remove tag |
+| `tk_field_set` | `id: string, key: string, value: string` | Set custom field |
+| `tk_field_remove` | `id: string, key: string` | Remove custom field |
+| **Time Tracking** |||
+| `tk_timer_start` | `id: string` | Start timer |
+| `tk_timer_stop` | `id: string` | Stop timer |
+| `tk_timer_status` | none | Get running timers |
+| **Context** |||
+| `tk_context` | none | Get full context |
+| `tk_find` | `query: string` | Search tasks/notes/learnings |
+| `tk_learn` | `insight: string` | Add learning |
+| `tk_decide` | `id, chose, over[], because` | Record decision |
+| `tk_note` | `task_id, note: string` | Add note |
+| **Archiving** |||
+| `tk_archive` | `task_id: string, summary?: string` | Archive done task |
+| `tk_archive_restore` | `task_id: string` | Restore archived |
+| `tk_archive_list` | none | List archived tasks |
 
 ### 5.3 Example MCP Config
 
@@ -311,15 +349,17 @@ Secondary: HTTP (for testing/debugging)
 
 Use `flock(2)` for file-level locking:
 
+**V3 (Directory-based)**: Lock individual task files for granular concurrency.
 ```go
-func (s *Store) withLock(fn func() error) error {
-    f, err := os.OpenFile(s.path, os.O_RDWR, 0644)
+func (s *DirStore) updateTask(id string, fn func(*task.Task) error) error {
+    path := filepath.Join(s.dir, "tasks", id+".json")
+    f, err := os.OpenFile(path, os.O_RDWR, 0644)
     if err != nil {
         return err
     }
     defer f.Close()
 
-    // Acquire exclusive lock
+    // Acquire exclusive lock on this task file only
     if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
         return fmt.Errorf("failed to acquire lock: %w", err)
     }
@@ -328,6 +368,8 @@ func (s *Store) withLock(fn func() error) error {
     return fn()
 }
 ```
+
+**V2 (Single file)**: Lock entire `.tasuku.json` file.
 
 ### 6.2 Lock Timeout
 
@@ -346,9 +388,26 @@ func lockFile(f *os.File) error {
 }
 ```
 
-## 7. Beads Migration
+## 7. Migration
 
-### 7.1 Beads File Format
+### 7.1 V2 to V3 Migration
+
+Migrate from single-file `.tasuku.json` to directory-based `.tasuku/`:
+
+```bash
+$ tk migrate v3
+Migrating from V2 to V3 format...
+  Created .tasuku/tasks/
+  Created .tasuku/archive/
+  Created .tasuku/context/
+  Migrated 15 active tasks
+  Migrated 42 archived tasks
+  Migrated learnings and decisions
+Migration complete!
+Original .tasuku.json preserved (delete manually if desired)
+```
+
+### 7.2 Beads Migration
 
 Beads stores issues in `.beads/issues/` as individual markdown files with YAML frontmatter:
 
@@ -363,7 +422,7 @@ created: 2024-01-01T00:00:00Z
 Description here...
 ```
 
-### 7.2 Migration Mapping
+**Status Mapping:**
 
 | Beads | Tasuku |
 |-------|--------|
@@ -374,7 +433,7 @@ Description here...
 | Issue body | `notes[id]` |
 | Comments | Appended to `notes[id]` |
 
-### 7.3 Migration Command
+**Migration Command:**
 
 ```bash
 $ tk migrate beads
@@ -469,60 +528,85 @@ Before each release:
 - Real-time sync (pull on demand)
 - Encryption (it's local task data)
 
-## Appendix A: Example .tasuku.json
+## Appendix A: Example V3 Directory Structure
 
+```
+.tasuku/
+├── tasks/
+│   ├── auth-fix.json
+│   └── add-logout.json
+├── archive/
+│   └── setup-ci.json
+└── context/
+    ├── learnings.json
+    └── decisions.json
+```
+
+**`.tasuku/tasks/auth-fix.json`:**
 ```json
 {
-  "version": 1,
-  "tasks": {
-    "auth-fix": {
-      "status": "in_progress",
-      "description": "Fix token refresh race condition in auth module",
-      "blocked_by": [],
-      "owner": "claude-agent-1",
-      "created_at": "2024-01-04T10:00:00Z",
-      "updated_at": "2024-01-04T11:30:00Z"
-    },
-    "add-logout": {
-      "status": "ready",
-      "description": "Add logout button to navbar",
-      "blocked_by": ["auth-fix"],
-      "owner": null,
-      "created_at": "2024-01-04T10:05:00Z",
-      "updated_at": "2024-01-04T10:05:00Z"
-    }
-  },
-  "context": {
-    "learnings": [
-      "Auth module uses JWT with 1hr expiry, refresh logic at src/auth/refresh.ts:42",
-      "Race condition occurs when two requests trigger refresh simultaneously"
-    ],
-    "decisions": [
-      {
-        "id": "refresh-lock",
-        "chose": "Mutex lock around refresh call",
-        "over": ["Request deduplication", "Optimistic locking"],
-        "because": "Simpler implementation, refresh is infrequent enough that lock contention is not a concern"
-      }
-    ],
-    "notes": {
-      "auth-fix": [
-        "Found the bug at line 42 - two concurrent requests can both see expired token",
-        "Fix: Add async-mutex package, wrap refresh() call"
-      ]
-    }
-  }
+  "status": "in_progress",
+  "description": "Fix token refresh race condition in auth module",
+  "priority": 1,
+  "blocked_by": [],
+  "owner": "claude-agent-1",
+  "tags": ["backend", "security"],
+  "time_spent": 3600,
+  "notes": [
+    {"text": "Found the bug at line 42 - two concurrent requests can both see expired token", "created_at": "2025-01-04T10:30:00Z"},
+    {"text": "Fix: Add async-mutex package, wrap refresh() call", "created_at": "2025-01-04T11:00:00Z"}
+  ],
+  "created_at": "2025-01-04T10:00:00Z",
+  "updated_at": "2025-01-04T11:30:00Z"
 }
+```
+
+**`.tasuku/tasks/add-logout.json`:**
+```json
+{
+  "status": "blocked",
+  "description": "Add logout button to navbar",
+  "priority": 2,
+  "blocked_by": ["auth-fix"],
+  "parent_id": null,
+  "owner": null,
+  "tags": ["frontend"],
+  "created_at": "2025-01-04T10:05:00Z",
+  "updated_at": "2025-01-04T10:05:00Z"
+}
+```
+
+**`.tasuku/context/learnings.json`:**
+```json
+[
+  {"text": "Auth module uses JWT with 1hr expiry, refresh logic at src/auth/refresh.ts:42", "created_at": "2025-01-04T10:15:00Z"},
+  {"text": "Race condition occurs when two requests trigger refresh simultaneously", "created_at": "2025-01-04T10:45:00Z"}
+]
+```
+
+**`.tasuku/context/decisions.json`:**
+```json
+[
+  {
+    "id": "refresh-lock",
+    "chose": "Mutex lock around refresh call",
+    "over": ["Request deduplication", "Optimistic locking"],
+    "because": "Simpler implementation, refresh is infrequent enough that lock contention is not a concern",
+    "created_at": "2025-01-04T11:00:00Z"
+  }
+]
 ```
 
 ## Appendix B: Comparison with Beads
 
 | Feature | Beads | Tasuku |
 |---------|-------|--------|
-| Storage | SQLite + markdown | Single JSON file |
+| Storage | SQLite + markdown | JSON files (V3: directory, V2: single file) |
 | CLI | `bd` | `tk` |
 | Context injection | Push (constant reminders) | Pull (agent queries) |
-| Locking | SQLite WAL | flock |
+| Locking | SQLite WAL | flock (per-file in V3) |
 | Agent focus | Partial | Primary |
-| Complexity | ~5000 lines | Target: ~500 lines |
-| Dependencies | Many (SQLite, etc) | Minimal |
+| Subtasks | Via labels/dependencies | Native parent_id with tree view |
+| Time tracking | No | Built-in timer system |
+| Tags/Custom fields | Labels only | Tags + arbitrary key-value fields |
+| Dependencies | Many (SQLite, etc) | Minimal (pure Go) |

@@ -6,7 +6,7 @@ Tasuku is an agent-first task management system. It's designed for AI agents wor
 - **Pull over push**: Agents query when needed, no constant injections
 - **Parallel-safe**: File locking for multiple agents
 - **Minimal context**: Only load what's needed for the current task
-- **Human-readable**: JSON file, can be edited by hand
+- **Human-readable**: JSON files, can be edited by hand
 
 ## Architecture
 
@@ -14,73 +14,127 @@ Tasuku is an agent-first task management system. It's designed for AI agents wor
 tasuku/
 ├── cmd/tk/              # CLI entrypoint
 ├── internal/
-│   ├── store/           # JSON file operations with flock
+│   ├── store/           # Storage backends (V2 file, V3 directory)
 │   ├── task/            # Task domain logic
-│   └── mcp/             # MCP server for Claude Code integration
-├── .tasuku.json         # Task file (lives in user's repo)
+│   ├── http/            # HTTP REST API server
+│   ├── mcp/             # MCP server for Claude Code integration
+│   └── tui/             # Terminal UI (bubble tea)
+├── .tasuku/             # V3 directory-based storage (default)
+│   ├── tasks/           # Individual task JSON files
+│   ├── archive/         # Archived task files
+│   └── context/         # learnings.json, decisions.json
 └── CLAUDE.md            # This file
 ```
+
+### Storage Formats
+
+**V3 (Default)**: Directory-based storage in `.tasuku/`
+- Each task is a separate JSON file in `tasks/<id>.json`
+- Archived tasks in `archive/<id>.json`
+- Context stored in `context/learnings.json` and `context/decisions.json`
+- Better for git diffs (one file per task = cleaner commits)
+- Parallel-safe with per-file locking
+
+**V2 (Legacy)**: Single `.tasuku.json` file
+- All tasks in one JSON file
+- Auto-detected and supported for backwards compatibility
+- Migrate with `tk migrate v3`
 
 ## CLI Command: `tk`
 
 ```bash
-tk init                    # Create .tasuku.json
-tk list                    # List all tasks
-tk add "description"       # Add a task
-tk start <id>              # Mark task in_progress
-tk done <id>               # Mark task complete
-tk block <id> --by <other> # Mark blocked
+# Initialization
+tk init                    # Create .tasuku/ directory (V3)
+tk init --format v2        # Create legacy .tasuku.json
+
+# Task Management (noun-verb style)
+tk task list               # List all tasks
+tk task list --tree        # Show hierarchical subtask view
+tk task add "description"  # Add a task
+tk task add "desc" --parent <id>  # Add subtask
+tk task start <id>         # Mark task in_progress
+tk task done <id>          # Mark task complete
+tk task block <id> --by <other>   # Mark blocked
+tk task show <id>          # Show task details
+tk task delete <id>        # Delete a task
+
+# Context
 tk learn "insight"         # Add a learning
 tk decide <id> --chose X --over Y,Z --because "reason"
-tk context                 # Dump full context (for agent consumption)
+tk context show            # Dump full context (for agent consumption)
+
+# Server
 tk serve                   # Start MCP server
-tk hooks install           # Install git hooks (optional)
+tk serve --http :3000      # Start HTTP REST API
+
+# Migration
+tk migrate v3              # Migrate from .tasuku.json to .tasuku/
+tk migrate beads           # Migrate from Beads format
 ```
 
 ## Data Model
 
+### V3 Directory Structure (Default)
+
+```
+.tasuku/
+├── tasks/
+│   └── task-id.json      # Individual task file
+├── archive/
+│   └── old-task.json     # Archived completed tasks
+└── context/
+    ├── learnings.json    # Array of learning entries
+    └── decisions.json    # Array of decision entries
+```
+
+**Task File** (`.tasuku/tasks/task-id.json`):
 ```json
 {
-  "version": 1,
-  "tasks": {
-    "task-id": {
-      "status": "ready|in_progress|blocked|done",
-      "description": "What needs to be done",
-      "blocked_by": ["other-task-id"],
-      "owner": "agent-1",
-      "created_at": "2024-01-04T10:00:00Z",
-      "updated_at": "2024-01-04T10:00:00Z"
-    }
-  },
-  "context": {
-    "learnings": ["Things discovered while working"],
-    "decisions": [
-      {
-        "id": "decision-id",
-        "chose": "Option A",
-        "over": ["Option B", "Option C"],
-        "because": "Reasoning",
-        "created_at": "2024-01-04T10:00:00Z"
-      }
-    ],
-    "notes": {
-      "task-id": [
-        {
-          "text": "Note 1",
-          "created_at": "2024-01-04T10:00:00Z"
-        }
-      ]
-    }
-  }
+  "status": "ready|in_progress|blocked|done",
+  "description": "What needs to be done",
+  "blocked_by": ["other-task-id"],
+  "parent_id": "parent-task",
+  "owner": "agent-1",
+  "priority": 2,
+  "tags": ["backend", "api"],
+  "fields": {"estimate": "2h"},
+  "time_spent": 3600,
+  "notes": [{"text": "Note 1", "created_at": "..."}],
+  "created_at": "2024-01-04T10:00:00Z",
+  "updated_at": "2024-01-04T10:00:00Z"
 }
 ```
+
+**Learnings** (`.tasuku/context/learnings.json`):
+```json
+[
+  {"text": "Things discovered while working", "created_at": "..."}
+]
+```
+
+**Decisions** (`.tasuku/context/decisions.json`):
+```json
+[
+  {
+    "id": "decision-id",
+    "chose": "Option A",
+    "over": ["Option B", "Option C"],
+    "because": "Reasoning",
+    "created_at": "2024-01-04T10:00:00Z"
+  }
+]
+```
+
+### V2 Format (Legacy)
+
+Single `.tasuku.json` file with all data in one place. Supported for backwards compatibility.
 
 ## Development Workflow
 
 ### We dogfood tasuku while building it
 
-1. Tasks are tracked in `.tasuku.json` at repo root
-2. Use `tk` commands (once built) or edit JSON directly
+1. Tasks are tracked in `.tasuku/` at repo root (V3 format)
+2. Use `tk` commands (once built) or edit JSON files directly
 3. Every PR should update task status
 
 ### Branching
@@ -124,12 +178,13 @@ Located in `testdata/` scenarios:
 
 Before merging any PR:
 
-- [ ] `tk init` creates valid `.tasuku.json`
-- [ ] `tk add/start/done` cycle works
-- [ ] `tk list` shows correct statuses
-- [ ] `tk context` outputs valid JSON
-- [ ] Parallel writes don't corrupt file
+- [ ] `tk init` creates valid `.tasuku/` directory
+- [ ] `tk task add/start/done` cycle works
+- [ ] `tk task list` shows correct statuses
+- [ ] `tk context show` outputs valid JSON
+- [ ] Parallel writes don't corrupt files
 - [ ] MCP server responds to tool calls
+- [ ] V2 format auto-detection works
 
 ### Test Commands
 
@@ -220,13 +275,19 @@ tk serve --stdio
 
 For parallel agent safety, we use `flock`:
 
+**V3 (Directory)**: Lock individual task files for granular locking
 ```go
-// Acquire exclusive lock
+// Lock specific task file
+f, _ := os.OpenFile(".tasuku/tasks/my-task.json", os.O_RDWR, 0644)
+syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
+defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+```
+
+**V2 (Single file)**: Lock the entire file
+```go
 f, _ := os.OpenFile(".tasuku.json", os.O_RDWR, 0644)
 syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
 defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-
-// Now safe to read-modify-write
 ```
 
 ## Code Style
@@ -243,7 +304,12 @@ Record architectural decisions here as we make them:
 1. **JSON over YAML** - Faster parsing, no ambiguity, better for agents
 2. **flock for locking** - Simple, works on macOS/Linux, sufficient for local
 3. **MCP over REST** - Native Claude Code integration, no HTTP overhead
-4. **Single file** - `.tasuku.json` in repo root, travels with code
+4. **V3 directory-based storage over single file** - `.tasuku/` directory with individual task files instead of monolithic `.tasuku.json`:
+   - **Cleaner git diffs**: One file per task means PRs only show relevant changes
+   - **Reduced merge conflicts**: Parallel agents editing different tasks don't conflict
+   - **Granular locking**: Lock only the task being modified, not entire task list
+   - **Better archival**: Move completed tasks to `archive/` folder
+   - **Backwards compatible**: Auto-detects V2 format and prompts for migration
 5. **User-specified task IDs over directory namespacing** - Task IDs are either user-provided via `--id` flag or auto-generated from description (kebab-case). We chose this over automatic directory-namespacing because:
    - **Simplicity**: Agents and humans can use short, memorable IDs like `fix-auth-bug`
    - **Flexibility**: Users can choose their own naming conventions
@@ -252,6 +318,7 @@ Record architectural decisions here as we make them:
    - If namespacing is needed, users can include it in the ID: `tk add "Fix bug" --id auth/login-timeout`
 6. **Cobra CLI framework** - Industry standard, proper `--flag` syntax, shell completion, Viper config integration
 7. **Grove integration over native worktree support** - Tasuku manages tasks, Grove manages worktrees. Each tool does one thing well. Avoids duplication and leverages existing Grove infrastructure.
+8. **Subtasks via parent_id field** - Flat file storage with `parent_id` reference rather than nested directories. Enables tree view (`--tree`) while keeping storage simple.
 
 ## Future Enhancements (Planned)
 
