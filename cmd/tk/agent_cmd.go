@@ -36,7 +36,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		agentName := args[1]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.ClaimTask(taskID, agentName); err != nil {
 			return err
@@ -60,7 +60,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.ReleaseTask(taskID); err != nil {
 			return err
@@ -97,7 +97,7 @@ Examples:
   tk task who -f json         # Output as JSON`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err

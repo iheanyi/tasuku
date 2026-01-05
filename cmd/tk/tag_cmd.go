@@ -52,7 +52,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		tag := args[1]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.AddTag(taskID, tag); err != nil {
 			return err
@@ -76,7 +76,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		tag := args[1]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.RemoveTag(taskID, tag); err != nil {
 			return err
@@ -114,7 +114,7 @@ Examples:
   tk task tag list -f json          # Output as JSON`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err

@@ -51,7 +51,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.StartTimer(taskID); err != nil {
 			return err
@@ -77,7 +77,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		elapsed, err := s.StopTimer(taskID)
 		if err != nil {
@@ -121,7 +121,7 @@ Examples:
   tk task timer status -f json          # Output as JSON`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if len(args) == 1 {
 			// Show status for specific task

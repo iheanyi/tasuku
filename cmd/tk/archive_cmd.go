@@ -59,7 +59,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.ArchiveTask(taskID, archiveSummary); err != nil {
 			return err
@@ -98,7 +98,7 @@ Examples:
 			return fmt.Errorf("invalid duration %q: %w", archiveOlderThan, err)
 		}
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		archived, err := s.ArchiveDoneTasks(duration)
 		if err != nil {
 			return err
@@ -165,7 +165,7 @@ Examples:
   tk task archive list -f json
   tk task archive list -f yaml`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		archived, err := s.GetArchivedTasks()
 		if err != nil {
 			return err
@@ -233,7 +233,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		archived, err := s.GetArchivedTask(taskID)
 		if err != nil {
@@ -292,7 +292,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.RestoreTask(taskID); err != nil {
 			return err
@@ -313,7 +313,7 @@ This action cannot be undone. Use with caution.
 Examples:
   tk task archive clear`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		count, err := s.ClearArchive()
 		if err != nil {

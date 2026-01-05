@@ -53,7 +53,7 @@ const (
 
 // Model is the main TUI model
 type Model struct {
-	store        *store.Store
+	store        store.Storage
 	file         *task.File
 	view         View
 	prevView     View // previous view before help overlay
@@ -243,7 +243,7 @@ func highlightMatches(text string, matches []int, baseStyle, matchStyle lipgloss
 }
 
 // New creates a new TUI model
-func New(s *store.Store) (*Model, error) {
+func New(s store.Storage) (*Model, error) {
 	f, err := s.Read()
 	if err != nil {
 		return nil, err

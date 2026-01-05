@@ -138,12 +138,12 @@
       "updated_at": "2026-01-05T05:11:12.988358Z"
     },
     "v3-auto-detect": {
-      "status": "in_progress",
+      "status": "done",
       "description": "Auto-detect old .tasuku.json format and prompt for migration",
       "blocked_by": [],
       "owner": null,
       "created_at": "2026-01-05T05:03:04.360986Z",
-      "updated_at": "2026-01-05T05:11:26.078835Z"
+      "updated_at": "2026-01-05T05:29:54.958217Z"
     },
     "v3-context-jsonl": {
       "status": "done",
@@ -186,12 +186,12 @@
       "updated_at": "2026-01-05T05:09:47.159437Z"
     },
     "v3-tree-view": {
-      "status": "ready",
+      "status": "done",
       "description": "Add tk task list --tree to show hierarchical subtask view",
       "blocked_by": [],
       "owner": null,
       "created_at": "2026-01-05T05:03:04.64144Z",
-      "updated_at": "2026-01-05T05:11:20.949048Z"
+      "updated_at": "2026-01-05T05:32:52.536114Z"
     }
   },
   "context": {

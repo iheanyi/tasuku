@@ -40,7 +40,7 @@ Examples:
 }
 
 func runTaskDeps(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	f, err := s.Read()
 	if err != nil {
 		return err

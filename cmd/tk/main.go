@@ -195,34 +195,57 @@ Examples:
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Create .tasuku.json in current directory",
+	Short: "Initialize Tasuku in current directory",
 	Long: `Initialize a new Tasuku project in the current directory.
 
-Creates a .tasuku.json file with:
-  - version: Schema version (currently 1)
-  - tasks: Empty task map
-  - context: Empty learnings, decisions, and notes
+Storage Formats:
+  v3 (default)  - Directory-based (.tasuku/) - recommended for teams
+                  One file per task, eliminates merge conflicts
+  v2            - Single file (.tasuku.json) - simpler for solo use
 
-The file is human-readable JSON and can be edited directly or
+The storage is human-readable JSON and can be edited directly or
 committed to version control.
 
 Prerequisites:
-  - Current directory should not already have .tasuku.json
+  - Current directory should not already have .tasuku/ or .tasuku.json
 
 Examples:
-  tk init                    # Create .tasuku.json
+  tk init                    # Create .tasuku/ directory (V3 format)
+  tk init --format v2        # Create .tasuku.json (legacy format)
   tk init && tk add "Setup"  # Initialize and add first task`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
-		if s.Exists() {
+		format, _ := cmd.Flags().GetString("format")
+
+		// Check if already initialized
+		storageType := store.DetectStorageType(".")
+		if storageType != store.StorageTypeNone {
+			if storageType == store.StorageTypeDir {
+				return fmt.Errorf(".tasuku/ directory already exists")
+			}
 			return fmt.Errorf(".tasuku.json already exists")
 		}
+
+		var s store.Storage
+		var msg string
+		switch format {
+		case "v2":
+			s = store.New(store.DefaultFileName)
+			msg = "Created .tasuku.json (V2 format)"
+		default: // v3
+			s = store.NewDirStore(store.DirName)
+			msg = "Created .tasuku/ directory (V3 format)"
+		}
+
 		if err := s.Init(); err != nil {
 			return err
 		}
-		fmt.Println("Created .tasuku.json")
+		fmt.Println(msg)
 		return nil
 	},
+}
+
+func init() {
+	initCmd.Flags().String("format", "v3", "Storage format: v3 (directory) or v2 (single file)")
 }
 
 var listCmd = &cobra.Command{
@@ -246,6 +269,10 @@ Filtering:
   Use --status to show only tasks with a specific status.
   Use --tag to show only tasks with a specific tag.
 
+Tree View:
+  Use --tree to show tasks in a hierarchical tree format,
+  with subtasks indented under their parent tasks.
+
 Examples:
   tk list                    # List all tasks
   tk list -s ready           # Show only ready tasks
@@ -253,12 +280,14 @@ Examples:
   tk list --tag backend      # Show tasks with 'backend' tag
   tk list -t bug -s ready    # Combine filters
   tk list -f json            # Output as JSON
+  tk list --tree             # Show tasks in tree view
   tk ls                      # Alias for 'list'`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		status, _ := cmd.Flags().GetString("status")
 		tagFilter, _ := cmd.Flags().GetString("tag")
+		treeView, _ := cmd.Flags().GetBool("tree")
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err
@@ -294,6 +323,9 @@ Examples:
 			return tasks[i].ID < tasks[j].ID
 		})
 
+		if treeView {
+			return outputTasksTree(tasks)
+		}
 		return outputTasks(tasks)
 	},
 }
@@ -301,6 +333,7 @@ Examples:
 func init() {
 	listCmd.Flags().StringP("status", "s", "", "Filter by status: ready, in_progress, blocked, done")
 	listCmd.Flags().StringP("tag", "t", "", "Filter by tag")
+	listCmd.Flags().Bool("tree", false, "Show tasks in tree view with subtasks indented")
 }
 
 var addCmd = &cobra.Command{
@@ -321,6 +354,9 @@ Priority Levels (optional --priority flag):
 Tags (optional --tag flag):
   Add tags to categorize tasks. Use comma-separated values for multiple tags.
 
+Subtasks (optional --parent flag):
+  Create a subtask under an existing parent task.
+
 New tasks start with "ready" status.
 
 Examples:
@@ -328,19 +364,21 @@ Examples:
   tk add "Fix critical bug" -p 0               # Critical priority
   tk add "Refactor database layer" --id db-refactor
   tk add "Update documentation" --priority low
-  tk add "Add login page" --tag frontend,auth  # Add with tags`,
+  tk add "Add login page" --tag frontend,auth  # Add with tags
+  tk add "Write unit tests" --parent feature-x # Create subtask`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		description := args[0]
 		id, _ := cmd.Flags().GetString("id")
 		priority, _ := cmd.Flags().GetInt("priority")
 		tagStr, _ := cmd.Flags().GetString("tag")
+		parentID, _ := cmd.Flags().GetString("parent")
 
 		if id == "" {
 			id = generateID(description)
 		}
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		var priorityPtr *int
 		if priority >= 0 && priority <= 4 {
@@ -358,8 +396,22 @@ Examples:
 			}
 		}
 
-		if err := s.AddTaskWithTags(id, description, priorityPtr, tags); err != nil {
-			return err
+		// Create task - either as subtask or regular task
+		if parentID != "" {
+			if err := s.AddSubtask(id, description, parentID); err != nil {
+				return err
+			}
+			// Set priority and tags if specified
+			if priorityPtr != nil {
+				s.SetPriority(id, *priorityPtr)
+			}
+			for _, tag := range tags {
+				s.AddTag(id, tag)
+			}
+		} else {
+			if err := s.AddTaskWithTags(id, description, priorityPtr, tags); err != nil {
+				return err
+			}
 		}
 
 		priorityStr := ""
@@ -370,7 +422,11 @@ Examples:
 		if len(tags) > 0 {
 			tagStr = fmt.Sprintf(" [%s]", strings.Join(tags, ", "))
 		}
-		fmt.Printf("Created task: %s%s%s\n", id, priorityStr, tagStr)
+		parentStr := ""
+		if parentID != "" {
+			parentStr = fmt.Sprintf(" (subtask of: %s)", parentID)
+		}
+		fmt.Printf("Created task: %s%s%s%s\n", id, priorityStr, tagStr, parentStr)
 		return nil
 	},
 }
@@ -379,6 +435,7 @@ func init() {
 	addCmd.Flags().String("id", "", "Task ID (auto-generated if not provided)")
 	addCmd.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
 	addCmd.Flags().StringP("tag", "t", "", "Comma-separated tags (e.g., backend,api)")
+	addCmd.Flags().String("parent", "", "Parent task ID to create a subtask")
 }
 
 var showCmd = &cobra.Command{
@@ -403,7 +460,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err
@@ -442,7 +499,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.SetStatus(taskID, task.StatusInProgress); err != nil {
 			return err
@@ -474,7 +531,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if err := s.SetStatus(taskID, task.StatusDone); err != nil {
 			return err
@@ -514,7 +571,7 @@ Examples:
 			blockers[i] = strings.TrimSpace(blockers[i])
 		}
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		if err := s.BlockTask(taskID, blockers); err != nil {
 			return err
 		}
@@ -544,7 +601,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		fromBlocker, _ := cmd.Flags().GetString("from")
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		if fromBlocker == "" {
 			// Clear all blockers (original behavior)
@@ -619,7 +676,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		return s.Update(func(f *task.File) error {
 			if _, exists := f.Tasks[taskID]; !exists {
@@ -668,7 +725,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		newDescription := args[1]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		return s.Update(func(f *task.File) error {
 			t, exists := f.Tasks[taskID]
@@ -708,7 +765,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		return s.Update(func(f *task.File) error {
 			t, exists := f.Tasks[taskID]
@@ -748,7 +805,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		clearFlag, _ := cmd.Flags().GetBool("clear")
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		// If owner-name is provided, set owner
 		if len(args) == 2 {
@@ -813,7 +870,7 @@ Examples:
   tk ready -f json             # Output as JSON
   tk ready -f yaml             # Output as YAML`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err
@@ -888,7 +945,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query := strings.ToLower(args[0])
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err
@@ -991,7 +1048,7 @@ Examples:
 			return fmt.Errorf("invalid priority: %s (use 0-4 or critical/high/normal/low/backlog)", priorityStr)
 		}
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		if err := s.SetPriority(taskID, priority); err != nil {
 			return err
 		}
@@ -1320,7 +1377,7 @@ Examples:
 }
 
 func runLearningRules(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -1381,7 +1438,7 @@ func init() {
 
 // Shared implementation functions for learning commands
 func runLearningList(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -1435,7 +1492,7 @@ func runLearningAdd(cmd *cobra.Command, args []string) error {
 	learningText := args[0]
 	permanent, _ := cmd.Flags().GetBool("permanent")
 	forceRule, _ := cmd.Flags().GetBool("rule")
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 
 	var id string
 	var isRule bool
@@ -1472,7 +1529,7 @@ func runLearningAdd(cmd *cobra.Command, args []string) error {
 }
 
 func runLearningRemove(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	query := args[0]
 
 	// First try to remove by ID
@@ -1498,7 +1555,7 @@ func runLearningRemove(cmd *cobra.Command, args []string) error {
 }
 
 func runLearningPromote(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	query := args[0]
 	targetFile, _ := cmd.Flags().GetString("to")
 	keep, _ := cmd.Flags().GetBool("keep")
@@ -1637,7 +1694,7 @@ func init() {
 
 // Shared implementation functions for decision commands
 func runDecisionList(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -1699,7 +1756,7 @@ func runDecisionAdd(cmd *cobra.Command, args []string) error {
 		Because: because,
 	}
 
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	if err := s.AddDecision(d); err != nil {
 		return err
 	}
@@ -1710,7 +1767,7 @@ func runDecisionAdd(cmd *cobra.Command, args []string) error {
 
 func runDecisionRemove(cmd *cobra.Command, args []string) error {
 	decisionID := args[0]
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 
 	return s.Update(func(f *task.File) error {
 		for i, d := range f.Context.Decisions {
@@ -1796,7 +1853,7 @@ func init() {
 
 // Shared implementation functions for note commands
 func runNoteList(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -1871,7 +1928,7 @@ func runNoteAdd(cmd *cobra.Command, args []string) error {
 	taskID := args[0]
 	note := args[1]
 
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	noteID, err := s.AddNote(taskID, note)
 	if err != nil {
 		return err
@@ -1885,7 +1942,7 @@ func runNoteRemove(cmd *cobra.Command, args []string) error {
 	taskID := args[0]
 	noteID := args[1]
 
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	removedText, err := s.RemoveNote(taskID, noteID)
 	if err != nil {
 		return err
@@ -1917,7 +1974,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		learningText := args[0]
 		permanent, _ := cmd.Flags().GetBool("permanent")
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		id, err := s.AddLearning(learningText)
 		if err != nil {
@@ -1991,7 +2048,7 @@ Examples:
   tk learnings              # List all learnings
   tk learnings --format json  # Output as JSON`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err
@@ -2042,7 +2099,7 @@ Examples:
   tk unlearn "redis"              # Remove first learning containing "redis"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		query := args[0]
 
 		// First try to remove by ID
@@ -2115,7 +2172,7 @@ Examples:
   tk promote a3x9k2 --keep         # Keep in learnings after promoting`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		query := args[0]
 		targetFile, _ := cmd.Flags().GetString("to")
 		keep, _ := cmd.Flags().GetBool("keep")
@@ -2265,7 +2322,7 @@ Examples:
 			Because: because,
 		}
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		if err := s.AddDecision(d); err != nil {
 			return err
 		}
@@ -2309,7 +2366,7 @@ Examples:
 		taskID := args[0]
 		note := args[1]
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		noteID, err := s.AddNote(taskID, note)
 		if err != nil {
 			return err
@@ -2331,7 +2388,7 @@ Examples:
   tk decisions              # List all decisions
   tk decisions --format json  # Output as JSON`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err
@@ -2385,7 +2442,7 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		decisionID := args[0]
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 
 		return s.Update(func(f *task.File) error {
 			for i, d := range f.Context.Decisions {
@@ -2417,7 +2474,7 @@ Examples:
   tk notes --format json      # Output as JSON`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return err
@@ -2506,7 +2563,7 @@ Examples:
 		taskID := args[0]
 		noteID := args[1]
 
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		removedText, err := s.RemoveNote(taskID, noteID)
 		if err != nil {
 			return err
@@ -2610,7 +2667,7 @@ Examples:
 
 // Shared implementation for context show
 func runContextShow(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -2629,13 +2686,13 @@ func runContextShow(cmd *cobra.Command, args []string) error {
 
 // Shared implementation for context validate
 func runContextValidate(cmd *cobra.Command, args []string) error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	f, err := s.Read()
 	if err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	if f.Version != 1 {
+	if f.Version < 1 || f.Version > 3 {
 		return fmt.Errorf("unsupported version: %d", f.Version)
 	}
 
@@ -2824,7 +2881,7 @@ func runServerStart(cmd *cobra.Command, args []string) error {
 	httpAddr, _ := cmd.Flags().GetString("http")
 
 	// Use FindUp to locate .tasuku.json - enables MCP to work from any subdirectory
-	s := store.DefaultWithFindUp()
+	s := store.DefaultStorageWithWarning()
 
 	// HTTP mode via --http
 	if httpAddr != "" {
@@ -2964,7 +3021,7 @@ Examples:
 
 func migrateToV3(dryRun bool) error {
 	// Check for existing .tasuku.json
-	oldStore := store.DefaultWithFindUp()
+	oldStore := store.DefaultStorageWithWarning()
 	if !oldStore.Exists() {
 		return fmt.Errorf("no .tasuku.json found to migrate")
 	}
@@ -3289,7 +3346,7 @@ func runDoctor() error {
 	}
 
 	// 2. Check .tasuku.json
-	s := store.DefaultWithFindUp()
+	s := store.DefaultStorageWithWarning()
 	tasukuPath := s.Path()
 	if _, err := os.Stat(tasukuPath); os.IsNotExist(err) {
 		fmt.Printf("✗ No .tasuku.json found (searched from %s)\n", mustGetwd())
@@ -3573,7 +3630,7 @@ MCP Tools Exposed:
   tk_list, tk_add, tk_start, tk_done, tk_block, tk_unblock,
   tk_learn, tk_decide, tk_context, and more.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.DefaultWithFindUp()
+		s := store.DefaultStorageWithWarning()
 		mcpServer := mcp.New(s)
 		return mcpServer.Run()
 	},
@@ -3739,6 +3796,83 @@ type searchResult struct {
 // =============================================================================
 // Output Helpers
 // =============================================================================
+
+// outputTasksTree displays tasks in a hierarchical tree format,
+// with subtasks indented under their parent tasks.
+func outputTasksTree(tasks []taskEntry) error {
+	switch outputFormat {
+	case "json":
+		data, _ := json.MarshalIndent(tasks, "", "  ")
+		fmt.Println(string(data))
+	case "yaml":
+		data, _ := yaml.Marshal(tasks)
+		fmt.Print(string(data))
+	default: // table with tree structure
+		if len(tasks) == 0 {
+			fmt.Println("No tasks found")
+			return nil
+		}
+
+		// Build parent->children map
+		children := make(map[string][]taskEntry)
+		roots := []taskEntry{}
+
+		for _, t := range tasks {
+			parentID := t.Task.GetParentID()
+			if parentID == "" {
+				roots = append(roots, t)
+			} else {
+				children[parentID] = append(children[parentID], t)
+			}
+		}
+
+		// Print tree recursively
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		var printTree func(entries []taskEntry, indent string)
+		printTree = func(entries []taskEntry, indent string) {
+			for i, t := range entries {
+				statusIcon := statusToIcon(t.Task.Status)
+				desc := t.Task.Description
+				if len(desc) > 45 {
+					desc = desc[:42] + "..."
+				}
+
+				// Tree branch characters
+				prefix := indent
+				if indent != "" {
+					if i == len(entries)-1 {
+						prefix = indent[:len(indent)-3] + "└─ "
+					} else {
+						prefix = indent[:len(indent)-3] + "├─ "
+					}
+				}
+
+				blocked := ""
+				if len(t.Task.BlockedBy) > 0 {
+					blocked = fmt.Sprintf("(blocked by: %s)", strings.Join(t.Task.BlockedBy, ", "))
+				}
+				fmt.Fprintf(w, "%s%s\t%s\t%s\t%s\n", prefix, statusIcon, t.ID, desc, blocked)
+
+				// Print children
+				if childTasks, ok := children[t.ID]; ok {
+					nextIndent := indent
+					if indent == "" {
+						nextIndent = "   "
+					} else if i == len(entries)-1 {
+						nextIndent = indent[:len(indent)-3] + "   "
+					} else {
+						nextIndent = indent[:len(indent)-3] + "│  "
+					}
+					printTree(childTasks, nextIndent)
+				}
+			}
+		}
+
+		printTree(roots, "")
+		w.Flush()
+	}
+	return nil
+}
 
 func outputTasks(tasks []taskEntry) error {
 	switch outputFormat {
@@ -3971,7 +4105,7 @@ func generateID(desc string) string {
 // =============================================================================
 
 func hookSession() error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	if !s.Exists() {
 		return nil
 	}
@@ -4031,7 +4165,7 @@ func hookSession() error {
 }
 
 func hookSync() error {
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	if !s.Exists() {
 		return fmt.Errorf("no .tasuku.json found - run 'tk init' first")
 	}
@@ -4163,7 +4297,7 @@ func migrateFromBeads(dryRun bool) error {
 		return nil
 	}
 
-	s := store.Default()
+	s := store.DefaultStorageWithWarning()
 	if !s.Exists() {
 		if err := s.Init(); err != nil {
 			return err

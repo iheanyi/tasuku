@@ -20,13 +20,13 @@ var templateFS embed.FS
 
 // Server is the HTTP API server.
 type Server struct {
-	store     *store.Store
+	store     store.Storage
 	mux       *http.ServeMux
 	templates *template.Template
 }
 
 // New creates a new HTTP server.
-func New(s *store.Store) *Server {
+func New(s store.Storage) *Server {
 	// Parse templates
 	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
 	if err != nil {

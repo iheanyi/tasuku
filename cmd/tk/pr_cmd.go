@@ -127,7 +127,7 @@ func runPrCreate(cmd *cobra.Command, args []string) error {
 	var linkedTask *task.Task
 	var taskDescription string
 	if prTaskID != "" {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return fmt.Errorf("failed to read tasks: %w", err)
@@ -173,7 +173,7 @@ func runPrCreate(cmd *cobra.Command, args []string) error {
 
 	// If task was linked and --done flag was set, mark task as done
 	if linkedTask != nil && prMarkDone {
-		s := store.Default()
+		s := store.DefaultStorageWithWarning()
 		if err := s.SetStatus(prTaskID, task.StatusDone); err != nil {
 			fmt.Printf("Warning: PR created but failed to mark task %s as done: %v\n", prTaskID, err)
 		} else {

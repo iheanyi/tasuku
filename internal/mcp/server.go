@@ -22,13 +22,13 @@ const (
 
 // Server is the MCP server.
 type Server struct {
-	store *store.Store
+	store store.Storage
 	in    io.Reader
 	out   io.Writer
 }
 
 // New creates a new MCP server.
-func New(s *store.Store) *Server {
+func New(s store.Storage) *Server {
 	return &Server{
 		store: s,
 		in:    os.Stdin,

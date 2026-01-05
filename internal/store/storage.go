@@ -173,3 +173,24 @@ func NeedsMigration() bool {
 	storageType, _ := DetectStorageTypeUp()
 	return storageType == StorageTypeFile
 }
+
+// migrationWarningShown tracks if we've already shown the migration warning.
+var migrationWarningShown bool
+
+// DefaultStorage returns the auto-detected storage backend.
+// This is the recommended way to get a storage instance in CLI commands.
+func DefaultStorage() Storage {
+	return AutoDetect()
+}
+
+// DefaultStorageWithWarning returns the auto-detected storage backend
+// and prints a migration warning to stderr if using legacy format.
+// The warning is only printed once per process.
+func DefaultStorageWithWarning() Storage {
+	storage, warning := AutoDetectWithWarning()
+	if warning != "" && !migrationWarningShown {
+		fmt.Fprintln(os.Stderr, "Warning:", warning)
+		migrationWarningShown = true
+	}
+	return storage
+}

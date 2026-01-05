@@ -67,13 +67,13 @@ func TestCLI_Integration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("init failed: %v\n%s", err, output)
 		}
-		if !strings.Contains(output, "Created .tasuku.json") {
+		if !strings.Contains(output, "Created .tasuku/") {
 			t.Errorf("unexpected output: %s", output)
 		}
 
-		// Verify file exists
-		if _, err := os.Stat(filepath.Join(testDir, ".tasuku.json")); err != nil {
-			t.Error("expected .tasuku.json to exist")
+		// Verify directory exists (V3 format)
+		if _, err := os.Stat(filepath.Join(testDir, ".tasuku")); err != nil {
+			t.Error("expected .tasuku/ directory to exist")
 		}
 	})
 

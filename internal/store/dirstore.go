@@ -356,11 +356,25 @@ func (s *DirStore) Update(fn func(*task.File) error) error {
 
 // writeAll writes all data from a task.File to the directory structure.
 func (s *DirStore) writeAll(f *task.File) error {
+	// Find existing task files to detect deletions
+	existingTasks := make(map[string]bool)
+	if ids, err := s.listTaskIDs(); err == nil {
+		for _, id := range ids {
+			existingTasks[id] = true
+		}
+	}
+
 	// Write tasks
 	for id, t := range f.Tasks {
 		if err := s.writeTask(id, t); err != nil {
 			return err
 		}
+		delete(existingTasks, id) // Mark as still exists
+	}
+
+	// Delete task files that were removed
+	for id := range existingTasks {
+		os.Remove(s.taskPath(id))
 	}
 
 	// Write learnings
@@ -379,9 +393,22 @@ func (s *DirStore) writeAll(f *task.File) error {
 		}
 	}
 
-	// Write notes
+	// Write notes and delete orphaned note files
 	notesDir := filepath.Join(s.root, ContextDir, "notes")
 	os.MkdirAll(notesDir, 0755)
+
+	// First, find existing note files
+	existingNotes := make(map[string]bool)
+	if entries, err := os.ReadDir(notesDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+				taskID := strings.TrimSuffix(entry.Name(), ".json")
+				existingNotes[taskID] = true
+			}
+		}
+	}
+
+	// Write notes that exist in f.Context.Notes
 	for taskID, notes := range f.Context.Notes {
 		notePath := filepath.Join(notesDir, taskID+".json")
 		if data, err := json.MarshalIndent(notes, "", "  "); err == nil {
@@ -389,6 +416,13 @@ func (s *DirStore) writeAll(f *task.File) error {
 				return fmt.Errorf("store: failed to write notes: %w", err)
 			}
 		}
+		delete(existingNotes, taskID) // Mark as still exists
+	}
+
+	// Delete note files that were removed
+	for taskID := range existingNotes {
+		notePath := filepath.Join(notesDir, taskID+".json")
+		os.Remove(notePath) // Ignore errors
 	}
 
 	// Write archive
@@ -704,7 +738,15 @@ func (s *DirStore) DeleteTask(id string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return fmt.Errorf("store: task %q not found", id)
 	}
-	return os.Remove(path)
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+
+	// Also remove notes for this task (if any)
+	notePath := filepath.Join(s.root, ContextDir, "notes", id+".json")
+	os.Remove(notePath) // Ignore error if notes don't exist
+
+	return nil
 }
 
 // =============================================================================
