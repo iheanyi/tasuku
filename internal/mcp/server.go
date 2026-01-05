@@ -384,6 +384,206 @@ func (s *Server) Tools() []Tool {
 				},
 			},
 		},
+		{
+			Name:        "tk_archive",
+			Description: "Archive a done task. The task must be in 'done' status to be archived.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"task_id"},
+				"properties": map[string]interface{}{
+					"task_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to archive",
+					},
+					"summary": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional summary of what was accomplished",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_archive_restore",
+			Description: "Restore an archived task back to active tasks with 'ready' status.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"task_id"},
+				"properties": map[string]interface{}{
+					"task_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Archived task ID to restore",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_archive_list",
+			Description: "List all archived tasks.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		{
+			Name:        "tk_show",
+			Description: "Get detailed information about a specific task including notes, priority, and timestamps.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to show details for",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_delete",
+			Description: "Permanently delete a task. Also removes associated notes and clears references from other tasks' blocked_by lists.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to delete",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_edit",
+			Description: "Update a task's description.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id", "description"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to edit",
+					},
+					"description": map[string]interface{}{
+						"type":        "string",
+						"description": "New description for the task",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_pause",
+			Description: "Pause work on a task, reverting it from in_progress to ready status and clearing the owner.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to pause",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_unblock",
+			Description: "Remove blockers from a task. By default removes all blockers; use 'from' to remove a specific one.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to unblock",
+					},
+					"from": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: remove only this specific blocker (partial unblock)",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_find",
+			Description: "Search across tasks, notes, learnings, and decisions. Case-insensitive text search.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"query"},
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "string",
+						"description": "Search query string",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_priority",
+			Description: "Set task priority level. Levels: 0/critical, 1/high, 2/normal, 3/low, 4/backlog.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id", "priority"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID",
+					},
+					"priority": map[string]interface{}{
+						"type":        "string",
+						"description": "Priority level: 0-4 or critical/high/normal/low/backlog",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_owner",
+			Description: "Set or clear task owner.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID",
+					},
+					"owner": map[string]interface{}{
+						"type":        "string",
+						"description": "Owner name to set. Omit or set empty to clear owner.",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_claim",
+			Description: "Claim a task for exclusive work by an agent. Records claim timestamp for coordination.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id", "agent"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to claim",
+					},
+					"agent": map[string]interface{}{
+						"type":        "string",
+						"description": "Agent name claiming the task",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_release",
+			Description: "Release a claimed task, making it available for other agents.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to release",
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -422,6 +622,32 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleTagAdd(args)
 	case "tk_tag_remove":
 		return s.handleTagRemove(args)
+	case "tk_archive":
+		return s.handleArchive(args)
+	case "tk_archive_restore":
+		return s.handleArchiveRestore(args)
+	case "tk_archive_list":
+		return s.handleArchiveList(args)
+	case "tk_show":
+		return s.handleShow(args)
+	case "tk_delete":
+		return s.handleDelete(args)
+	case "tk_edit":
+		return s.handleEdit(args)
+	case "tk_pause":
+		return s.handlePause(args)
+	case "tk_unblock":
+		return s.handleUnblock(args)
+	case "tk_find":
+		return s.handleFind(args)
+	case "tk_priority":
+		return s.handlePriority(args)
+	case "tk_owner":
+		return s.handleOwner(args)
+	case "tk_claim":
+		return s.handleClaim(args)
+	case "tk_release":
+		return s.handleRelease(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -649,6 +875,380 @@ func (s *Server) handleTagRemove(args map[string]interface{}) (interface{}, erro
 		return nil, err
 	}
 	return map[string]string{"id": id, "tag": tag, "status": "removed"}, nil
+}
+
+func (s *Server) handleArchive(args map[string]interface{}) (interface{}, error) {
+	taskID, _ := args["task_id"].(string)
+	summary, _ := args["summary"].(string)
+
+	if err := s.store.ArchiveTask(taskID, summary); err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": taskID, "status": "archived"}, nil
+}
+
+func (s *Server) handleArchiveRestore(args map[string]interface{}) (interface{}, error) {
+	taskID, _ := args["task_id"].(string)
+
+	if err := s.store.RestoreTask(taskID); err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": taskID, "status": "restored"}, nil
+}
+
+func (s *Server) handleArchiveList(args map[string]interface{}) (interface{}, error) {
+	archived, err := s.store.GetArchivedTasks()
+	if err != nil {
+		return nil, err
+	}
+
+	type archivedResult struct {
+		ID          string `json:"id"`
+		Description string `json:"description"`
+		Summary     string `json:"summary,omitempty"`
+		ArchivedAt  string `json:"archived_at"`
+	}
+
+	var results []archivedResult
+	for id, t := range archived {
+		results = append(results, archivedResult{
+			ID:          id,
+			Description: t.Description,
+			Summary:     t.Summary,
+			ArchivedAt:  t.ArchivedAt.Format(time.RFC3339),
+		})
+	}
+
+	return results, nil
+}
+
+func (s *Server) handleShow(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	t, exists := f.Tasks[id]
+	if !exists {
+		return nil, fmt.Errorf("task not found: %s", id)
+	}
+
+	notes := f.Context.Notes[id]
+
+	type noteInfo struct {
+		ID        string `json:"id"`
+		Text      string `json:"text"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	var noteResults []noteInfo
+	for _, n := range notes {
+		noteResults = append(noteResults, noteInfo{
+			ID:        n.ID,
+			Text:      n.Text,
+			CreatedAt: n.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	result := map[string]interface{}{
+		"id":          id,
+		"description": t.Description,
+		"status":      string(t.Status),
+		"priority":    t.Priority,
+		"created_at":  t.CreatedAt.Format(time.RFC3339),
+		"updated_at":  t.UpdatedAt.Format(time.RFC3339),
+	}
+
+	if t.Owner != nil {
+		result["owner"] = *t.Owner
+	}
+	if len(t.BlockedBy) > 0 {
+		result["blocked_by"] = t.BlockedBy
+	}
+	if len(t.Tags) > 0 {
+		result["tags"] = t.Tags
+	}
+	if len(t.Fields) > 0 {
+		result["fields"] = t.Fields
+	}
+	if t.Duration > 0 {
+		result["duration"] = t.Duration.String()
+	}
+	if len(noteResults) > 0 {
+		result["notes"] = noteResults
+	}
+
+	return result, nil
+}
+
+func (s *Server) handleDelete(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+
+	err := s.store.Update(func(f *task.File) error {
+		if _, exists := f.Tasks[id]; !exists {
+			return fmt.Errorf("task not found: %s", id)
+		}
+
+		// Delete the task
+		delete(f.Tasks, id)
+
+		// Remove notes for this task
+		delete(f.Context.Notes, id)
+
+		// Remove this task from any blocked_by arrays in other tasks
+		for tid, t := range f.Tasks {
+			newBlockedBy := []string{}
+			for _, blockerID := range t.BlockedBy {
+				if blockerID != id {
+					newBlockedBy = append(newBlockedBy, blockerID)
+				}
+			}
+			if len(newBlockedBy) != len(t.BlockedBy) {
+				t.BlockedBy = newBlockedBy
+				// If no more blockers, set to ready
+				if len(newBlockedBy) == 0 && t.Status == task.StatusBlocked {
+					t.Status = task.StatusReady
+				}
+				t.UpdatedAt = time.Now().UTC()
+				f.Tasks[tid] = t
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"id": id, "status": "deleted"}, nil
+}
+
+func (s *Server) handleEdit(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	description, _ := args["description"].(string)
+
+	if err := s.store.SetDescription(id, description); err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"id": id, "status": "updated", "description": description}, nil
+}
+
+func (s *Server) handlePause(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+
+	err := s.store.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("task not found: %s", id)
+		}
+
+		if t.Status != task.StatusInProgress {
+			return fmt.Errorf("task %s is not in_progress (current status: %s)", id, t.Status)
+		}
+
+		t.Status = task.StatusReady
+		t.Owner = nil
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"id": id, "status": "ready"}, nil
+}
+
+func (s *Server) handleUnblock(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	fromBlocker, _ := args["from"].(string)
+
+	if fromBlocker == "" {
+		// Clear all blockers
+		if err := s.store.UnblockTask(id); err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{"id": id, "status": "ready", "removed": "all"}, nil
+	}
+
+	// Partial unblock: remove only the specified blocker
+	err := s.store.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("task %q not found", id)
+		}
+
+		found := false
+		newBlockers := []string{}
+		for _, b := range t.BlockedBy {
+			if b == fromBlocker {
+				found = true
+			} else {
+				newBlockers = append(newBlockers, b)
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("task %q is not blocked by %q", id, fromBlocker)
+		}
+
+		t.BlockedBy = newBlockers
+		if len(newBlockers) == 0 {
+			t.Status = task.StatusReady
+		}
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{"id": id, "removed": fromBlocker}, nil
+}
+
+func (s *Server) handleFind(args map[string]interface{}) (interface{}, error) {
+	query, _ := args["query"].(string)
+	queryLower := strings.ToLower(query)
+
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	type searchResult struct {
+		Type    string `json:"type"`
+		ID      string `json:"id"`
+		Content string `json:"content"`
+	}
+
+	var results []searchResult
+
+	// Search tasks
+	for id, t := range f.Tasks {
+		if strings.Contains(strings.ToLower(t.Description), queryLower) ||
+			strings.Contains(strings.ToLower(id), queryLower) {
+			results = append(results, searchResult{
+				Type:    "task",
+				ID:      id,
+				Content: t.Description,
+			})
+		}
+	}
+
+	// Search notes
+	for taskID, notes := range f.Context.Notes {
+		for _, n := range notes {
+			if strings.Contains(strings.ToLower(n.Text), queryLower) {
+				results = append(results, searchResult{
+					Type:    "note",
+					ID:      taskID + "/" + n.ID,
+					Content: n.Text,
+				})
+			}
+		}
+	}
+
+	// Search learnings
+	for _, l := range f.Context.Learnings {
+		if strings.Contains(strings.ToLower(l.Text), queryLower) {
+			results = append(results, searchResult{
+				Type:    "learning",
+				ID:      l.ID,
+				Content: l.Text,
+			})
+		}
+	}
+
+	// Search decisions
+	for _, d := range f.Context.Decisions {
+		if strings.Contains(strings.ToLower(d.ID), queryLower) ||
+			strings.Contains(strings.ToLower(d.Chose), queryLower) ||
+			strings.Contains(strings.ToLower(d.Because), queryLower) {
+			results = append(results, searchResult{
+				Type:    "decision",
+				ID:      d.ID,
+				Content: d.Chose + " because: " + d.Because,
+			})
+		}
+	}
+
+	return results, nil
+}
+
+func (s *Server) handlePriority(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	priorityStr, _ := args["priority"].(string)
+
+	var priority int
+	switch priorityStr {
+	case "0", "critical":
+		priority = task.PriorityCritical
+	case "1", "high":
+		priority = task.PriorityHigh
+	case "2", "normal":
+		priority = task.PriorityNormal
+	case "3", "low":
+		priority = task.PriorityLow
+	case "4", "backlog":
+		priority = task.PriorityBacklog
+	default:
+		return nil, fmt.Errorf("invalid priority: %s (use 0-4 or critical/high/normal/low/backlog)", priorityStr)
+	}
+
+	if err := s.store.SetPriority(id, priority); err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{"id": id, "priority": priority, "status": "updated"}, nil
+}
+
+func (s *Server) handleOwner(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	owner, hasOwner := args["owner"].(string)
+
+	if !hasOwner || owner == "" {
+		// Clear owner
+		if err := s.store.ClearOwner(id); err != nil {
+			return nil, err
+		}
+		return map[string]string{"id": id, "status": "owner_cleared"}, nil
+	}
+
+	// Set owner
+	if err := s.store.SetOwner(id, owner); err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": id, "owner": owner, "status": "owner_set"}, nil
+}
+
+func (s *Server) handleClaim(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	agent, _ := args["agent"].(string)
+
+	if err := s.store.ClaimTask(id, agent); err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"id": id, "agent": agent, "status": "claimed"}, nil
+}
+
+func (s *Server) handleRelease(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+
+	if err := s.store.ReleaseTask(id); err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"id": id, "status": "released"}, nil
 }
 
 // generateID creates a kebab-case ID from description.
