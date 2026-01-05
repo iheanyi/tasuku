@@ -3,7 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"os/user"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -13,38 +17,128 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
+// getAgentName returns the current agent/user name for claims.
+// Priority: TASUKU_AGENT env var > git user.name > system username > hostname
+func getAgentName() string {
+	// Check env var first
+	if agent := os.Getenv("TASUKU_AGENT"); agent != "" {
+		return agent
+	}
+
+	// Try git user.name
+	if out, err := exec.Command("git", "config", "user.name").Output(); err == nil {
+		if name := strings.TrimSpace(string(out)); name != "" {
+			return name
+		}
+	}
+
+	// Try system username
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
+	}
+
+	// Fall back to hostname
+	if hostname, err := os.Hostname(); err == nil {
+		return hostname
+	}
+
+	return "unknown"
+}
+
+// gitCommitAndPush commits task changes and pushes to remote
+func gitCommitAndPush(message string) error {
+	// Check if we're in a git repo
+	if err := exec.Command("git", "rev-parse", "--git-dir").Run(); err != nil {
+		return fmt.Errorf("not in a git repository")
+	}
+
+	// Add .tasuku/ changes
+	if err := exec.Command("git", "add", ".tasuku/").Run(); err != nil {
+		// Try legacy format
+		exec.Command("git", "add", ".tasuku.json").Run()
+	}
+
+	// Check if there are changes to commit
+	statusOut, _ := exec.Command("git", "status", "--porcelain", ".tasuku/", ".tasuku.json").Output()
+	if len(strings.TrimSpace(string(statusOut))) == 0 {
+		return nil // Nothing to commit
+	}
+
+	// Commit
+	if err := exec.Command("git", "commit", "-m", message).Run(); err != nil {
+		return fmt.Errorf("git commit failed: %w", err)
+	}
+
+	// Push (ignore errors - might not have remote or push access)
+	exec.Command("git", "push").Run()
+
+	return nil
+}
+
 // =============================================================================
 // Agent Coordination Commands (V2.0 - claim/release/who)
 // =============================================================================
 
 var claimCmd = &cobra.Command{
-	Use:   "claim <task-id> <agent-name>",
+	Use:   "claim <task-id> [agent-name]",
 	Short: "Claim a task for an agent",
 	Long: `Claim a task for exclusive work by an agent.
 
-This sets the task's owner and records a claim timestamp. If another
-agent tries to claim the same task, they will be rejected unless the
-claim is stale (older than 2 hours by default).
+This sets the task's owner, marks it as in_progress, and records a claim
+timestamp. If another agent tries to claim the same task, they will be
+rejected unless the claim is stale (older than 2 hours by default).
 
-Claiming a task helps coordinate multiple agents working in parallel
-to avoid conflicts and duplicate work.
+If agent-name is not provided, it's auto-detected from:
+  1. TASUKU_AGENT environment variable
+  2. Git user.name
+  3. System username
+  4. Hostname
+
+Use --sync to commit and push the claim for multi-worktree coordination.
 
 Examples:
-  tk task claim auth-feature agent-1     # Claim for agent-1
-  tk task claim api-design claude        # Claim for claude`,
-	Args: cobra.ExactArgs(2),
+  tk task claim auth-feature              # Claim with auto-detected name
+  tk task claim auth-feature agent-1      # Claim for specific agent
+  tk task claim auth-feature --sync       # Claim and push to share with others`,
+	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		agentName := args[1]
+		agentName := ""
+		if len(args) == 2 {
+			agentName = args[1]
+		} else {
+			agentName = getAgentName()
+		}
+
+		syncFlag, _ := cmd.Flags().GetBool("sync")
 		s := store.DefaultStorageWithWarning()
 
 		if err := s.ClaimTask(taskID, agentName); err != nil {
 			return err
 		}
 
+		// Also set status to in_progress
+		if err := s.SetStatus(taskID, task.StatusInProgress); err != nil {
+			return err
+		}
+
 		fmt.Printf("Task %s claimed by %s\n", taskID, agentName)
+
+		if syncFlag {
+			commitMsg := fmt.Sprintf("chore(tasuku): claim %s for %s", taskID, agentName)
+			if err := gitCommitAndPush(commitMsg); err != nil {
+				fmt.Printf("Warning: %v\n", err)
+			} else {
+				fmt.Println("Changes committed and pushed")
+			}
+		}
+
 		return nil
 	},
+}
+
+func init() {
+	claimCmd.Flags().Bool("sync", false, "Commit and push claim for multi-worktree coordination")
 }
 
 var releaseCmd = &cobra.Command{
@@ -52,23 +146,51 @@ var releaseCmd = &cobra.Command{
 	Short: "Release a claimed task",
 	Long: `Release a task that was previously claimed.
 
-This clears the owner and claim timestamp, making the task available
-for other agents to claim.
+This clears the owner and claim timestamp, sets status back to ready,
+making the task available for other agents to claim.
+
+Use --sync to commit and push the release for multi-worktree coordination.
 
 Examples:
-  tk task release auth-feature    # Release the task`,
+  tk task release auth-feature          # Release the task
+  tk task release auth-feature --sync   # Release and push to share with others`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
+		syncFlag, _ := cmd.Flags().GetBool("sync")
 		s := store.DefaultStorageWithWarning()
 
 		if err := s.ReleaseTask(taskID); err != nil {
 			return err
 		}
 
+		// Set status back to ready (if not done/blocked)
+		f, err := s.Read()
+		if err == nil {
+			if t, exists := f.Tasks[taskID]; exists {
+				if t.Status == task.StatusInProgress {
+					s.SetStatus(taskID, task.StatusReady)
+				}
+			}
+		}
+
 		fmt.Printf("Task %s released\n", taskID)
+
+		if syncFlag {
+			commitMsg := fmt.Sprintf("chore(tasuku): release %s", taskID)
+			if err := gitCommitAndPush(commitMsg); err != nil {
+				fmt.Printf("Warning: %v\n", err)
+			} else {
+				fmt.Println("Changes committed and pushed")
+			}
+		}
+
 		return nil
 	},
+}
+
+func init() {
+	releaseCmd.Flags().Bool("sync", false, "Commit and push release for multi-worktree coordination")
 }
 
 // claimInfo holds claim information for output

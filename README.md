@@ -35,6 +35,7 @@ go install github.com/iheanyi/tasuku/cmd/tk@latest
 # Initialize in your project
 cd your-project
 tk init                     # Creates .tasuku/ directory
+git add .tasuku/            # Commit tasks so they travel with your code
 
 # Add some tasks
 tk task add "Implement user authentication"

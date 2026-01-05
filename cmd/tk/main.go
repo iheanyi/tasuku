@@ -235,6 +235,8 @@ Examples:
 		fmt.Println("  archive/  - Archived completed tasks")
 		fmt.Println("  context/  - Learnings and decisions")
 		fmt.Println()
+		fmt.Println("Tip: Commit .tasuku/ to git so tasks travel with your code.")
+		fmt.Println()
 		fmt.Println("Next steps:")
 		fmt.Println("  tk task add \"Your first task\"")
 		fmt.Println("  tk hooks install              # Optional: git hooks")
@@ -3628,9 +3630,12 @@ Supported tools:
   - Cursor (~/.cursor/mcp.json)
 
 The configuration will be added to existing settings without
-overwriting other MCP servers or configurations.`,
+overwriting other MCP servers or configurations.
+
+Use --force to reinstall even if already configured.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return mcpInstall()
+		force, _ := cmd.Flags().GetBool("force")
+		return mcpInstall(force)
 	},
 }
 
@@ -3684,6 +3689,8 @@ func init() {
 	mcpCmd.AddCommand(mcpInstallCmd)
 	mcpCmd.AddCommand(mcpUninstallCmd)
 	mcpCmd.AddCommand(mcpConfigCmd)
+
+	mcpInstallCmd.Flags().Bool("force", false, "Force reinstall even if already configured")
 }
 
 // =============================================================================
@@ -4755,7 +4762,7 @@ func getClaudeSettingsPath() (string, error) {
 	return home + "/.claude.json", nil
 }
 
-func mcpInstall() error {
+func mcpInstall(force bool) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
@@ -4764,6 +4771,7 @@ func mcpInstall() error {
 	tools := getSupportedAITools()
 	installedTo := []string{}
 	alreadyInstalled := []string{}
+	reinstalled := []string{}
 
 	for _, tool := range tools {
 		// Check if settings file exists
@@ -4792,8 +4800,11 @@ func mcpInstall() error {
 		}
 
 		if _, exists := mcpServers["tasuku"]; exists {
-			alreadyInstalled = append(alreadyInstalled, tool.Name)
-			continue
+			if !force {
+				alreadyInstalled = append(alreadyInstalled, tool.Name)
+				continue
+			}
+			reinstalled = append(reinstalled, tool.Name)
 		}
 
 		mcpServers["tasuku"] = map[string]interface{}{
@@ -4817,11 +4828,21 @@ func mcpInstall() error {
 			continue
 		}
 
-		installedTo = append(installedTo, tool.Name)
+		// Only add to installedTo if it wasn't a reinstall
+		isReinstall := false
+		for _, name := range reinstalled {
+			if name == tool.Name {
+				isReinstall = true
+				break
+			}
+		}
+		if !isReinstall {
+			installedTo = append(installedTo, tool.Name)
+		}
 	}
 
-	// If nothing was installed and nothing was already installed, try Claude Code default
-	if len(installedTo) == 0 && len(alreadyInstalled) == 0 {
+	// If nothing was installed/reinstalled and nothing was already installed, try Claude Code default
+	if len(installedTo) == 0 && len(reinstalled) == 0 && len(alreadyInstalled) == 0 {
 		settingsPath, _ := getClaudeSettingsPath()
 		settings := map[string]interface{}{
 			"mcpServers": map[string]interface{}{
@@ -4850,10 +4871,18 @@ func mcpInstall() error {
 		return nil
 	}
 
-	if len(installedTo) > 0 {
-		fmt.Println("Tasuku MCP server installed to:")
-		for _, name := range installedTo {
-			fmt.Printf("  - %s\n", name)
+	if len(installedTo) > 0 || len(reinstalled) > 0 {
+		if len(installedTo) > 0 {
+			fmt.Println("Tasuku MCP server installed to:")
+			for _, name := range installedTo {
+				fmt.Printf("  - %s\n", name)
+			}
+		}
+		if len(reinstalled) > 0 {
+			fmt.Println("Tasuku MCP server reinstalled in:")
+			for _, name := range reinstalled {
+				fmt.Printf("  - %s\n", name)
+			}
 		}
 		fmt.Printf("\nBinary: %s\n", executable)
 		fmt.Println("\nRestart your AI tools to activate the MCP server.")
@@ -4864,6 +4893,7 @@ func mcpInstall() error {
 		for _, name := range alreadyInstalled {
 			fmt.Printf("  - %s\n", name)
 		}
+		fmt.Println("\nUse --force to reinstall anyway.")
 	}
 
 	return nil
