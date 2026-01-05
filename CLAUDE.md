@@ -45,7 +45,6 @@ tasuku/
 ```bash
 # Initialization
 tk init                    # Create .tasuku/ directory (V3)
-tk init --format v2        # Create legacy .tasuku.json
 
 # Task Management (noun-verb style)
 tk task list               # List all tasks

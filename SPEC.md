@@ -191,8 +191,7 @@ Generated automatically from description if not provided:
 
 ```bash
 # Initialization
-tk init                          # Create .tasuku/ directory (V3)
-tk init --format v2              # Create legacy .tasuku.json
+tk init                          # Create .tasuku/ directory
 
 # Task Management (noun-verb style)
 tk task add "description"        # Add new task, returns ID

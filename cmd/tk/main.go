@@ -201,54 +201,41 @@ var initCmd = &cobra.Command{
 	Short: "Initialize Tasuku in current directory",
 	Long: `Initialize a new Tasuku project in the current directory.
 
-Storage Formats:
-  v3 (default)  - Directory-based (.tasuku/) - recommended for teams
-                  One file per task, eliminates merge conflicts
-  v2            - Single file (.tasuku.json) - simpler for solo use
+Creates a .tasuku/ directory with:
+  - tasks/     Individual task JSON files (one per task)
+  - archive/   Completed tasks that have been archived
+  - context/   Learnings and decisions
 
-The storage is human-readable JSON and can be edited directly or
-committed to version control.
+Benefits:
+  - One file per task = cleaner git diffs, fewer merge conflicts
+  - Human-readable JSON, can be edited directly
+  - Safe for multiple agents working in parallel
 
-Prerequisites:
-  - Current directory should not already have .tasuku/ or .tasuku.json
+If you have a legacy .tasuku.json file, use 'tk migrate v3' to upgrade.
 
 Examples:
-  tk init                    # Create .tasuku/ directory (V3 format)
-  tk init --format v2        # Create .tasuku.json (legacy format)
+  tk init                    # Create .tasuku/ directory
   tk init && tk add "Setup"  # Initialize and add first task`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		format, _ := cmd.Flags().GetString("format")
-
 		// Check if already initialized
 		storageType := store.DetectStorageType(".")
 		if storageType != store.StorageTypeNone {
 			if storageType == store.StorageTypeDir {
 				return fmt.Errorf(".tasuku/ directory already exists")
 			}
-			return fmt.Errorf(".tasuku.json already exists")
+			return fmt.Errorf(".tasuku.json already exists - run 'tk migrate v3' to upgrade")
 		}
 
-		var s store.Storage
-		var msg string
-		switch format {
-		case "v2":
-			s = store.New(store.DefaultFileName)
-			msg = "Created .tasuku.json (V2 format)"
-		default: // v3
-			s = store.NewDirStore(store.DirName)
-			msg = "Created .tasuku/ directory (V3 format)"
-		}
-
+		s := store.NewDirStore(store.DirName)
 		if err := s.Init(); err != nil {
 			return err
 		}
-		fmt.Println(msg)
+		fmt.Println("Created .tasuku/ directory")
+		fmt.Println("  tasks/    - Your task files")
+		fmt.Println("  archive/  - Archived completed tasks")
+		fmt.Println("  context/  - Learnings and decisions")
 		return nil
 	},
-}
-
-func init() {
-	initCmd.Flags().String("format", "v3", "Storage format: v3 (directory) or v2 (single file)")
 }
 
 var listCmd = &cobra.Command{

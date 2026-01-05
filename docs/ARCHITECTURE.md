@@ -236,7 +236,7 @@ Built with [Cobra](https://github.com/spf13/cobra), providing:
 
 ```
 tk
-├── init              # Create .tasuku/ directory (--format v2 for legacy)
+├── init              # Create .tasuku/ directory
 ├── task              # Task management subcommand
 │   ├── list          # List tasks (--format, --status, --tree)
 │   ├── add           # Add task (--id, --priority, --parent)

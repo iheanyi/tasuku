@@ -63,7 +63,6 @@ tk task list --format json    # Output as JSON
 | Command | Description |
 |---------|-------------|
 | `tk init` | Create `.tasuku/` directory (V3 format) |
-| `tk init --format v2` | Create legacy `.tasuku.json` file |
 | `tk task list` | List all tasks (use `--status` to filter) |
 | `tk task list --tree` | Show hierarchical subtask view |
 | `tk task add "description"` | Add a new task |
