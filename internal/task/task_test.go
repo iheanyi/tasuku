@@ -331,46 +331,69 @@ func TestLearningIsRuleOmitEmpty(t *testing.T) {
 	}
 }
 
-func TestGenerateTaskID(t *testing.T) {
-	// Test basic kebab-case conversion
-	id := GenerateTaskID("Fix login bug")
+func TestGenerateTaskID_NoCollision(t *testing.T) {
+	// Without existing IDs, should generate clean deterministic ID
+	id := GenerateTaskID("Fix login bug", nil)
+	if id != "fix-login-bug" {
+		t.Errorf("expected 'fix-login-bug', got %s", id)
+	}
+
+	// Same description without collision check should produce same ID
+	id1 := GenerateTaskID("Same description", nil)
+	id2 := GenerateTaskID("Same description", nil)
+	if id1 != id2 {
+		t.Errorf("expected same IDs without collision check, got %s and %s", id1, id2)
+	}
+}
+
+func TestGenerateTaskID_WithCollision(t *testing.T) {
+	existingIDs := map[string]struct{}{
+		"fix-login-bug": {},
+	}
+
+	// Should add suffix when collision detected
+	id := GenerateTaskID("Fix login bug", existingIDs)
+	if id == "fix-login-bug" {
+		t.Errorf("expected ID with suffix on collision, got %s", id)
+	}
 	if !strings.HasPrefix(id, "fix-login-bug-") {
 		t.Errorf("expected prefix 'fix-login-bug-', got %s", id)
 	}
 
-	// Test that IDs are unique even for same description
-	id1 := GenerateTaskID("Same description")
-	id2 := GenerateTaskID("Same description")
-	if id1 == id2 {
-		t.Errorf("expected unique IDs, both got %s", id1)
+	// Suffix should be 3 chars
+	parts := strings.Split(id, "-")
+	suffix := parts[len(parts)-1]
+	if len(suffix) != 3 {
+		t.Errorf("expected 3-char suffix, got %d chars: %s", len(suffix), suffix)
 	}
+}
 
-	// Test truncation for long descriptions
-	longDesc := "This is a very long task description that should be truncated"
-	id = GenerateTaskID(longDesc)
-	// Max 24 chars for description + 1 for hyphen + 3 for suffix = 28 chars max
-	if len(id) > 28 {
-		t.Errorf("expected ID length <= 28, got %d: %s", len(id), id)
-	}
+func TestGenerateTaskID_SimilarDescriptions(t *testing.T) {
+	// Similar descriptions that truncate to same base should still work
+	existingIDs := make(map[string]struct{})
 
-	// Test that similar descriptions produce different IDs (the original bug)
-	id1 = GenerateTaskID("Improve AddressInput component - add clear button")
-	id2 = GenerateTaskID("Improve AddressInput component - add recent searches")
+	id1 := GenerateTaskID("Improve AddressInput component - add clear button", existingIDs)
+	existingIDs[id1] = struct{}{}
+
+	id2 := GenerateTaskID("Improve AddressInput component - add recent searches", existingIDs)
+
+	// Both should be valid (second one gets suffix since first one took the clean ID)
 	if id1 == id2 {
 		t.Errorf("similar descriptions should produce different IDs, both got %s", id1)
 	}
 }
 
-func TestGenerateTaskID_Format(t *testing.T) {
-	id := GenerateTaskID("Hello World")
-	parts := strings.Split(id, "-")
-	if len(parts) < 3 {
-		t.Errorf("expected at least 3 parts (hello-world-xxx), got %d: %s", len(parts), id)
+func TestGenerateTaskID_Truncation(t *testing.T) {
+	longDesc := "This is a very long task description that should be truncated"
+	id := GenerateTaskID(longDesc, nil)
+	if len(id) > 32 {
+		t.Errorf("expected ID length <= 32, got %d: %s", len(id), id)
 	}
+}
 
-	// Last part should be 3 character suffix
-	suffix := parts[len(parts)-1]
-	if len(suffix) != 3 {
-		t.Errorf("expected 3-char suffix, got %d chars: %s", len(suffix), suffix)
+func TestGenerateTaskID_EmptyDescription(t *testing.T) {
+	id := GenerateTaskID("", nil)
+	if !strings.HasPrefix(id, "task-") {
+		t.Errorf("expected prefix 'task-' for empty description, got %s", id)
 	}
 }

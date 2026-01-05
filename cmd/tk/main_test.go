@@ -12,32 +12,30 @@ import (
 
 func TestGenerateID(t *testing.T) {
 	tests := []struct {
-		input          string
-		expectedPrefix string
+		input    string
+		expected string
 	}{
-		{"Fix authentication bug", "fix-authentication-bug-"},
-		{"Add logout button", "add-logout-button-"},
-		{"UPPERCASE TEST", "uppercase-test-"},
-		{"Multiple   Spaces", "multiple-spaces-"},
-		{"trailing space ", "trailing-space-"},
-		{"", "task-"}, // Empty string generates task-xxx
+		{"Fix authentication bug", "fix-authentication-bug"},
+		{"Add logout button", "add-logout-button"},
+		{"UPPERCASE TEST", "uppercase-test"},
+		{"Multiple   Spaces", "multiple-spaces"},
+		{"trailing space ", "trailing-space"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			result := generateID(tt.input)
-			if !strings.HasPrefix(result, tt.expectedPrefix) {
-				t.Errorf("generateID(%q) = %q, expected prefix %q",
-					tt.input, result, tt.expectedPrefix)
+			if result != tt.expected {
+				t.Errorf("generateID(%q) = %q, expected %q",
+					tt.input, result, tt.expected)
 			}
 		})
 	}
 
-	// Test uniqueness - same description should produce different IDs
-	id1 := generateID("Same description")
-	id2 := generateID("Same description")
-	if id1 == id2 {
-		t.Errorf("generateID should produce unique IDs, but got same: %s", id1)
+	// Empty string generates task-xxx with random suffix
+	emptyResult := generateID("")
+	if !strings.HasPrefix(emptyResult, "task-") {
+		t.Errorf("generateID(\"\") = %q, expected prefix \"task-\"", emptyResult)
 	}
 }
 

@@ -245,11 +245,36 @@ func GenerateShortID() string {
 	return hex.EncodeToString(b)
 }
 
-// GenerateTaskID creates a unique task ID from a description.
-// Format: kebab-case-description-xyz where xyz is a 3-char random suffix.
-// The description part is truncated to 24 chars to keep total ID length manageable.
-// This prevents collisions when similar descriptions are used.
-func GenerateTaskID(desc string) string {
+// GenerateTaskID creates a task ID from a description, adding a suffix only if needed.
+// Pass existingIDs to check for collisions - if nil, always generates clean ID.
+// Format: kebab-case-description (clean) or kebab-case-description-xyz (with suffix on collision)
+func GenerateTaskID(desc string, existingIDs map[string]struct{}) string {
+	baseID := generateBaseID(desc)
+
+	// If no existing IDs provided or no collision, return clean ID
+	if existingIDs == nil {
+		return baseID
+	}
+
+	if _, exists := existingIDs[baseID]; !exists {
+		return baseID
+	}
+
+	// Collision detected - add random suffix
+	for i := 0; i < 100; i++ { // Try up to 100 times
+		suffix := GenerateShortID()[:3]
+		newID := baseID + "-" + suffix
+		if _, exists := existingIDs[newID]; !exists {
+			return newID
+		}
+	}
+
+	// Fallback to longer suffix if still colliding (very unlikely)
+	return baseID + "-" + GenerateShortID()
+}
+
+// generateBaseID creates a deterministic kebab-case ID from description.
+func generateBaseID(desc string) string {
 	result := ""
 	for _, r := range desc {
 		if r >= 'a' && r <= 'z' {
@@ -267,15 +292,13 @@ func GenerateTaskID(desc string) string {
 		return "task-" + GenerateShortID()[:3]
 	}
 
-	// Truncate to 24 chars to leave room for suffix
-	if len(result) > 24 {
-		result = result[:24]
+	// Truncate to 32 chars for reasonable length
+	if len(result) > 32 {
+		result = result[:32]
 		result = strings.TrimSuffix(result, "-")
 	}
 
-	// Add random suffix for uniqueness
-	suffix := GenerateShortID()[:3] // 3 chars
-	return result + "-" + suffix
+	return result
 }
 
 // Context holds agent learnings and decisions.

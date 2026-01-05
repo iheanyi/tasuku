@@ -257,9 +257,16 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate ID if not provided, checking for collisions
 	id := req.ID
 	if id == "" {
-		id = generateID(req.Description)
+		existingIDs := make(map[string]struct{})
+		if f, err := s.store.Read(); err == nil {
+			for taskID := range f.Tasks {
+				existingIDs[taskID] = struct{}{}
+			}
+		}
+		id = task.GenerateTaskID(req.Description, existingIDs)
 	}
 
 	if err := s.store.AddTaskWithTags(id, req.Description, req.Priority, req.Tags); err != nil {
@@ -882,9 +889,10 @@ func (s *Server) handleArchiveItem(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, `{"error": "not found"}`, http.StatusNotFound)
 }
 
-// generateID creates a unique kebab-case ID from description.
+// generateID creates a kebab-case ID from description (without collision check).
+// Used for tests. Production code should use task.GenerateTaskID with existingIDs.
 func generateID(desc string) string {
-	return task.GenerateTaskID(desc)
+	return task.GenerateTaskID(desc, nil)
 }
 
 // Template data types for the web dashboard

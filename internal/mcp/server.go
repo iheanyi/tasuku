@@ -706,8 +706,15 @@ func (s *Server) handleAdd(args map[string]interface{}) (interface{}, error) {
 	desc, _ := args["description"].(string)
 	id, _ := args["id"].(string)
 
+	// Generate ID if not provided, checking for collisions
 	if id == "" {
-		id = generateID(desc)
+		existingIDs := make(map[string]struct{})
+		if f, err := s.store.Read(); err == nil {
+			for taskID := range f.Tasks {
+				existingIDs[taskID] = struct{}{}
+			}
+		}
+		id = task.GenerateTaskID(desc, existingIDs)
 	}
 
 	if err := s.store.AddTask(id, desc); err != nil {
@@ -1341,9 +1348,10 @@ func (s *Server) handleSuggest(args map[string]interface{}) (interface{}, error)
 	return result, nil
 }
 
-// generateID creates a unique kebab-case ID from description.
+// generateID creates a kebab-case ID from description (without collision check).
+// Used for tests. Production code should use task.GenerateTaskID with existingIDs.
 func generateID(desc string) string {
-	return task.GenerateTaskID(desc)
+	return task.GenerateTaskID(desc, nil)
 }
 
 // Run starts the MCP server in stdio mode using JSON-RPC 2.0.

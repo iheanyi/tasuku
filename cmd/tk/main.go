@@ -370,11 +370,18 @@ Examples:
 		tags, _ := cmd.Flags().GetStringSlice("tag")
 		parentID, _ := cmd.Flags().GetString("parent")
 
-		if id == "" {
-			id = task.GenerateTaskID(description)
-		}
-
 		s := store.DefaultStorageWithWarning()
+
+		// Generate ID if not provided, checking for collisions
+		if id == "" {
+			existingIDs := make(map[string]struct{})
+			if f, err := s.Read(); err == nil {
+				for taskID := range f.Tasks {
+					existingIDs[taskID] = struct{}{}
+				}
+			}
+			id = task.GenerateTaskID(description, existingIDs)
+		}
 
 		var priorityPtr *int
 		if priority >= 0 && priority <= 4 {
@@ -4121,7 +4128,7 @@ func formatAge(t time.Time) string {
 // generateID is deprecated - use task.GenerateTaskID instead.
 // Kept for backward compatibility with tests.
 func generateID(desc string) string {
-	return task.GenerateTaskID(desc)
+	return task.GenerateTaskID(desc, nil)
 }
 
 // =============================================================================
