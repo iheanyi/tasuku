@@ -323,11 +323,21 @@ func (c *Context) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// ArchivedTask represents a completed task that has been archived.
+// It preserves the original task data plus archival metadata.
+type ArchivedTask struct {
+	Task
+	ArchivedAt time.Time `json:"archived_at"`           // When the task was archived
+	Summary    string    `json:"summary,omitempty"`     // Optional AI-generated summary
+	TotalTime  Duration  `json:"total_time,omitempty"`  // Final time spent on task
+}
+
 // File represents the complete .tasuku.json structure.
 type File struct {
-	Version int             `json:"version"`
-	Tasks   map[string]Task `json:"tasks"`
-	Context Context         `json:"context"`
+	Version int                     `json:"version"`
+	Tasks   map[string]Task         `json:"tasks"`
+	Context Context                 `json:"context"`
+	Archive map[string]ArchivedTask `json:"archive,omitempty"` // Archived completed tasks
 }
 
 // NewFile creates an empty task file with defaults.
@@ -340,6 +350,7 @@ func NewFile() *File {
 			Decisions: []Decision{},
 			Notes:     make(map[string][]Note),
 		},
+		Archive: make(map[string]ArchivedTask),
 	}
 }
 

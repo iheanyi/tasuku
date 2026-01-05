@@ -1,9 +1,12 @@
 package store
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/iheanyi/tasuku/internal/task"
 )
@@ -359,6 +362,436 @@ func TestStore_ErrNotInitialized(t *testing.T) {
 	expectedMsg := "no .tasuku.json found in current directory - run 'tk init' to create one"
 	if err.Error() != expectedMsg {
 		t.Errorf("unexpected error message: %s", err.Error())
+	}
+}
+
+// =============================================================================
+// Archive Tests
+// =============================================================================
+
+func TestStore_ArchiveTask_Success(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add a task and mark it done
+	if err := s.AddTask("test-task", "Test description"); err != nil {
+		t.Fatalf("add task failed: %v", err)
+	}
+	if err := s.SetStatus("test-task", task.StatusInProgress); err != nil {
+		t.Fatalf("set status to in_progress failed: %v", err)
+	}
+	if err := s.SetStatus("test-task", task.StatusDone); err != nil {
+		t.Fatalf("set status to done failed: %v", err)
+	}
+
+	// Archive the task
+	if err := s.ArchiveTask("test-task", "Completed successfully"); err != nil {
+		t.Fatalf("archive task failed: %v", err)
+	}
+
+	// Verify task is no longer in active tasks
+	f, _ := s.Read()
+	if _, exists := f.Tasks["test-task"]; exists {
+		t.Error("task should not exist in active tasks after archiving")
+	}
+
+	// Verify task is in archive
+	archived, exists := f.Archive["test-task"]
+	if !exists {
+		t.Fatal("task should exist in archive")
+	}
+
+	if archived.Summary != "Completed successfully" {
+		t.Errorf("wrong summary: got %q, want %q", archived.Summary, "Completed successfully")
+	}
+
+	if archived.Description != "Test description" {
+		t.Errorf("wrong description: got %q, want %q", archived.Description, "Test description")
+	}
+
+	if archived.ArchivedAt.IsZero() {
+		t.Error("archived_at should be set")
+	}
+}
+
+func TestStore_ArchiveTask_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	err := s.ArchiveTask("nonexistent", "summary")
+	if err == nil {
+		t.Fatal("expected error when archiving nonexistent task")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found': %v", err)
+	}
+}
+
+func TestStore_ArchiveTask_NotDone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add a task but don't mark it done
+	if err := s.AddTask("test-task", "Test description"); err != nil {
+		t.Fatalf("add task failed: %v", err)
+	}
+
+	// Try to archive a ready task
+	err := s.ArchiveTask("test-task", "summary")
+	if err == nil {
+		t.Fatal("expected error when archiving non-done task")
+	}
+
+	if !strings.Contains(err.Error(), "must be done") {
+		t.Errorf("error should mention 'must be done': %v", err)
+	}
+
+	// Try with in_progress status
+	if err := s.SetStatus("test-task", task.StatusInProgress); err != nil {
+		t.Fatalf("set status failed: %v", err)
+	}
+
+	err = s.ArchiveTask("test-task", "summary")
+	if err == nil {
+		t.Fatal("expected error when archiving in_progress task")
+	}
+}
+
+func TestStore_ArchiveTask_PreservesSummaryAndTotalTime(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add a task with duration
+	if err := s.AddTask("test-task", "Test description"); err != nil {
+		t.Fatalf("add task failed: %v", err)
+	}
+
+	// Start and stop timer to accumulate duration
+	if err := s.StartTimer("test-task"); err != nil {
+		t.Fatalf("start timer failed: %v", err)
+	}
+
+	// Manually set some duration by updating the file
+	if err := s.Update(func(f *task.File) error {
+		t := f.Tasks["test-task"]
+		t.Duration = task.Duration(time.Hour + 30*time.Minute)
+		t.TimerStart = nil
+		f.Tasks["test-task"] = t
+		return nil
+	}); err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+
+	// Mark done
+	if err := s.SetStatus("test-task", task.StatusInProgress); err != nil {
+		t.Fatalf("set status to in_progress failed: %v", err)
+	}
+	if err := s.SetStatus("test-task", task.StatusDone); err != nil {
+		t.Fatalf("set status to done failed: %v", err)
+	}
+
+	// Archive with summary
+	if err := s.ArchiveTask("test-task", "Implemented feature X"); err != nil {
+		t.Fatalf("archive task failed: %v", err)
+	}
+
+	// Verify archived task preserves data
+	archived, err := s.GetArchivedTask("test-task")
+	if err != nil {
+		t.Fatalf("get archived task failed: %v", err)
+	}
+
+	if archived.Summary != "Implemented feature X" {
+		t.Errorf("wrong summary: got %q, want %q", archived.Summary, "Implemented feature X")
+	}
+
+	expectedDuration := time.Hour + 30*time.Minute
+	if archived.TotalTime.TimeDuration() != expectedDuration {
+		t.Errorf("wrong total time: got %v, want %v", archived.TotalTime.TimeDuration(), expectedDuration)
+	}
+}
+
+func TestStore_ArchiveDoneTasks_OlderThanCutoff(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add and complete two tasks
+	s.AddTask("old-task", "Old task")
+	s.AddTask("new-task", "New task")
+
+	// Set both to done
+	s.SetStatus("old-task", task.StatusInProgress)
+	s.SetStatus("old-task", task.StatusDone)
+	s.SetStatus("new-task", task.StatusInProgress)
+	s.SetStatus("new-task", task.StatusDone)
+
+	// Manually set old-task's UpdatedAt to be old
+	s.Update(func(f *task.File) error {
+		t := f.Tasks["old-task"]
+		t.UpdatedAt = time.Now().Add(-48 * time.Hour) // 2 days ago
+		f.Tasks["old-task"] = t
+		return nil
+	})
+
+	// Archive tasks older than 24 hours
+	archived, err := s.ArchiveDoneTasks(24 * time.Hour)
+	if err != nil {
+		t.Fatalf("archive done tasks failed: %v", err)
+	}
+
+	// Should only archive old-task
+	if len(archived) != 1 {
+		t.Fatalf("expected 1 archived task, got %d", len(archived))
+	}
+
+	if archived[0] != "old-task" {
+		t.Errorf("expected 'old-task' to be archived, got %q", archived[0])
+	}
+
+	// Verify old-task is in archive
+	f, _ := s.Read()
+	if _, exists := f.Archive["old-task"]; !exists {
+		t.Error("old-task should be in archive")
+	}
+
+	// Verify new-task is still active
+	if _, exists := f.Tasks["new-task"]; !exists {
+		t.Error("new-task should still be in active tasks")
+	}
+}
+
+func TestStore_ArchiveDoneTasks_SkipsNewerThanCutoff(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add and complete a task (will have recent UpdatedAt)
+	s.AddTask("recent-task", "Recent task")
+	s.SetStatus("recent-task", task.StatusInProgress)
+	s.SetStatus("recent-task", task.StatusDone)
+
+	// Archive tasks older than 24 hours
+	archived, err := s.ArchiveDoneTasks(24 * time.Hour)
+	if err != nil {
+		t.Fatalf("archive done tasks failed: %v", err)
+	}
+
+	// Should archive nothing
+	if len(archived) != 0 {
+		t.Errorf("expected 0 archived tasks, got %d", len(archived))
+	}
+
+	// Task should still be active
+	f, _ := s.Read()
+	if _, exists := f.Tasks["recent-task"]; !exists {
+		t.Error("recent-task should still be in active tasks")
+	}
+}
+
+func TestStore_RestoreTask_Success(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add, complete, and archive a task
+	s.AddTask("test-task", "Test description")
+	s.SetStatus("test-task", task.StatusInProgress)
+	s.SetStatus("test-task", task.StatusDone)
+	s.ArchiveTask("test-task", "Completed")
+
+	// Restore the task
+	if err := s.RestoreTask("test-task"); err != nil {
+		t.Fatalf("restore task failed: %v", err)
+	}
+
+	// Verify task is back in active tasks
+	f, _ := s.Read()
+	restoredTask, exists := f.Tasks["test-task"]
+	if !exists {
+		t.Fatal("task should exist in active tasks after restore")
+	}
+
+	// Restored task should have status "ready"
+	if restoredTask.Status != task.StatusReady {
+		t.Errorf("restored task should have status 'ready', got %q", restoredTask.Status)
+	}
+
+	// Verify task is no longer in archive
+	if _, exists := f.Archive["test-task"]; exists {
+		t.Error("task should not exist in archive after restore")
+	}
+}
+
+func TestStore_RestoreTask_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	err := s.RestoreTask("nonexistent")
+	if err == nil {
+		t.Fatal("expected error when restoring nonexistent archived task")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found': %v", err)
+	}
+}
+
+func TestStore_RestoreTask_IDConflict(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add, complete, and archive a task
+	s.AddTask("test-task", "Original task")
+	s.SetStatus("test-task", task.StatusInProgress)
+	s.SetStatus("test-task", task.StatusDone)
+	s.ArchiveTask("test-task", "Completed")
+
+	// Create a new task with the same ID
+	s.AddTask("test-task", "New task with same ID")
+
+	// Try to restore - should fail due to ID conflict
+	err := s.RestoreTask("test-task")
+	if err == nil {
+		t.Fatal("expected error when restoring to existing task ID")
+	}
+
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("error should mention 'already exists': %v", err)
+	}
+}
+
+func TestStore_GetArchivedTasks_EmptyArchive(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	archived, err := s.GetArchivedTasks()
+	if err != nil {
+		t.Fatalf("get archived tasks failed: %v", err)
+	}
+
+	if archived == nil {
+		t.Fatal("archived tasks map should not be nil")
+	}
+
+	if len(archived) != 0 {
+		t.Errorf("expected 0 archived tasks, got %d", len(archived))
+	}
+}
+
+func TestStore_GetArchivedTask_Success(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add, complete, and archive a task
+	s.AddTask("test-task", "Test description")
+	s.SetStatus("test-task", task.StatusInProgress)
+	s.SetStatus("test-task", task.StatusDone)
+	s.ArchiveTask("test-task", "Summary here")
+
+	// Get the archived task
+	archived, err := s.GetArchivedTask("test-task")
+	if err != nil {
+		t.Fatalf("get archived task failed: %v", err)
+	}
+
+	if archived.Description != "Test description" {
+		t.Errorf("wrong description: got %q, want %q", archived.Description, "Test description")
+	}
+
+	if archived.Summary != "Summary here" {
+		t.Errorf("wrong summary: got %q, want %q", archived.Summary, "Summary here")
+	}
+}
+
+func TestStore_GetArchivedTask_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	_, err := s.GetArchivedTask("nonexistent")
+	if err == nil {
+		t.Fatal("expected error when getting nonexistent archived task")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found': %v", err)
+	}
+}
+
+func TestStore_ClearArchive(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Add and archive multiple tasks
+	for i := 0; i < 3; i++ {
+		id := fmt.Sprintf("task-%d", i)
+		s.AddTask(id, "Description")
+		s.SetStatus(id, task.StatusInProgress)
+		s.SetStatus(id, task.StatusDone)
+		s.ArchiveTask(id, "Summary")
+	}
+
+	// Verify archive has tasks
+	archived, _ := s.GetArchivedTasks()
+	if len(archived) != 3 {
+		t.Fatalf("expected 3 archived tasks, got %d", len(archived))
+	}
+
+	// Clear archive
+	count, err := s.ClearArchive()
+	if err != nil {
+		t.Fatalf("clear archive failed: %v", err)
+	}
+
+	if count != 3 {
+		t.Errorf("expected count of 3, got %d", count)
+	}
+
+	// Verify archive is empty
+	archived, _ = s.GetArchivedTasks()
+	if len(archived) != 0 {
+		t.Errorf("expected 0 archived tasks after clear, got %d", len(archived))
+	}
+}
+
+func TestStore_ClearArchive_EmptyArchive(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Clear empty archive
+	count, err := s.ClearArchive()
+	if err != nil {
+		t.Fatalf("clear archive failed: %v", err)
+	}
+
+	if count != 0 {
+		t.Errorf("expected count of 0 for empty archive, got %d", count)
 	}
 }
 

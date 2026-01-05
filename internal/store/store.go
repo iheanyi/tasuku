@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -34,6 +35,51 @@ func New(path string) *Store {
 // Default creates a store using the default filename.
 func Default() *Store {
 	return New(DefaultFileName)
+}
+
+// FindUp searches for .tasuku.json in the current directory and parent directories.
+// Stops at the git root (where .git exists) or filesystem root.
+// Returns the path to the file if found, or an empty string if not found.
+func FindUp() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	for {
+		path := filepath.Join(dir, DefaultFileName)
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+
+		// Stop at git root - .tasuku.json should be at or below repo root
+		gitPath := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitPath); err == nil {
+			// Found .git but no .tasuku.json here - don't go higher
+			return ""
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached filesystem root
+			return ""
+		}
+		dir = parent
+	}
+}
+
+// DefaultWithFindUp creates a store by searching up directories for .tasuku.json.
+// Falls back to current directory if not found (for init command).
+func DefaultWithFindUp() *Store {
+	if path := FindUp(); path != "" {
+		return New(path)
+	}
+	return New(DefaultFileName)
+}
+
+// Path returns the path to the task file.
+func (s *Store) Path() string {
+	return s.path
 }
 
 // Exists checks if the task file exists.
@@ -166,6 +212,21 @@ func (s *Store) SetStatus(id string, status task.Status) error {
 		}
 
 		t.Status = status
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// SetDescription updates a task's description.
+func (s *Store) SetDescription(id string, description string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		t.Description = description
 		t.UpdatedAt = time.Now().UTC()
 		f.Tasks[id] = t
 		return nil
@@ -571,4 +632,148 @@ func (s *Store) GetActiveTimers() (map[string]task.Task, error) {
 		}
 	}
 	return result, nil
+}
+
+// =============================================================================
+// Archive Operations
+// =============================================================================
+
+// ArchiveTask moves a done task to the archive.
+// The task must have status "done" to be archived.
+func (s *Store) ArchiveTask(id string, summary string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		if t.Status != task.StatusDone {
+			return fmt.Errorf("store: task %q must be done to archive (current status: %s)", id, t.Status)
+		}
+
+		// Initialize archive map if nil
+		if f.Archive == nil {
+			f.Archive = make(map[string]task.ArchivedTask)
+		}
+
+		// Create archived task
+		archived := task.ArchivedTask{
+			Task:       t,
+			ArchivedAt: time.Now().UTC(),
+			Summary:    summary,
+			TotalTime:  t.Duration,
+		}
+
+		// Move to archive
+		f.Archive[id] = archived
+		delete(f.Tasks, id)
+
+		// Clean up notes for this task (keep them in archive context)
+		// Notes are left in f.Context.Notes[id] for historical reference
+
+		return nil
+	})
+}
+
+// ArchiveDoneTasks archives all done tasks older than the given duration.
+// Returns the IDs of archived tasks.
+func (s *Store) ArchiveDoneTasks(olderThan time.Duration) ([]string, error) {
+	var archived []string
+	cutoff := time.Now().Add(-olderThan)
+
+	err := s.Update(func(f *task.File) error {
+		// Initialize archive map if nil
+		if f.Archive == nil {
+			f.Archive = make(map[string]task.ArchivedTask)
+		}
+
+		for id, t := range f.Tasks {
+			if t.Status == task.StatusDone && t.UpdatedAt.Before(cutoff) {
+				// Create archived task
+				archivedTask := task.ArchivedTask{
+					Task:       t,
+					ArchivedAt: time.Now().UTC(),
+					TotalTime:  t.Duration,
+				}
+
+				f.Archive[id] = archivedTask
+				delete(f.Tasks, id)
+				archived = append(archived, id)
+			}
+		}
+		return nil
+	})
+
+	return archived, err
+}
+
+// RestoreTask moves an archived task back to active tasks.
+// The task is restored with status "ready" by default.
+func (s *Store) RestoreTask(id string) error {
+	return s.Update(func(f *task.File) error {
+		archived, exists := f.Archive[id]
+		if !exists {
+			return fmt.Errorf("store: archived task %q not found", id)
+		}
+
+		// Check if ID conflicts with existing task
+		if _, exists := f.Tasks[id]; exists {
+			return fmt.Errorf("store: cannot restore - task %q already exists in active tasks", id)
+		}
+
+		// Restore the task
+		restoredTask := archived.Task
+		restoredTask.Status = task.StatusReady
+		restoredTask.UpdatedAt = time.Now().UTC()
+
+		f.Tasks[id] = restoredTask
+		delete(f.Archive, id)
+
+		return nil
+	})
+}
+
+// GetArchivedTasks returns all archived tasks.
+func (s *Store) GetArchivedTasks() (map[string]task.ArchivedTask, error) {
+	f, err := s.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	if f.Archive == nil {
+		return make(map[string]task.ArchivedTask), nil
+	}
+	return f.Archive, nil
+}
+
+// GetArchivedTask returns a single archived task by ID.
+func (s *Store) GetArchivedTask(id string) (*task.ArchivedTask, error) {
+	f, err := s.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	if f.Archive == nil {
+		return nil, fmt.Errorf("store: archived task %q not found", id)
+	}
+
+	archived, exists := f.Archive[id]
+	if !exists {
+		return nil, fmt.Errorf("store: archived task %q not found", id)
+	}
+
+	return &archived, nil
+}
+
+// ClearArchive removes all archived tasks permanently.
+func (s *Store) ClearArchive() (int, error) {
+	var count int
+	err := s.Update(func(f *task.File) error {
+		if f.Archive != nil {
+			count = len(f.Archive)
+			f.Archive = make(map[string]task.ArchivedTask)
+		}
+		return nil
+	})
+	return count, err
 }
