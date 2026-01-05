@@ -75,8 +75,31 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	// Root-level commands
 	cmd.AddCommand(initCmd)
 	cmd.AddCommand(doctorCmd)
+	cmd.AddCommand(newValidateCmd())
 
 	return cmd
+}
+
+func newValidateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate",
+		Short: "Validate Tasuku storage for correctness",
+		Long: `Validate the Tasuku storage for correctness.
+
+Checks performed:
+  - Version is supported
+  - All tasks have non-empty descriptions
+  - All tasks have valid statuses
+  - No circular dependencies in blocked_by relationships
+  - Referenced blockers exist
+
+This is the same as 'tk context validate'.
+
+Examples:
+  tk validate              # Validate storage
+  tk validate --format json  # Output as JSON`,
+		RunE: contextcmd.RunValidate,
+	}
 }
 
 // RootCmd is the base command for tk

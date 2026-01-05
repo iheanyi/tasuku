@@ -79,7 +79,7 @@ tk task list --format json    # Output as JSON
 | `tk task find <query>` | Search tasks, learnings, and decisions |
 | `tk task priority <id> <level>` | Set task priority |
 | `tk ready` | List tasks ready to work on (sorted by priority) |
-| `tk context validate` | Check task files for errors |
+| `tk validate` | Check task files for errors |
 
 ### Context & Knowledge
 
