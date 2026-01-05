@@ -1,0 +1,10 @@
+{
+  "id": "plan-sync",
+  "status": "done",
+  "description": "Implement plan-sync command for extracting tasks from plan files",
+  "priority": 1,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-05T22:15:06.32862Z",
+  "updated_at": "2026-01-05T22:18:44.04428Z"
+}

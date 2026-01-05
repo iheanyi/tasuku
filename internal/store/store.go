@@ -593,7 +593,7 @@ func (s *Store) AddSubtask(id, description, parentID string) error {
 			return fmt.Errorf("store: task %q already exists", id)
 		}
 		if _, exists := f.Tasks[parentID]; !exists {
-			return fmt.Errorf("store: parent task %q not found", parentID)
+			return fmt.Errorf("store: parent task %q not found (create it first with: tk task add \"description\" --id %s)", parentID, parentID)
 		}
 		t := task.NewTask(description)
 		t.ParentID = &parentID
@@ -611,7 +611,7 @@ func (s *Store) SetParent(id string, parentID *string) error {
 		}
 		if parentID != nil && *parentID != "" {
 			if _, exists := f.Tasks[*parentID]; !exists {
-				return fmt.Errorf("store: parent task %q not found", *parentID)
+				return fmt.Errorf("store: parent task %q not found (create it first with: tk task add \"description\" --id %s)", *parentID, *parentID)
 			}
 			// Prevent self-parenting
 			if *parentID == id {

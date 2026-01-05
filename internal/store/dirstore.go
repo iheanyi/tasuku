@@ -480,7 +480,7 @@ func (s *DirStore) AddSubtask(id, description, parentID string) error {
 	}
 	// Check parent exists
 	if _, err := os.Stat(s.taskPath(parentID)); os.IsNotExist(err) {
-		return fmt.Errorf("store: parent task %q not found", parentID)
+		return fmt.Errorf("store: parent task %q not found (create it first with: tk task add \"description\" --id %s)", parentID, parentID)
 	}
 
 	t := task.NewTask(description)
@@ -493,7 +493,7 @@ func (s *DirStore) SetParent(id string, parentID *string) error {
 	// Verify parent exists if setting
 	if parentID != nil && *parentID != "" {
 		if _, err := os.Stat(s.taskPath(*parentID)); os.IsNotExist(err) {
-			return fmt.Errorf("store: parent task %q not found", *parentID)
+			return fmt.Errorf("store: parent task %q not found (create it first with: tk task add \"description\" --id %s)", *parentID, *parentID)
 		}
 		if *parentID == id {
 			return fmt.Errorf("store: task cannot be its own parent")

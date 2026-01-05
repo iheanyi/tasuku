@@ -27,13 +27,14 @@ Git Hook Subcommands:
 AI Integration Subcommands:
   session    Display Tasuku context summary at session start
   sync       Sync tasks from TodoWrite JSON input (uses nudge rule)
+  plan-sync  Extract tasks from plan files (uses nudge rule)
 
 The git hooks provide:
   - pre-commit: Validates Tasuku storage before commits
   - post-commit: Suggests task status updates based on commit messages
 
-The sync command applies the nudge rule: only project-level tasks are synced,
-session-level implementation steps stay in TodoWrite only.
+The sync/plan-sync commands apply the nudge rule: only project-level tasks
+are synced, session-level implementation steps are skipped.
 
 Run 'tk hooks <subcommand> --help' for more details.`,
 	}
@@ -42,6 +43,7 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 	cmd.AddCommand(uninstallCmd)
 	cmd.AddCommand(sessionCmd)
 	cmd.AddCommand(syncCmd)
+	cmd.AddCommand(planSyncCmd)
 
 	return cmd
 }

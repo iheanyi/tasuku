@@ -67,6 +67,12 @@ tk serve mcp               # Start MCP server (for AI tools)
 tk serve http              # Start HTTP REST API on :3000
 tk serve http --port 8080  # Start HTTP on custom port
 
+# Hooks
+tk hooks install           # Install git pre-commit/post-commit hooks
+tk hooks uninstall         # Remove Tasuku git hooks
+tk hooks plan-sync plan.md # Extract tasks from plan file (uses nudge rule)
+tk hooks session           # Display context summary
+
 # Migration
 tk migrate v3              # Migrate from .tasuku.json to .tasuku/
 tk migrate beads           # Migrate from Beads format
