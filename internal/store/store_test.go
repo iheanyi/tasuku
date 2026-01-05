@@ -222,6 +222,146 @@ func TestStore_ParallelAccess(t *testing.T) {
 	}
 }
 
+func TestStore_AddLearningWithRule_AutoDetect(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Test auto-detection of rule learning (starts with Never)
+	id, isRule, err := s.AddLearningWithRule("Never use raw SQL queries", nil)
+	if err != nil {
+		t.Fatalf("add learning failed: %v", err)
+	}
+	if id == "" {
+		t.Error("expected non-empty learning ID")
+	}
+	if !isRule {
+		t.Error("expected isRule to be true for 'Never' learning")
+	}
+
+	// Verify it was saved correctly
+	f, _ := s.Read()
+	found := false
+	for _, l := range f.Context.Learnings {
+		if l.ID == id {
+			found = true
+			if !l.IsRule {
+				t.Error("expected IsRule to be true in stored learning")
+			}
+		}
+	}
+	if !found {
+		t.Error("learning not found in store")
+	}
+}
+
+func TestStore_AddLearningWithRule_AutoDetect_Always(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Test auto-detection of rule learning (starts with Always)
+	id, isRule, err := s.AddLearningWithRule("Always validate input", nil)
+	if err != nil {
+		t.Fatalf("add learning failed: %v", err)
+	}
+	if !isRule {
+		t.Errorf("expected isRule to be true for 'Always' learning, id=%s", id)
+	}
+}
+
+func TestStore_AddLearningWithRule_AutoDetect_NoRule(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Test auto-detection of non-rule learning
+	_, isRule, err := s.AddLearningWithRule("Redis improves cache performance", nil)
+	if err != nil {
+		t.Fatalf("add learning failed: %v", err)
+	}
+	if isRule {
+		t.Error("expected isRule to be false for regular learning")
+	}
+}
+
+func TestStore_AddLearningWithRule_ForceRule(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Force a learning to be a rule even if it doesn't match patterns
+	forceTrue := true
+	id, isRule, err := s.AddLearningWithRule("This is important", &forceTrue)
+	if err != nil {
+		t.Fatalf("add learning failed: %v", err)
+	}
+	if !isRule {
+		t.Error("expected isRule to be true when forced")
+	}
+
+	// Verify it was saved correctly
+	f, _ := s.Read()
+	for _, l := range f.Context.Learnings {
+		if l.ID == id {
+			if !l.IsRule {
+				t.Error("expected IsRule to be true in stored learning when forced")
+			}
+		}
+	}
+}
+
+func TestStore_AddLearningWithRule_ForceNotRule(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	// Force a learning to NOT be a rule even if it matches patterns
+	forceFalse := false
+	_, isRule, err := s.AddLearningWithRule("Never use eval()", &forceFalse)
+	if err != nil {
+		t.Fatalf("add learning failed: %v", err)
+	}
+	if isRule {
+		t.Error("expected isRule to be false when forced to false")
+	}
+}
+
+func TestStore_ErrNotInitialized(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+
+	// Read on non-existent file should return ErrNotInitialized
+	_, err := s.Read()
+	if err == nil {
+		t.Fatal("expected error when reading non-existent file")
+	}
+	if err != ErrNotInitialized {
+		t.Errorf("expected ErrNotInitialized, got: %v", err)
+	}
+
+	// Update on non-existent file should return ErrNotInitialized
+	err = s.AddTask("test", "Test task")
+	if err == nil {
+		t.Fatal("expected error when adding task to non-existent file")
+	}
+	if err != ErrNotInitialized {
+		t.Errorf("expected ErrNotInitialized, got: %v", err)
+	}
+
+	// Verify the error message is helpful
+	expectedMsg := "no .tasuku.json found in current directory - run 'tk init' to create one"
+	if err.Error() != expectedMsg {
+		t.Errorf("unexpected error message: %s", err.Error())
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }

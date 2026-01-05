@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -236,5 +237,96 @@ func TestContextMarshalJSON_LearningsFormat(t *testing.T) {
 
 	if unmarshaled.Learnings[0].ID != "test1" {
 		t.Errorf("ID not preserved: got %s", unmarshaled.Learnings[0].ID)
+	}
+}
+
+func TestIsRuleLearning(t *testing.T) {
+	tests := []struct {
+		text     string
+		expected bool
+	}{
+		// Starts with Never/Always (case-insensitive)
+		{"Never use raw SQL queries", true},
+		{"never use raw SQL queries", true},
+		{"NEVER use raw SQL queries", true},
+		{"Always validate input before processing", true},
+		{"always validate input before processing", true},
+		{"ALWAYS validate input before processing", true},
+
+		// Contains never/always as key words
+		{"You should never use eval()", true},
+		{"The system must always validate tokens", true},
+		{"We should never commit secrets", true},
+		{"Tests must always pass before merging", true},
+
+		// With punctuation around the keywords
+		{"You should never, ever skip tests", true},
+		{"Always! Check for nil pointers", true},
+
+		// Edge cases - should NOT match
+		{"Redis connection pooling improves performance", false},
+		{"The cache expires every 24 hours", false},
+		{"Use indexes for frequent queries", false},
+		{"Whenever possible, use batch operations", false}, // "Whenever" is not "never"
+		{"This is a general learning", false},
+		{"", false},
+		{"   ", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.text, func(t *testing.T) {
+			result := IsRuleLearning(tt.text)
+			if result != tt.expected {
+				t.Errorf("IsRuleLearning(%q) = %v, expected %v", tt.text, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLearningIsRuleField(t *testing.T) {
+	learning := Learning{
+		ID:        "abc123",
+		Text:      "Never use eval()",
+		IsRule:    true,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if !learning.IsRule {
+		t.Error("expected IsRule to be true")
+	}
+
+	// Test JSON serialization preserves IsRule
+	data, err := json.Marshal(learning)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var unmarshaled Learning
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if !unmarshaled.IsRule {
+		t.Error("IsRule not preserved after JSON round-trip")
+	}
+}
+
+func TestLearningIsRuleOmitEmpty(t *testing.T) {
+	// When IsRule is false, it should be omitted from JSON
+	learning := Learning{
+		ID:        "abc123",
+		Text:      "Regular learning",
+		IsRule:    false,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	data, err := json.Marshal(learning)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	jsonStr := string(data)
+	if strings.Contains(jsonStr, "is_rule") {
+		t.Errorf("is_rule should be omitted when false, got: %s", jsonStr)
 	}
 }

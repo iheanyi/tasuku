@@ -272,6 +272,118 @@ func (s *Server) Tools() []Tool {
 				"properties": map[string]interface{}{},
 			},
 		},
+		{
+			Name:        "tk_timer_start",
+			Description: "Start a timer on a task to track time spent working on it.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to start timer on",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_timer_stop",
+			Description: "Stop the timer on a task, recording the elapsed time.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to stop timer on",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_timer_status",
+			Description: "Get the status of all running timers.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		{
+			Name:        "tk_field_set",
+			Description: "Set a custom field on a task (key-value metadata).",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id", "key", "value"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID",
+					},
+					"key": map[string]interface{}{
+						"type":        "string",
+						"description": "Field name",
+					},
+					"value": map[string]interface{}{
+						"type":        "string",
+						"description": "Field value",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_field_remove",
+			Description: "Remove a custom field from a task.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id", "key"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID",
+					},
+					"key": map[string]interface{}{
+						"type":        "string",
+						"description": "Field name to remove",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_tag_add",
+			Description: "Add a tag to a task for categorization and filtering.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id", "tag"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID",
+					},
+					"tag": map[string]interface{}{
+						"type":        "string",
+						"description": "Tag to add",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_tag_remove",
+			Description: "Remove a tag from a task.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id", "tag"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID",
+					},
+					"tag": map[string]interface{}{
+						"type":        "string",
+						"description": "Tag to remove",
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -296,6 +408,20 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleNote(args)
 	case "tk_context":
 		return s.handleContext(args)
+	case "tk_timer_start":
+		return s.handleTimerStart(args)
+	case "tk_timer_stop":
+		return s.handleTimerStop(args)
+	case "tk_timer_status":
+		return s.handleTimerStatus(args)
+	case "tk_field_set":
+		return s.handleFieldSet(args)
+	case "tk_field_remove":
+		return s.handleFieldRemove(args)
+	case "tk_tag_add":
+		return s.handleTagAdd(args)
+	case "tk_tag_remove":
+		return s.handleTagRemove(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -386,11 +512,11 @@ func (s *Server) handleBlock(args map[string]interface{}) (interface{}, error) {
 
 func (s *Server) handleLearn(args map[string]interface{}) (interface{}, error) {
 	insight, _ := args["insight"].(string)
-	id, err := s.store.AddLearning(insight)
+	id, isRule, err := s.store.AddLearningWithRule(insight, nil)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]string{"id": id, "status": "added"}, nil
+	return map[string]interface{}{"id": id, "status": "added", "is_rule": isRule}, nil
 }
 
 func (s *Server) handleDecide(args map[string]interface{}) (interface{}, error) {
@@ -436,6 +562,93 @@ func (s *Server) handleNote(args map[string]interface{}) (interface{}, error) {
 
 func (s *Server) handleContext(args map[string]interface{}) (interface{}, error) {
 	return s.store.Read()
+}
+
+func (s *Server) handleTimerStart(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	if err := s.store.StartTimer(id); err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": id, "status": "timer_started"}, nil
+}
+
+func (s *Server) handleTimerStop(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	elapsed, err := s.store.StopTimer(id)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"id":      id,
+		"status":  "timer_stopped",
+		"elapsed": elapsed.String(),
+	}, nil
+}
+
+func (s *Server) handleTimerStatus(args map[string]interface{}) (interface{}, error) {
+	timers, err := s.store.GetActiveTimers()
+	if err != nil {
+		return nil, err
+	}
+
+	type timerInfo struct {
+		ID          string `json:"id"`
+		Description string `json:"description"`
+		StartedAt   string `json:"started_at"`
+		Elapsed     string `json:"elapsed"`
+	}
+
+	var results []timerInfo
+	for id, t := range timers {
+		results = append(results, timerInfo{
+			ID:          id,
+			Description: t.Description,
+			StartedAt:   t.TimerStart.Format(time.RFC3339),
+			Elapsed:     time.Since(*t.TimerStart).Truncate(time.Second).String(),
+		})
+	}
+	return results, nil
+}
+
+func (s *Server) handleFieldSet(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	key, _ := args["key"].(string)
+	value, _ := args["value"].(string)
+
+	if err := s.store.SetField(id, key, value); err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": id, "key": key, "value": value, "status": "set"}, nil
+}
+
+func (s *Server) handleFieldRemove(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	key, _ := args["key"].(string)
+
+	if err := s.store.RemoveField(id, key); err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": id, "key": key, "status": "removed"}, nil
+}
+
+func (s *Server) handleTagAdd(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	tag, _ := args["tag"].(string)
+
+	if err := s.store.AddTag(id, tag); err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": id, "tag": tag, "status": "added"}, nil
+}
+
+func (s *Server) handleTagRemove(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	tag, _ := args["tag"].(string)
+
+	if err := s.store.RemoveTag(id, tag); err != nil {
+		return nil, err
+	}
+	return map[string]string{"id": id, "tag": tag, "status": "removed"}, nil
 }
 
 // generateID creates a kebab-case ID from description.

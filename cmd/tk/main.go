@@ -84,6 +84,8 @@ func init() {
 	taskCmd.AddCommand(releaseCmd)
 	taskCmd.AddCommand(whoCmd)
 	taskCmd.AddCommand(tagCmd)
+	taskCmd.AddCommand(fieldCmd)
+	taskCmd.AddCommand(timerCmd)
 	rootCmd.AddCommand(taskCmd)
 
 	// Non-task root commands
@@ -114,6 +116,9 @@ func init() {
 
 	// Migration commands
 	rootCmd.AddCommand(migrateCmd)
+
+	// GitHub PR integration (V2.0)
+	rootCmd.AddCommand(prCmd)
 
 	// Deprecated commands (hidden, for backward compatibility)
 	rootCmd.AddCommand(learnCmd)
@@ -162,6 +167,8 @@ Subcommands:
   release   Release a claimed task (V2.0)
   who       Show claimed tasks by owner (V2.0)
   tag       Manage task tags (V2.0)
+  field     Manage custom fields (V2.0)
+  timer     Track time spent on tasks (V2.0)
 
 Examples:
   tk task list                 # List all tasks
@@ -1289,9 +1296,69 @@ Examples:
 	RunE: runLearningPromote,
 }
 
+var learningRulesCmd = &cobra.Command{
+	Use:   "rules",
+	Short: "List all never/always rule learnings",
+	Long: `Display learnings that are marked as rules (never/always patterns).
+
+Rules are learnings that contain key instruction words like "never" or "always".
+These are typically important guidelines that should be promoted to permanent docs.
+
+Examples:
+  tk learning rules              # List all rule learnings
+  tk learning rules --format json  # Output as JSON`,
+	RunE: runLearningRules,
+}
+
+func runLearningRules(cmd *cobra.Command, args []string) error {
+	s := store.Default()
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	// Filter for rules only
+	var rules []task.Learning
+	for _, l := range f.Context.Learnings {
+		if l.IsRule {
+			rules = append(rules, l)
+		}
+	}
+
+	if len(rules) == 0 {
+		fmt.Println("No rule learnings recorded yet.")
+		fmt.Println("Rules are learnings that start with or contain 'never' or 'always'.")
+		fmt.Println("Use: tk learning add \"Never use raw SQL queries\"")
+		return nil
+	}
+
+	switch outputFormat {
+	case "json":
+		data, _ := json.MarshalIndent(rules, "", "  ")
+		fmt.Println(string(data))
+	case "yaml":
+		data, _ := yaml.Marshal(rules)
+		fmt.Print(string(data))
+	default:
+		fmt.Printf("Rules (%d):\n\n", len(rules))
+		for _, l := range rules {
+			age := formatAge(l.CreatedAt)
+			if age != "" {
+				fmt.Printf("  [%s] %s (%s)\n", l.ID, l.Text, age)
+			} else {
+				fmt.Printf("  [%s] %s\n", l.ID, l.Text)
+			}
+		}
+		fmt.Println()
+		fmt.Println("Hint: Promote rules to permanent docs with: tk learning promote <id>")
+	}
+	return nil
+}
+
 func init() {
 	// Learning subcommand flags
 	learningAddCmd.Flags().Bool("permanent", false, "Also append learning to CLAUDE.md")
+	learningAddCmd.Flags().Bool("rule", false, "Explicitly mark this learning as a rule")
 	learningPromoteCmd.Flags().String("to", "", "Target context file (auto-detected if not specified)")
 	learningPromoteCmd.Flags().Bool("keep", false, "Keep the learning in .tasuku.json after promoting")
 
@@ -1300,6 +1367,7 @@ func init() {
 	learningCmd.AddCommand(learningAddCmd)
 	learningCmd.AddCommand(learningRemoveCmd)
 	learningCmd.AddCommand(learningPromoteCmd)
+	learningCmd.AddCommand(learningRulesCmd)
 }
 
 // Shared implementation functions for learning commands
@@ -1325,13 +1393,29 @@ func runLearningList(cmd *cobra.Command, args []string) error {
 		data, _ := yaml.Marshal(learnings)
 		fmt.Print(string(data))
 	default:
-		fmt.Printf("Learnings (%d):\n\n", len(learnings))
+		// Count rules for header
+		ruleCount := 0
+		for _, l := range learnings {
+			if l.IsRule {
+				ruleCount++
+			}
+		}
+
+		if ruleCount > 0 {
+			fmt.Printf("Learnings (%d, %d rules):\n\n", len(learnings), ruleCount)
+		} else {
+			fmt.Printf("Learnings (%d):\n\n", len(learnings))
+		}
 		for _, l := range learnings {
 			age := formatAge(l.CreatedAt)
+			ruleMarker := ""
+			if l.IsRule {
+				ruleMarker = " [RULE]"
+			}
 			if age != "" {
-				fmt.Printf("  [%s] %s (%s)\n", l.ID, l.Text, age)
+				fmt.Printf("  [%s] %s%s (%s)\n", l.ID, l.Text, ruleMarker, age)
 			} else {
-				fmt.Printf("  [%s] %s\n", l.ID, l.Text)
+				fmt.Printf("  [%s] %s%s\n", l.ID, l.Text, ruleMarker)
 			}
 		}
 	}
@@ -1341,9 +1425,21 @@ func runLearningList(cmd *cobra.Command, args []string) error {
 func runLearningAdd(cmd *cobra.Command, args []string) error {
 	learningText := args[0]
 	permanent, _ := cmd.Flags().GetBool("permanent")
+	forceRule, _ := cmd.Flags().GetBool("rule")
 	s := store.Default()
 
-	id, err := s.AddLearning(learningText)
+	var id string
+	var isRule bool
+	var err error
+
+	if forceRule {
+		// Explicitly mark as rule
+		ruleVal := true
+		id, isRule, err = s.AddLearningWithRule(learningText, &ruleVal)
+	} else {
+		// Auto-detect
+		id, isRule, err = s.AddLearningWithRule(learningText, nil)
+	}
 	if err != nil {
 		return err
 	}
@@ -1357,7 +1453,12 @@ func runLearningAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Printf("Learning added [%s]\n", id)
+	if isRule {
+		fmt.Printf("Learning added [%s] [RULE]\n", id)
+		fmt.Println("Hint: Consider promoting this rule to permanent docs with: tk learning promote", id)
+	} else {
+		fmt.Printf("Learning added [%s]\n", id)
+	}
 	return nil
 }
 
@@ -3235,6 +3336,18 @@ func outputTaskDetail(id string, t task.Task, notes []task.Note, allTasks map[st
 		if len(t.Tags) > 0 {
 			fmt.Printf("Tags:        %s\n", strings.Join(t.Tags, ", "))
 		}
+		if len(t.Fields) > 0 {
+			fmt.Printf("Fields:\n")
+			// Sort keys for consistent output
+			keys := make([]string, 0, len(t.Fields))
+			for k := range t.Fields {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				fmt.Printf("  %s: %s\n", k, t.Fields[k])
+			}
+		}
 		if len(t.BlockedBy) > 0 {
 			fmt.Printf("Blocked by:  %s\n", strings.Join(t.BlockedBy, ", "))
 		}
@@ -3247,6 +3360,17 @@ func outputTaskDetail(id string, t task.Task, notes []task.Note, allTasks map[st
 				ownerStr += fmt.Sprintf(" (claimed %s)", formatRelativeTime(*t.ClaimedAt))
 			}
 			fmt.Printf("Owner:       %s\n", ownerStr)
+		}
+		// Time tracking
+		if t.TimerStart != nil || t.Duration > 0 {
+			if t.TimerStart != nil {
+				elapsed := time.Since(*t.TimerStart)
+				fmt.Printf("Timer:       RUNNING (%s)\n", formatDuration(elapsed))
+			}
+			totalDuration := t.CurrentDuration()
+			if totalDuration > 0 {
+				fmt.Printf("Duration:    %s\n", formatDuration(totalDuration))
+			}
 		}
 		fmt.Printf("Created:     %s\n", t.CreatedAt.Format("2006-01-02 15:04:05"))
 		fmt.Printf("Updated:     %s\n", t.UpdatedAt.Format("2006-01-02 15:04:05"))

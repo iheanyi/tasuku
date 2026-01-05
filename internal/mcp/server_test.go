@@ -28,6 +28,9 @@ func TestTools(t *testing.T) {
 	expectedTools := []string{
 		"tk_list", "tk_add", "tk_start", "tk_done",
 		"tk_block", "tk_learn", "tk_decide", "tk_note", "tk_context",
+		"tk_timer_start", "tk_timer_stop", "tk_timer_status",
+		"tk_field_set", "tk_field_remove",
+		"tk_tag_add", "tk_tag_remove",
 	}
 
 	if len(tools) != len(expectedTools) {
@@ -136,9 +139,13 @@ func TestHandleToolCall_Learn(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	r := result.(map[string]string)
+	r := result.(map[string]interface{})
 	if r["status"] != "added" {
 		t.Errorf("expected status 'added', got %s", r["status"])
+	}
+	// Verify is_rule is included (auto-detected as false for this text)
+	if _, ok := r["is_rule"]; !ok {
+		t.Error("expected is_rule field in response")
 	}
 }
 
@@ -338,8 +345,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 9 {
-		t.Errorf("expected 9 tools, got %d", len(tools))
+	if len(tools) != 16 {
+		t.Errorf("expected 16 tools, got %d", len(tools))
 	}
 }
 

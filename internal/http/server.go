@@ -37,17 +37,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Run(addr string) error {
 	fmt.Printf("Starting HTTP server on %s\n", addr)
 	fmt.Println("Endpoints:")
-	fmt.Println("  GET    /tasks           - List all tasks")
-	fmt.Println("  POST   /tasks           - Create a task")
-	fmt.Println("  GET    /tasks/{id}      - Get task details")
-	fmt.Println("  PUT    /tasks/{id}      - Update task")
-	fmt.Println("  DELETE /tasks/{id}      - Delete task")
-	fmt.Println("  GET    /ready           - List ready tasks")
-	fmt.Println("  GET    /context         - Get full context")
-	fmt.Println("  POST   /learnings       - Add a learning")
-	fmt.Println("  POST   /decisions       - Add a decision")
-	fmt.Println("  GET    /schema          - Get JSON schema")
-	fmt.Println("  GET    /health          - Health check")
+	fmt.Println("  GET    /tasks                     - List all tasks (?status=X, ?tag=X)")
+	fmt.Println("  POST   /tasks                     - Create a task")
+	fmt.Println("  GET    /tasks/{id}                - Get task details")
+	fmt.Println("  PUT    /tasks/{id}                - Update task")
+	fmt.Println("  DELETE /tasks/{id}                - Delete task")
+	fmt.Println("  POST   /tasks/{id}/timer/start    - Start timer on task")
+	fmt.Println("  POST   /tasks/{id}/timer/stop     - Stop timer on task")
+	fmt.Println("  PUT    /tasks/{id}/fields/{key}   - Set custom field")
+	fmt.Println("  DELETE /tasks/{id}/fields/{key}   - Remove custom field")
+	fmt.Println("  PUT    /tasks/{id}/tags/{tag}     - Add tag to task")
+	fmt.Println("  DELETE /tasks/{id}/tags/{tag}     - Remove tag from task")
+	fmt.Println("  GET    /ready                     - List ready tasks")
+	fmt.Println("  GET    /timers                    - List active timers")
+	fmt.Println("  GET    /context                   - Get full context")
+	fmt.Println("  POST   /learnings                 - Add a learning")
+	fmt.Println("  POST   /decisions                 - Add a decision")
+	fmt.Println("  GET    /schema                    - Get JSON schema")
+	fmt.Println("  GET    /health                    - Health check")
 	return http.ListenAndServe(addr, s.mux)
 }
 
@@ -58,6 +65,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/context", s.handleContext)
 	s.mux.HandleFunc("/learnings", s.handleLearnings)
 	s.mux.HandleFunc("/decisions", s.handleDecisions)
+	s.mux.HandleFunc("/timers", s.handleTimers)
 	s.mux.HandleFunc("/schema", s.handleSchema)
 	s.mux.HandleFunc("/health", s.handleHealth)
 }
@@ -91,16 +99,21 @@ func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := r.URL.Query().Get("status")
+	tag := r.URL.Query().Get("tag")
 
 	type taskResponse struct {
-		ID          string     `json:"id"`
-		Status      string     `json:"status"`
-		Description string     `json:"description"`
-		Priority    int        `json:"priority"`
-		BlockedBy   []string   `json:"blocked_by"`
-		Owner       *string    `json:"owner"`
-		CreatedAt   time.Time  `json:"created_at"`
-		UpdatedAt   time.Time  `json:"updated_at"`
+		ID           string            `json:"id"`
+		Status       string            `json:"status"`
+		Description  string            `json:"description"`
+		Priority     int               `json:"priority"`
+		BlockedBy    []string          `json:"blocked_by"`
+		Owner        *string           `json:"owner"`
+		Tags         []string          `json:"tags,omitempty"`
+		Fields       map[string]string `json:"fields,omitempty"`
+		TimerRunning bool              `json:"timer_running"`
+		Duration     string            `json:"duration,omitempty"`
+		CreatedAt    time.Time         `json:"created_at"`
+		UpdatedAt    time.Time         `json:"updated_at"`
 	}
 
 	var tasks []taskResponse
@@ -108,15 +121,26 @@ func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
 		if status != "" && string(t.Status) != status {
 			continue
 		}
+		if tag != "" && !t.HasTag(tag) {
+			continue
+		}
+		var durationStr string
+		if t.Duration > 0 {
+			durationStr = t.Duration.FormatHumanReadable()
+		}
 		tasks = append(tasks, taskResponse{
-			ID:          id,
-			Status:      string(t.Status),
-			Description: t.Description,
-			Priority:    t.GetPriority(),
-			BlockedBy:   t.BlockedBy,
-			Owner:       t.Owner,
-			CreatedAt:   t.CreatedAt,
-			UpdatedAt:   t.UpdatedAt,
+			ID:           id,
+			Status:       string(t.Status),
+			Description:  t.Description,
+			Priority:     t.GetPriority(),
+			BlockedBy:    t.BlockedBy,
+			Owner:        t.Owner,
+			Tags:         t.Tags,
+			Fields:       t.Fields,
+			TimerRunning: t.IsTimerRunning(),
+			Duration:     durationStr,
+			CreatedAt:    t.CreatedAt,
+			UpdatedAt:    t.UpdatedAt,
 		})
 	}
 
@@ -125,9 +149,10 @@ func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ID          string `json:"id"`
-		Description string `json:"description"`
-		Priority    *int   `json:"priority"`
+		ID          string   `json:"id"`
+		Description string   `json:"description"`
+		Priority    *int     `json:"priority"`
+		Tags        []string `json:"tags"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -145,7 +170,7 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 		id = generateID(req.Description)
 	}
 
-	if err := s.store.AddTaskWithPriority(id, req.Description, req.Priority); err != nil {
+	if err := s.store.AddTaskWithTags(id, req.Description, req.Priority, req.Tags); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
@@ -157,7 +182,7 @@ func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTask(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
 	if r.Method == "OPTIONS" {
@@ -165,7 +190,7 @@ func (s *Server) handleTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract task ID from path: /tasks/{id}
+	// Extract task ID and sub-path: /tasks/{id}/timer/start, /tasks/{id}/fields/{key}, etc.
 	path := strings.TrimPrefix(r.URL.Path, "/tasks/")
 	parts := strings.Split(path, "/")
 	taskID := parts[0]
@@ -173,6 +198,27 @@ func (s *Server) handleTask(w http.ResponseWriter, r *http.Request) {
 	if taskID == "" {
 		http.Error(w, `{"error": "task ID required"}`, http.StatusBadRequest)
 		return
+	}
+
+	// Handle sub-routes
+	if len(parts) >= 2 {
+		switch parts[1] {
+		case "timer":
+			if len(parts) >= 3 {
+				s.handleTaskTimer(w, r, taskID, parts[2])
+				return
+			}
+		case "fields":
+			if len(parts) >= 3 {
+				s.handleTaskField(w, r, taskID, parts[2])
+				return
+			}
+		case "tags":
+			if len(parts) >= 3 {
+				s.handleTaskTag(w, r, taskID, parts[2])
+				return
+			}
+		}
 	}
 
 	switch r.Method {
@@ -201,14 +247,25 @@ func (s *Server) getTask(w http.ResponseWriter, r *http.Request, taskID string) 
 	}
 
 	response := map[string]interface{}{
-		"id":          taskID,
-		"status":      t.Status,
-		"description": t.Description,
-		"priority":    t.GetPriority(),
-		"blocked_by":  t.BlockedBy,
-		"owner":       t.Owner,
-		"created_at":  t.CreatedAt,
-		"updated_at":  t.UpdatedAt,
+		"id":            taskID,
+		"status":        t.Status,
+		"description":   t.Description,
+		"priority":      t.GetPriority(),
+		"blocked_by":    t.BlockedBy,
+		"owner":         t.Owner,
+		"tags":          t.Tags,
+		"fields":        t.Fields,
+		"timer_running": t.IsTimerRunning(),
+		"created_at":    t.CreatedAt,
+		"updated_at":    t.UpdatedAt,
+	}
+
+	if t.Duration > 0 {
+		response["duration"] = t.Duration.FormatHumanReadable()
+	}
+
+	if t.TimerStart != nil {
+		response["timer_start"] = t.TimerStart
 	}
 
 	if notes, ok := f.Context.Notes[taskID]; ok {
@@ -427,6 +484,121 @@ func (s *Server) handleSchema(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleTimers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	if r.Method != "GET" {
+		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	timers, err := s.store.GetActiveTimers()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusInternalServerError)
+		return
+	}
+
+	type timerInfo struct {
+		ID          string    `json:"id"`
+		Description string    `json:"description"`
+		StartedAt   time.Time `json:"started_at"`
+		Elapsed     string    `json:"elapsed"`
+	}
+
+	var results []timerInfo
+	for id, t := range timers {
+		results = append(results, timerInfo{
+			ID:          id,
+			Description: t.Description,
+			StartedAt:   *t.TimerStart,
+			Elapsed:     time.Since(*t.TimerStart).Truncate(time.Second).String(),
+		})
+	}
+
+	json.NewEncoder(w).Encode(results)
+}
+
+func (s *Server) handleTaskTimer(w http.ResponseWriter, r *http.Request, taskID, action string) {
+	if r.Method != "POST" {
+		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	switch action {
+	case "start":
+		if err := s.store.StartTimer(taskID); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"id": taskID, "status": "timer_started"})
+
+	case "stop":
+		elapsed, err := s.store.StopTimer(taskID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":      taskID,
+			"status":  "timer_stopped",
+			"elapsed": elapsed.String(),
+		})
+
+	default:
+		http.Error(w, `{"error": "unknown timer action"}`, http.StatusBadRequest)
+	}
+}
+
+func (s *Server) handleTaskField(w http.ResponseWriter, r *http.Request, taskID, key string) {
+	switch r.Method {
+	case "PUT":
+		var req struct {
+			Value string `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, `{"error": "invalid JSON"}`, http.StatusBadRequest)
+			return
+		}
+		if err := s.store.SetField(taskID, key, req.Value); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"id": taskID, "key": key, "value": req.Value, "status": "set"})
+
+	case "DELETE":
+		if err := s.store.RemoveField(taskID, key); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"id": taskID, "key": key, "status": "removed"})
+
+	default:
+		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleTaskTag(w http.ResponseWriter, r *http.Request, taskID, tag string) {
+	switch r.Method {
+	case "PUT":
+		if err := s.store.AddTag(taskID, tag); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"id": taskID, "tag": tag, "status": "added"})
+
+	case "DELETE":
+		if err := s.store.RemoveTag(taskID, tag); err != nil {
+			http.Error(w, fmt.Sprintf(`{"error": "%s"}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"id": taskID, "tag": tag, "status": "removed"})
+
+	default:
+		http.Error(w, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
+	}
 }
 
 // generateID creates a kebab-case ID from description.

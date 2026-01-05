@@ -3,6 +3,7 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/iheanyi/tasuku/internal/task"
 )
+
+// ErrNotInitialized is returned when the task file does not exist.
+var ErrNotInitialized = errors.New("no .tasuku.json found in current directory - run 'tk init' to create one")
 
 const (
 	DefaultFileName = ".tasuku.json"
@@ -52,6 +56,9 @@ func (s *Store) Init() error {
 func (s *Store) Read() (*task.File, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotInitialized
+		}
 		return nil, fmt.Errorf("store: failed to read %s: %w", s.path, err)
 	}
 
@@ -81,6 +88,9 @@ func (s *Store) write(f *task.File) error {
 func (s *Store) Update(fn func(*task.File) error) error {
 	f, err := os.OpenFile(s.path, os.O_RDWR, 0644)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrNotInitialized
+		}
 		return fmt.Errorf("store: failed to open %s: %w", s.path, err)
 	}
 	defer f.Close()
@@ -163,18 +173,36 @@ func (s *Store) SetStatus(id string, status task.Status) error {
 }
 
 // AddLearning adds a learning to context and returns its ID.
+// It auto-detects if the learning is a rule (never/always pattern).
 func (s *Store) AddLearning(text string) (string, error) {
+	id, _, err := s.AddLearningWithRule(text, nil)
+	return id, err
+}
+
+// AddLearningWithRule adds a learning with an explicit rule flag.
+// If forceRule is nil, auto-detection is used. Otherwise, the provided value is used.
+func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool, error) {
 	id := task.GenerateShortID()
+	var isRule bool
+
 	err := s.Update(func(f *task.File) error {
+		// Determine if this is a rule
+		if forceRule != nil {
+			isRule = *forceRule
+		} else {
+			isRule = task.IsRuleLearning(text)
+		}
+
 		learning := task.Learning{
 			ID:        id,
 			Text:      text,
+			IsRule:    isRule,
 			CreatedAt: time.Now().UTC(),
 		}
 		f.Context.Learnings = append(f.Context.Learnings, learning)
 		return nil
 	})
-	return id, err
+	return id, isRule, err
 }
 
 // RemoveLearning removes a learning by ID and returns the removed learning text.
@@ -439,4 +467,108 @@ func (s *Store) AddTaskWithTags(id, description string, priority *int, tags []st
 		f.Tasks[id] = t
 		return nil
 	})
+}
+
+// SetField sets a custom field on a task.
+func (s *Store) SetField(id string, key, value string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		if t.Fields == nil {
+			t.Fields = make(map[string]string)
+		}
+		t.Fields[key] = value
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// RemoveField removes a custom field from a task.
+func (s *Store) RemoveField(id string, key string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		if len(t.Fields) == 0 {
+			return fmt.Errorf("store: task %q has no custom fields", id)
+		}
+
+		if _, hasKey := t.Fields[key]; !hasKey {
+			return fmt.Errorf("store: task %q does not have field %q", id, key)
+		}
+
+		delete(t.Fields, key)
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// StartTimer starts a timer on a task. Returns an error if a timer is already running.
+func (s *Store) StartTimer(id string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		if t.TimerStart != nil {
+			return fmt.Errorf("store: task %q already has a timer running (started %s)", id, t.TimerStart.Format(time.RFC3339))
+		}
+
+		now := time.Now().UTC()
+		t.TimerStart = &now
+		t.UpdatedAt = now
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// StopTimer stops a running timer on a task and adds the elapsed time to Duration.
+// Returns the elapsed time for this session.
+func (s *Store) StopTimer(id string) (time.Duration, error) {
+	var elapsed time.Duration
+	err := s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		if t.TimerStart == nil {
+			return fmt.Errorf("store: task %q has no timer running", id)
+		}
+
+		now := time.Now().UTC()
+		elapsed = now.Sub(*t.TimerStart)
+
+		// Add elapsed time to accumulated duration
+		t.Duration = task.Duration(time.Duration(t.Duration) + elapsed)
+		t.TimerStart = nil
+		t.UpdatedAt = now
+		f.Tasks[id] = t
+		return nil
+	})
+	return elapsed, err
+}
+
+// GetActiveTimers returns all tasks with running timers.
+func (s *Store) GetActiveTimers() (map[string]task.Task, error) {
+	f, err := s.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]task.Task)
+	for id, t := range f.Tasks {
+		if t.TimerStart != nil {
+			result[id] = t
+		}
+	}
+	return result, nil
 }

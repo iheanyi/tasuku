@@ -1991,3 +1991,421 @@ func TestTagsAndLabels(t *testing.T) {
 		}
 	})
 }
+
+func TestFieldCommands(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tk")
+
+	cmd := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build: %v\n%s", err, output)
+	}
+
+	testDir := filepath.Join(dir, "project")
+	os.MkdirAll(testDir, 0755)
+
+	runTk := func(args ...string) (string, error) {
+		cmd := exec.Command(binary, args...)
+		cmd.Dir = testDir
+		output, err := cmd.CombinedOutput()
+		return string(output), err
+	}
+
+	// Initialize
+	runTk("init")
+	runTk("add", "--id", "field-task", "Task with custom fields")
+
+	// Test field list (empty)
+	t.Run("field-list-empty", func(t *testing.T) {
+		output, err := runTk("task", "field", "list", "field-task")
+		if err != nil {
+			t.Fatalf("field list failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "no custom fields") {
+			t.Errorf("expected no custom fields message: %s", output)
+		}
+	})
+
+	// Test field set
+	t.Run("field-set", func(t *testing.T) {
+		output, err := runTk("task", "field", "set", "field-task", "estimate", "2 hours")
+		if err != nil {
+			t.Fatalf("field set failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Set field 'estimate'") {
+			t.Errorf("expected confirmation message: %s", output)
+		}
+
+		// Set another field
+		output, err = runTk("task", "field", "set", "field-task", "component", "backend")
+		if err != nil {
+			t.Fatalf("field set second failed: %v\n%s", err, output)
+		}
+	})
+
+	// Test field get
+	t.Run("field-get", func(t *testing.T) {
+		output, err := runTk("task", "field", "get", "field-task", "estimate")
+		if err != nil {
+			t.Fatalf("field get failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "2 hours") {
+			t.Errorf("expected '2 hours' in output: %s", output)
+		}
+	})
+
+	// Test field get with JSON format
+	t.Run("field-get-json", func(t *testing.T) {
+		output, err := runTk("task", "field", "get", "field-task", "estimate", "-f", "json")
+		if err != nil {
+			t.Fatalf("field get json failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, `"estimate"`) && !strings.Contains(output, `"2 hours"`) {
+			t.Errorf("expected JSON output with estimate: %s", output)
+		}
+	})
+
+	// Test field list (with fields)
+	t.Run("field-list-with-fields", func(t *testing.T) {
+		output, err := runTk("task", "field", "list", "field-task")
+		if err != nil {
+			t.Fatalf("field list failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "estimate") {
+			t.Errorf("expected 'estimate' in output: %s", output)
+		}
+		if !strings.Contains(output, "component") {
+			t.Errorf("expected 'component' in output: %s", output)
+		}
+		if !strings.Contains(output, "backend") {
+			t.Errorf("expected 'backend' value in output: %s", output)
+		}
+	})
+
+	// Test field list JSON format
+	t.Run("field-list-json", func(t *testing.T) {
+		output, err := runTk("task", "field", "list", "field-task", "-f", "json")
+		if err != nil {
+			t.Fatalf("field list json failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, `"fields"`) {
+			t.Errorf("expected JSON with fields: %s", output)
+		}
+	})
+
+	// Test fields shown in task show
+	t.Run("task-show-with-fields", func(t *testing.T) {
+		output, err := runTk("task", "show", "field-task")
+		if err != nil {
+			t.Fatalf("task show failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Fields:") {
+			t.Errorf("expected Fields section in show output: %s", output)
+		}
+		if !strings.Contains(output, "estimate") {
+			t.Errorf("expected estimate field in show output: %s", output)
+		}
+	})
+
+	// Test field update (overwrite)
+	t.Run("field-update", func(t *testing.T) {
+		output, err := runTk("task", "field", "set", "field-task", "estimate", "4 hours")
+		if err != nil {
+			t.Fatalf("field update failed: %v\n%s", err, output)
+		}
+
+		// Verify update
+		output, err = runTk("task", "field", "get", "field-task", "estimate")
+		if err != nil {
+			t.Fatalf("field get after update failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "4 hours") {
+			t.Errorf("expected '4 hours' after update: %s", output)
+		}
+	})
+
+	// Test field remove
+	t.Run("field-remove", func(t *testing.T) {
+		output, err := runTk("task", "field", "remove", "field-task", "component")
+		if err != nil {
+			t.Fatalf("field remove failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Removed field 'component'") {
+			t.Errorf("expected removal confirmation: %s", output)
+		}
+
+		// Verify removal
+		output, err = runTk("task", "field", "list", "field-task")
+		if err != nil {
+			t.Fatalf("field list after remove failed: %v\n%s", err, output)
+		}
+		if strings.Contains(output, "component") {
+			t.Errorf("component should be removed: %s", output)
+		}
+	})
+}
+
+func TestFieldCommandsErrors(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tk")
+
+	cmd := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build: %v\n%s", err, output)
+	}
+
+	testDir := filepath.Join(dir, "project")
+	os.MkdirAll(testDir, 0755)
+
+	runTk := func(args ...string) (string, error) {
+		cmd := exec.Command(binary, args...)
+		cmd.Dir = testDir
+		output, err := cmd.CombinedOutput()
+		return string(output), err
+	}
+
+	// Initialize
+	runTk("init")
+	runTk("add", "--id", "error-task", "Task for error tests")
+
+	// Test field get on non-existent task
+	t.Run("field-get-task-not-found", func(t *testing.T) {
+		_, err := runTk("task", "field", "get", "nonexistent", "key")
+		if err == nil {
+			t.Error("expected error for non-existent task")
+		}
+	})
+
+	// Test field get on non-existent field
+	t.Run("field-get-field-not-found", func(t *testing.T) {
+		output, err := runTk("task", "field", "get", "error-task", "nonexistent")
+		if err == nil {
+			t.Error("expected error for non-existent field")
+		}
+		if !strings.Contains(output, "no custom fields") || !strings.Contains(output, "not found") {
+			// Either "has no custom fields" or "field not found" is acceptable
+		}
+	})
+
+	// Test field remove on non-existent field
+	t.Run("field-remove-field-not-found", func(t *testing.T) {
+		output, err := runTk("task", "field", "remove", "error-task", "nonexistent")
+		if err == nil {
+			t.Error("expected error for non-existent field")
+		}
+		if !strings.Contains(output, "no custom fields") && !strings.Contains(output, "does not have field") {
+			t.Errorf("expected field error message: %s", output)
+		}
+	})
+
+	// Set a field, then try to remove non-existent one
+	t.Run("field-remove-wrong-key", func(t *testing.T) {
+		runTk("task", "field", "set", "error-task", "exists", "value")
+
+		output, err := runTk("task", "field", "remove", "error-task", "wrong-key")
+		if err == nil {
+			t.Error("expected error when removing wrong key")
+		}
+		if !strings.Contains(output, "does not have field") {
+			t.Errorf("expected 'does not have field' error: %s", output)
+		}
+	})
+}
+
+func TestTimerCommands(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "tk")
+
+	cmd := exec.Command("go", "build", "-o", binary, ".")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build: %v\n%s", err, output)
+	}
+
+	testDir := filepath.Join(dir, "project")
+	os.MkdirAll(testDir, 0755)
+
+	runTk := func(args ...string) (string, error) {
+		cmd := exec.Command(binary, args...)
+		cmd.Dir = testDir
+		output, err := cmd.CombinedOutput()
+		return string(output), err
+	}
+
+	// Initialize
+	runTk("init")
+
+	// Create a test task
+	t.Run("create-task", func(t *testing.T) {
+		output, err := runTk("task", "add", "--id", "timer-test", "Timer test task")
+		if err != nil {
+			t.Fatalf("add task failed: %v\n%s", err, output)
+		}
+	})
+
+	// Test timer status with no active timers
+	t.Run("timer-status-empty", func(t *testing.T) {
+		output, err := runTk("task", "timer", "status")
+		if err != nil {
+			t.Fatalf("timer status failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "No active timers") {
+			t.Errorf("expected 'No active timers' in output: %s", output)
+		}
+	})
+
+	// Test starting a timer
+	t.Run("timer-start", func(t *testing.T) {
+		output, err := runTk("task", "timer", "start", "timer-test")
+		if err != nil {
+			t.Fatalf("timer start failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Timer started") {
+			t.Errorf("expected 'Timer started' in output: %s", output)
+		}
+	})
+
+	// Test timer status shows active timer
+	t.Run("timer-status-active", func(t *testing.T) {
+		output, err := runTk("task", "timer", "status")
+		if err != nil {
+			t.Fatalf("timer status failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "timer-test") {
+			t.Errorf("expected 'timer-test' in active timers: %s", output)
+		}
+		if !strings.Contains(output, "Active timers") {
+			t.Errorf("expected 'Active timers' in output: %s", output)
+		}
+	})
+
+	// Test timer status for specific task
+	t.Run("timer-status-specific", func(t *testing.T) {
+		output, err := runTk("task", "timer", "status", "timer-test")
+		if err != nil {
+			t.Fatalf("timer status for task failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "RUNNING") {
+			t.Errorf("expected 'RUNNING' in timer status: %s", output)
+		}
+	})
+
+	// Test starting timer on task that already has one
+	t.Run("timer-start-already-running", func(t *testing.T) {
+		output, err := runTk("task", "timer", "start", "timer-test")
+		if err == nil {
+			t.Error("expected error when starting timer on task with running timer")
+		}
+		if !strings.Contains(output, "already has a timer") {
+			t.Errorf("expected 'already has a timer' in error: %s", output)
+		}
+	})
+
+	// Test stopping a timer
+	t.Run("timer-stop", func(t *testing.T) {
+		output, err := runTk("task", "timer", "stop", "timer-test")
+		if err != nil {
+			t.Fatalf("timer stop failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, "Timer stopped") {
+			t.Errorf("expected 'Timer stopped' in output: %s", output)
+		}
+		if !strings.Contains(output, "Session:") {
+			t.Errorf("expected 'Session:' in output: %s", output)
+		}
+		if !strings.Contains(output, "Total:") {
+			t.Errorf("expected 'Total:' in output: %s", output)
+		}
+	})
+
+	// Test stopping timer when none is running
+	t.Run("timer-stop-not-running", func(t *testing.T) {
+		output, err := runTk("task", "timer", "stop", "timer-test")
+		if err == nil {
+			t.Error("expected error when stopping timer that's not running")
+		}
+		if !strings.Contains(output, "no timer running") {
+			t.Errorf("expected 'no timer running' in error: %s", output)
+		}
+	})
+
+	// Test duration is shown in task show
+	t.Run("show-includes-duration", func(t *testing.T) {
+		output, err := runTk("task", "show", "timer-test")
+		if err != nil {
+			t.Fatalf("task show failed: %v\n%s", err, output)
+		}
+		// Duration should be shown after a timer has run
+		if !strings.Contains(output, "Duration:") {
+			t.Errorf("expected 'Duration:' in task show output: %s", output)
+		}
+	})
+
+	// Test timer on non-existent task
+	t.Run("timer-start-nonexistent", func(t *testing.T) {
+		output, err := runTk("task", "timer", "start", "nonexistent-task")
+		if err == nil {
+			t.Error("expected error for non-existent task")
+		}
+		if !strings.Contains(output, "not found") {
+			t.Errorf("expected 'not found' in error: %s", output)
+		}
+	})
+
+	// Test timer status on non-existent task
+	t.Run("timer-status-nonexistent", func(t *testing.T) {
+		output, err := runTk("task", "timer", "status", "nonexistent-task")
+		if err == nil {
+			t.Error("expected error for non-existent task")
+		}
+		if !strings.Contains(output, "not found") {
+			t.Errorf("expected 'not found' in error: %s", output)
+		}
+	})
+
+	// Test cumulative duration (multiple start/stop cycles)
+	t.Run("timer-cumulative", func(t *testing.T) {
+		// Start and stop first timer
+		runTk("task", "timer", "start", "timer-test")
+		runTk("task", "timer", "stop", "timer-test")
+
+		// Start and stop second timer
+		runTk("task", "timer", "start", "timer-test")
+		output, err := runTk("task", "timer", "stop", "timer-test")
+		if err != nil {
+			t.Fatalf("second timer stop failed: %v\n%s", err, output)
+		}
+
+		// Duration should be cumulative
+		if !strings.Contains(output, "Total:") {
+			t.Errorf("expected 'Total:' in output: %s", output)
+		}
+	})
+
+	// Test timer status with JSON output
+	t.Run("timer-status-json", func(t *testing.T) {
+		runTk("task", "timer", "start", "timer-test")
+		output, err := runTk("task", "timer", "status", "-f", "json")
+		if err != nil {
+			t.Fatalf("timer status json failed: %v\n%s", err, output)
+		}
+		if !strings.Contains(output, `"task_id"`) {
+			t.Errorf("expected JSON with task_id: %s", output)
+		}
+		if !strings.Contains(output, `"elapsed"`) {
+			t.Errorf("expected JSON with elapsed: %s", output)
+		}
+		runTk("task", "timer", "stop", "timer-test")
+	})
+}

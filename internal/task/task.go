@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -27,6 +29,88 @@ const (
 	PriorityBacklog  = 4
 )
 
+// Duration wraps time.Duration for JSON serialization as a string (e.g., "2h30m5s").
+type Duration time.Duration
+
+// MarshalJSON implements json.Marshaler for Duration.
+func (d Duration) MarshalJSON() ([]byte, error) {
+	if d == 0 {
+		return []byte("null"), nil
+	}
+	return json.Marshal(time.Duration(d).String())
+}
+
+// UnmarshalJSON implements json.Unmarshaler for Duration.
+func (d *Duration) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" || string(data) == `""` {
+		*d = 0
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		*d = 0
+		return nil
+	}
+	parsed, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	*d = Duration(parsed)
+	return nil
+}
+
+// String returns the duration as a string.
+func (d Duration) String() string {
+	return time.Duration(d).String()
+}
+
+// TimeDuration returns the underlying time.Duration.
+func (d Duration) TimeDuration() time.Duration {
+	return time.Duration(d)
+}
+
+// FormatHumanReadable returns a human-friendly duration string.
+func (d Duration) FormatHumanReadable() string {
+	td := time.Duration(d)
+	if td == 0 {
+		return "0s"
+	}
+
+	var parts []string
+	hours := int(td.Hours())
+	minutes := int(td.Minutes()) % 60
+	seconds := int(td.Seconds()) % 60
+
+	if hours > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", hours))
+	}
+	if minutes > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", minutes))
+	}
+	if seconds > 0 || len(parts) == 0 {
+		parts = append(parts, fmt.Sprintf("%ds", seconds))
+	}
+
+	return strings.Join(parts, "")
+}
+
+// IsTimerRunning returns true if the task has an active timer.
+func (t Task) IsTimerRunning() bool {
+	return t.TimerStart != nil
+}
+
+// CurrentDuration returns the total duration including any active timer.
+func (t Task) CurrentDuration() time.Duration {
+	total := time.Duration(t.Duration)
+	if t.TimerStart != nil {
+		total += time.Since(*t.TimerStart)
+	}
+	return total
+}
+
 // Task represents a single task.
 type Task struct {
 	Status      Status     `json:"status"`
@@ -35,7 +119,10 @@ type Task struct {
 	BlockedBy   []string   `json:"blocked_by"`
 	Owner       *string    `json:"owner"`
 	ClaimedAt   *time.Time `json:"claimed_at,omitempty"` // When the task was claimed by an agent
-	Tags        []string   `json:"tags,omitempty"`       // V2.0: Tags for filtering and grouping
+	Tags        []string          `json:"tags,omitempty"`        // V2.0: Tags for filtering and grouping
+	Fields      map[string]string `json:"fields,omitempty"`      // V2.0: Custom key-value metadata
+	TimerStart  *time.Time        `json:"timer_start,omitempty"` // V2.0: When timer started, nil if not running
+	Duration    Duration   `json:"duration,omitempty"`    // V2.0: Accumulated time spent on task
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
@@ -107,13 +194,40 @@ type Note struct {
 type Learning struct {
 	ID        string    `json:"id"`
 	Text      string    `json:"text"`
+	IsRule    bool      `json:"is_rule,omitempty"` // V2.0: True if learning is a never/always rule
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// IsRuleLearning detects if a learning text matches never/always patterns.
+// It returns true if the text:
+// - Starts with "Never" or "Always" (case-insensitive)
+// - Contains "never" or "always" as key instruction words
+func IsRuleLearning(text string) bool {
+	lower := strings.ToLower(strings.TrimSpace(text))
+
+	// Check if starts with never/always
+	if strings.HasPrefix(lower, "never ") || strings.HasPrefix(lower, "always ") {
+		return true
+	}
+
+	// Check for never/always as key words in the text
+	// Look for patterns like "you should never", "must always", etc.
+	words := strings.Fields(lower)
+	for _, word := range words {
+		// Clean punctuation from word
+		word = strings.Trim(word, ".,;:!?\"'")
+		if word == "never" || word == "always" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // GenerateShortID creates a 6-character hex ID for notes and learnings.
 func GenerateShortID() string {
 	b := make([]byte, 3)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
