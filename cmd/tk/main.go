@@ -129,6 +129,9 @@ func init() {
 	// Doctor command for diagnosing setup issues
 	rootCmd.AddCommand(doctorCmd)
 
+	// Suggest command for agent nudge rule
+	rootCmd.AddCommand(suggestCmd)
+
 	// Deprecated commands (hidden, for backward compatibility)
 	rootCmd.AddCommand(learnCmd)
 	rootCmd.AddCommand(learningsCmd)
@@ -4818,6 +4821,161 @@ func mcpUninstall() error {
 
 	fmt.Println("Tasuku MCP server uninstalled from Claude Code")
 	fmt.Println("Restart Claude Code to apply changes.")
+
+	return nil
+}
+
+// =============================================================================
+// Suggest Command - Agent Nudge Rule Helper
+// =============================================================================
+
+var suggestCmd = &cobra.Command{
+	Use:   "suggest <description>",
+	Short: "Suggest whether a task should be persisted to tk or kept session-only",
+	Long: `Analyze a task description and suggest whether it should be:
+- Persisted to tk (project-level: features, bugs, milestones)
+- Kept as session-only (implementation steps like "fix type error")
+
+This implements the "nudge rule" for AI agents: before adding items to TodoWrite,
+call tk suggest to determine if they should also be tracked in tk.
+
+Project-level indicators:
+  - Keywords like "implement", "add feature", "fix bug", "refactor", "migrate"
+  - Database, API, authentication, security work
+  - Milestones, epics, stories
+
+Session-level indicators:
+  - Keywords like "fix type error", "update file", "run tests", "debug"
+  - Small, temporary implementation steps
+
+Examples:
+  tk suggest "Implement user authentication"
+    → Should persist: yes (project-level feature)
+
+  tk suggest "Fix type error in auth.ts"
+    → Should persist: no (session-level implementation step)
+
+  tk suggest "Add dark mode support"
+    → Should persist: yes (project-level feature)
+
+  tk suggest "Update the imports in helper.go"
+    → Should persist: no (session-level step)`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runSuggest(args[0])
+	},
+}
+
+func runSuggest(description string) error {
+	desc := strings.ToLower(description)
+
+	// Keywords that indicate project-level tasks (should persist to tk)
+	projectKeywords := []string{
+		"implement", "add feature", "build", "create", "develop",
+		"fix bug", "bugfix", "hotfix", "patch",
+		"refactor", "rewrite", "redesign", "rearchitect",
+		"migrate", "upgrade", "update dependency",
+		"integrate", "connect", "setup", "configure",
+		"support", "enable", "add support",
+		"milestone", "epic", "feature", "story",
+		"api endpoint", "database", "schema",
+		"authentication", "authorization", "security",
+		"performance", "optimize", "cache",
+		"deploy", "release", "ship",
+	}
+
+	// Keywords that indicate session-level tasks (TodoWrite only)
+	sessionKeywords := []string{
+		"fix type error", "fix typo", "fix lint",
+		"update file", "edit file", "modify file",
+		"read file", "check file", "review file",
+		"run test", "run build", "run script",
+		"verify", "check", "confirm", "ensure",
+		"debug", "investigate", "look into",
+		"format", "cleanup", "tidy",
+		"add comment", "add docstring", "add import",
+		"remove unused", "delete unused",
+		"rename variable", "rename function",
+	}
+
+	shouldPersist := false
+	reason := "No strong project-level indicators found"
+	matchedKeyword := ""
+
+	// Check for project keywords
+	for _, kw := range projectKeywords {
+		if strings.Contains(desc, kw) {
+			shouldPersist = true
+			matchedKeyword = kw
+			reason = fmt.Sprintf("Contains project-level keyword '%s'", kw)
+			break
+		}
+	}
+
+	// Session keywords can override if they match
+	for _, kw := range sessionKeywords {
+		if strings.Contains(desc, kw) {
+			shouldPersist = false
+			matchedKeyword = kw
+			reason = fmt.Sprintf("Contains session-level keyword '%s'", kw)
+			break
+		}
+	}
+
+	// Output based on format
+	switch outputFormat {
+	case "json":
+		result := map[string]interface{}{
+			"should_persist":       shouldPersist,
+			"reason":               reason,
+			"matched_keyword":      matchedKeyword,
+			"original_description": description,
+		}
+		if shouldPersist {
+			result["suggested_command"] = fmt.Sprintf("tk task add %q", description)
+			result["recommendation"] = "Add this to tk for persistent tracking across sessions"
+		} else {
+			result["recommendation"] = "Keep this in TodoWrite only - it's a session-level implementation step"
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(data))
+
+	case "yaml":
+		result := map[string]interface{}{
+			"should_persist":       shouldPersist,
+			"reason":               reason,
+			"matched_keyword":      matchedKeyword,
+			"original_description": description,
+		}
+		if shouldPersist {
+			result["suggested_command"] = fmt.Sprintf("tk task add %q", description)
+			result["recommendation"] = "Add this to tk for persistent tracking across sessions"
+		} else {
+			result["recommendation"] = "Keep this in TodoWrite only - it's a session-level implementation step"
+		}
+		data, _ := yaml.Marshal(result)
+		fmt.Print(string(data))
+
+	default:
+		// Table/human-readable format
+		if shouldPersist {
+			fmt.Println("✓ PERSIST TO TK")
+			fmt.Println()
+			fmt.Printf("  Description: %s\n", description)
+			fmt.Printf("  Reason: %s\n", reason)
+			fmt.Println()
+			fmt.Println("  Suggested command:")
+			fmt.Printf("    tk task add %q\n", description)
+		} else {
+			fmt.Println("✗ KEEP SESSION-ONLY")
+			fmt.Println()
+			fmt.Printf("  Description: %s\n", description)
+			fmt.Printf("  Reason: %s\n", reason)
+			fmt.Println()
+			fmt.Println("  Recommendation: Use TodoWrite for this implementation step.")
+			fmt.Println("  It doesn't need to persist across sessions.")
+		}
+	}
 
 	return nil
 }

@@ -584,6 +584,20 @@ func (s *Server) Tools() []Tool {
 				},
 			},
 		},
+		{
+			Name:        "tk_suggest",
+			Description: "Analyze a task description and suggest whether it should be persisted to tk (project-level) or kept as a session-only TodoWrite item. Use this before adding items to TodoWrite to determine if they should also be tracked in tk.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"description"},
+				"properties": map[string]interface{}{
+					"description": map[string]interface{}{
+						"type":        "string",
+						"description": "The task description to analyze",
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -648,6 +662,8 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleClaim(args)
 	case "tk_release":
 		return s.handleRelease(args)
+	case "tk_suggest":
+		return s.handleSuggest(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1249,6 +1265,80 @@ func (s *Server) handleRelease(args map[string]interface{}) (interface{}, error)
 	}
 
 	return map[string]string{"id": id, "status": "released"}, nil
+}
+
+func (s *Server) handleSuggest(args map[string]interface{}) (interface{}, error) {
+	description, _ := args["description"].(string)
+	desc := strings.ToLower(description)
+
+	// Keywords that indicate project-level tasks (should persist to tk)
+	projectKeywords := []string{
+		"implement", "add feature", "build", "create", "develop",
+		"fix bug", "bugfix", "hotfix", "patch",
+		"refactor", "rewrite", "redesign", "rearchitect",
+		"migrate", "upgrade", "update dependency",
+		"integrate", "connect", "setup", "configure",
+		"support", "enable", "add support",
+		"milestone", "epic", "feature", "story",
+		"api endpoint", "database", "schema",
+		"authentication", "authorization", "security",
+		"performance", "optimize", "cache",
+		"deploy", "release", "ship",
+	}
+
+	// Keywords that indicate session-level tasks (TodoWrite only)
+	sessionKeywords := []string{
+		"fix type error", "fix typo", "fix lint",
+		"update file", "edit file", "modify file",
+		"read file", "check file", "review file",
+		"run test", "run build", "run script",
+		"verify", "check", "confirm", "ensure",
+		"debug", "investigate", "look into",
+		"format", "cleanup", "tidy",
+		"add comment", "add docstring", "add import",
+		"remove unused", "delete unused",
+		"rename variable", "rename function",
+	}
+
+	shouldPersist := false
+	reason := "No strong project-level indicators found"
+	matchedKeyword := ""
+
+	// Check for project keywords
+	for _, kw := range projectKeywords {
+		if strings.Contains(desc, kw) {
+			shouldPersist = true
+			matchedKeyword = kw
+			reason = fmt.Sprintf("Contains project-level keyword '%s' - this looks like a feature, bug, or significant change that should be tracked across sessions", kw)
+			break
+		}
+	}
+
+	// Session keywords can override if they match
+	for _, kw := range sessionKeywords {
+		if strings.Contains(desc, kw) {
+			shouldPersist = false
+			matchedKeyword = kw
+			reason = fmt.Sprintf("Contains session-level keyword '%s' - this looks like an implementation step that doesn't need to persist", kw)
+			break
+		}
+	}
+
+	result := map[string]interface{}{
+		"should_persist":    shouldPersist,
+		"reason":            reason,
+		"matched_keyword":   matchedKeyword,
+		"original_description": description,
+	}
+
+	if shouldPersist {
+		result["suggested_command"] = fmt.Sprintf("tk task add %q", description)
+		result["recommendation"] = "Add this to tk for persistent tracking across sessions"
+	} else {
+		result["recommendation"] = "Keep this in TodoWrite only - it's a session-level implementation step"
+	}
+
+	return result, nil
 }
 
 // generateID creates a kebab-case ID from description.

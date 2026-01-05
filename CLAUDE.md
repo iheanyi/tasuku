@@ -259,6 +259,8 @@ This ensures agents can do everything humans can do, which is the whole point of
 | `tk_archive` | `tk task archive add` | Archive a done task |
 | `tk_archive_restore` | `tk task archive restore` | Restore archived task |
 | `tk_archive_list` | `tk task archive list` | List archived tasks |
+| **Agent Workflow** |||
+| `tk_suggest` | `tk suggest` | Analyze if a task should persist to tk or stay session-only |
 
 ### Running the server
 
@@ -343,10 +345,29 @@ When working on this codebase, follow these guidelines for task tracking:
 - Progress tracking that doesn't need to persist
 
 ### Nudge Rule
-If you add something to TodoWrite that looks like a **project-level task** (feature, bug, refactor, milestone), consider also adding it to tk:
+
+**Before adding items to TodoWrite**, use `tk_suggest` (MCP) or `tk suggest` (CLI) to check if it should also be tracked in tk:
+
 ```bash
-tk task add "Description" --priority high --tag feature
+tk suggest "Implement user authentication"
+# → ✓ PERSIST TO TK (project-level feature)
+
+tk suggest "Fix type error in auth.ts"
+# → ✗ KEEP SESSION-ONLY (implementation step)
 ```
+
+If the suggestion says **PERSIST TO TK**, add it to both:
+1. TodoWrite (for session progress tracking)
+2. `tk task add "Description" --priority high --tag feature` (for persistence)
+
+**Project-level indicators** (should persist):
+- Keywords: implement, add feature, fix bug, refactor, migrate, deploy
+- Database, API, authentication, security work
+- Milestones, epics, stories
+
+**Session-level indicators** (TodoWrite only):
+- Keywords: fix type error, update file, run tests, debug, verify
+- Small, temporary implementation steps
 
 This ensures important work is tracked persistently and visible to future sessions.
 

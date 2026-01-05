@@ -34,6 +34,7 @@ func TestTools(t *testing.T) {
 		"tk_archive", "tk_archive_restore", "tk_archive_list",
 		"tk_show", "tk_delete", "tk_edit", "tk_pause", "tk_unblock",
 		"tk_find", "tk_priority", "tk_owner", "tk_claim", "tk_release",
+		"tk_suggest",
 	}
 
 	if len(tools) != len(expectedTools) {
@@ -348,8 +349,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 29 {
-		t.Errorf("expected 29 tools, got %d", len(tools))
+	if len(tools) != 30 {
+		t.Errorf("expected 30 tools, got %d", len(tools))
 	}
 }
 
@@ -862,6 +863,82 @@ func TestHandleToolCall_ClaimRelease(t *testing.T) {
 	r2 := result2.(map[string]string)
 	if r2["status"] != "released" {
 		t.Errorf("expected status 'released', got %s", r2["status"])
+	}
+}
+
+func TestSuggest(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	tests := []struct {
+		name          string
+		description   string
+		shouldPersist bool
+	}{
+		// Project-level tasks (should persist)
+		{"implement feature", "Implement user authentication", true},
+		{"add feature", "Add feature for dark mode", true},
+		{"fix bug", "Fix bug in login flow", true},
+		{"refactor", "Refactor the database layer", true},
+		{"migrate", "Migrate to new API version", true},
+		{"build", "Build the dashboard component", true},
+		{"deploy", "Deploy to production", true},
+		{"database work", "Add database index for users table", true},
+		{"security", "Implement security headers", true},
+		{"api endpoint", "Create API endpoint for user profile", true},
+
+		// Session-level tasks (should not persist)
+		{"fix type error", "Fix type error in auth.ts", false},
+		{"fix typo", "Fix typo in error message", false},
+		{"update file", "Update file imports", false},
+		{"run tests", "Run test suite", false},
+		{"debug", "Debug the failing test", false},
+		{"verify", "Verify the output", false},
+		{"add import", "Add import statement", false},
+		{"rename variable", "Rename variable to be clearer", false},
+
+		// Edge cases
+		{"no keywords", "Do something", false},
+		{"mixed - session wins", "Fix type error while implementing auth", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := server.HandleToolCall("tk_suggest", map[string]interface{}{
+				"description": tt.description,
+			})
+			if err != nil {
+				t.Fatalf("suggest error: %v", err)
+			}
+
+			r := result.(map[string]interface{})
+			shouldPersist, ok := r["should_persist"].(bool)
+			if !ok {
+				t.Fatalf("should_persist not a bool")
+			}
+
+			if shouldPersist != tt.shouldPersist {
+				t.Errorf("for %q: expected should_persist=%v, got %v (reason: %s)",
+					tt.description, tt.shouldPersist, shouldPersist, r["reason"])
+			}
+
+			// Verify other fields are present
+			if _, ok := r["reason"].(string); !ok {
+				t.Error("missing reason field")
+			}
+			if _, ok := r["recommendation"].(string); !ok {
+				t.Error("missing recommendation field")
+			}
+			if _, ok := r["original_description"].(string); !ok {
+				t.Error("missing original_description field")
+			}
+
+			// Verify suggested_command is present when should persist
+			if shouldPersist {
+				if _, ok := r["suggested_command"].(string); !ok {
+					t.Error("missing suggested_command for persistent task")
+				}
+			}
+		})
 	}
 }
 
