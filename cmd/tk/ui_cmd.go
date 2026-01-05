@@ -47,7 +47,7 @@ func runUI(cmd *cobra.Command, args []string) error {
 	s := store.DefaultStorageWithWarning()
 
 	if !s.Exists() {
-		return fmt.Errorf("no .tasuku.json found - run 'tk init' first")
+		return fmt.Errorf("no Tasuku storage found - run 'tk init' first")
 	}
 
 	model, err := tui.New(s)

@@ -3443,7 +3443,7 @@ func runDoctor() error {
 			}
 		}
 	} else {
-		fmt.Println("⚠ Cannot test MCP server (no .tasuku.json)")
+		fmt.Println("⚠ Cannot test MCP server (no Tasuku storage)")
 	}
 
 	// 5. Check CLI/MCP parity
@@ -3508,7 +3508,7 @@ func runDoctor() error {
 			hasErrors = true
 		}
 	} else {
-		fmt.Println("⚠ Cannot check parity (no .tasuku.json)")
+		fmt.Println("⚠ Cannot check parity (no Tasuku storage)")
 	}
 
 	// Summary
@@ -4469,11 +4469,11 @@ const (
 func getTasukuHookContent(hookName string) string {
 	switch hookName {
 	case "pre-commit":
-		return `# Tasuku pre-commit hook: validate .tasuku.json
-if [ -f .tasuku.json ]; then
+		return `# Tasuku pre-commit hook: validate task storage
+if [ -d .tasuku ] || [ -f .tasuku.json ]; then
     tk validate
     if [ $? -ne 0 ]; then
-        echo "Tasuku validation failed. Please fix .tasuku.json before committing."
+        echo "Tasuku validation failed. Please fix issues before committing."
         exit 1
     fi
 fi`
