@@ -1,0 +1,101 @@
+# air configuration for hot-reload development
+# Install: go install github.com/air-verse/air@latest
+# Run: air
+
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  # Binary output location
+  bin = "./tmp/main"
+
+  # Build command - compile the CLI
+  cmd = "go build -o ./tmp/main ./cmd/tk"
+
+  # Build delay after change detected (ms)
+  delay = 500
+
+  # Directories to exclude from watching
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", ".git", ".tasuku"]
+
+  # Exclude files matching these patterns
+  exclude_file = []
+
+  # Exclude regex patterns
+  exclude_regex = ["_test.go"]
+
+  # Exclude unchanged files
+  exclude_unchanged = false
+
+  # Follow symlinks
+  follow_symlink = false
+
+  # Arguments to pass to the binary
+  # Start HTTP server on :8080 by default for dev
+  full_bin = "./tmp/main serve --http :8080"
+
+  # Watch these directories
+  include_dir = []
+
+  # Watch these file extensions
+  include_ext = ["go", "tpl", "tmpl", "html"]
+
+  # Watch these specific files
+  include_file = []
+
+  # Kill old binary delay (ms)
+  kill_delay = "0s"
+
+  # Enable build logging
+  log = "build-errors.log"
+
+  # Poll changes (slower but works on all systems)
+  poll = false
+
+  # Poll interval (ms, only used when poll=true)
+  poll_interval = 0
+
+  # Post-run commands
+  post_cmd = []
+
+  # Pre-run commands
+  pre_cmd = []
+
+  # Rerun on build errors
+  rerun = false
+
+  # Rerun delay (ms)
+  rerun_delay = 500
+
+  # Send interrupt signal first, then kill
+  send_interrupt = false
+
+  # Stop running old binary immediately
+  stop_on_error = false
+
+[color]
+  # Colorize the output
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  # Enable main log
+  main_only = false
+
+  # Show timestamp
+  time = false
+
+[misc]
+  # Clean tmp directory on exit
+  clean_on_exit = false
+
+[screen]
+  # Clear screen on rebuild
+  clear_on_rebuild = false
+
+  # Keep scroll position
+  keep_scroll = true

@@ -135,8 +135,13 @@ func DetectStorageTypeUp() (StorageType, string) {
 	}
 }
 
+// ErrV2Detected is returned when legacy V2 format is detected.
+// Users should migrate to V3 using 'tk migrate v3'.
+var ErrV2Detected = fmt.Errorf("legacy .tasuku.json format detected - run 'tk migrate v3' to upgrade")
+
 // AutoDetect returns the appropriate storage backend based on what exists.
-// It prefers .tasuku/ (V3) over .tasuku.json (V1/V2).
+// It only supports V3 (.tasuku/) format. If V2 (.tasuku.json) is detected,
+// it returns nil and users should migrate using 'tk migrate v3'.
 // If neither exists, returns a V3 directory store (the default for new projects).
 func AutoDetect() Storage {
 	storageType, dir := DetectStorageTypeUp()
@@ -145,27 +150,28 @@ func AutoDetect() Storage {
 	case StorageTypeDir:
 		return NewDirStore(filepath.Join(dir, DirName))
 	case StorageTypeFile:
-		return New(filepath.Join(dir, DefaultFileName))
+		// V2 detected - return nil to signal error
+		return nil
 	default:
 		// Default to V3 directory-based storage for new projects
 		return NewDirStore(DirName)
 	}
 }
 
-// AutoDetectWithWarning returns the storage backend and a warning message if
-// the V1/V2 format is detected and should be migrated.
-func AutoDetectWithWarning() (Storage, string) {
+// AutoDetectWithWarning returns the storage backend and an error if
+// the V1/V2 format is detected and must be migrated.
+func AutoDetectWithWarning() (Storage, error) {
 	storageType, dir := DetectStorageTypeUp()
 
 	switch storageType {
 	case StorageTypeDir:
-		return NewDirStore(filepath.Join(dir, DirName)), ""
+		return NewDirStore(filepath.Join(dir, DirName)), nil
 	case StorageTypeFile:
-		warning := fmt.Sprintf("Using legacy .tasuku.json format. Run 'tk migrate v3' to upgrade to directory-based storage for better merge conflict handling.")
-		return New(filepath.Join(dir, DefaultFileName)), warning
+		// V2 detected - return error requiring migration
+		return nil, fmt.Errorf("legacy .tasuku.json format detected at %s - run 'tk migrate v3' to upgrade", filepath.Join(dir, DefaultFileName))
 	default:
 		// Default to V3 directory-based storage for new projects
-		return NewDirStore(DirName), ""
+		return NewDirStore(DirName), nil
 	}
 }
 
@@ -175,8 +181,16 @@ func NeedsMigration() bool {
 	return storageType == StorageTypeFile
 }
 
-// migrationWarningShown tracks if we've already shown the migration warning.
-var migrationWarningShown bool
+// GetV2StoreForMigration returns the V2 file store for migration purposes.
+// Returns nil if no V2 storage is detected.
+// This is the ONLY function that should access V2 storage directly.
+func GetV2StoreForMigration() Storage {
+	storageType, dir := DetectStorageTypeUp()
+	if storageType == StorageTypeFile {
+		return New(filepath.Join(dir, DefaultFileName))
+	}
+	return nil
+}
 
 // DefaultStorage returns the auto-detected storage backend.
 // This is the recommended way to get a storage instance in CLI commands.
@@ -184,14 +198,14 @@ func DefaultStorage() Storage {
 	return AutoDetect()
 }
 
-// DefaultStorageWithWarning returns the auto-detected storage backend
-// and prints a migration warning to stderr if using legacy format.
-// The warning is only printed once per process.
+// DefaultStorageWithWarning returns the auto-detected storage backend.
+// If legacy V2 format is detected, prints an error and exits.
+// This is the recommended function for CLI commands.
 func DefaultStorageWithWarning() Storage {
-	storage, warning := AutoDetectWithWarning()
-	if warning != "" && !migrationWarningShown {
-		fmt.Fprintln(os.Stderr, "Warning:", warning)
-		migrationWarningShown = true
+	storage, err := AutoDetectWithWarning()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
 	}
 	return storage
 }

@@ -2719,11 +2719,11 @@ func runContextSchema(cmd *cobra.Command, args []string) error {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/iheanyi/tasuku/schema.json",
   "title": "Tasuku File",
-  "description": "Schema for .tasuku.json task management file",
+  "description": "Schema for Tasuku task management storage (V3 directory format)",
   "type": "object",
   "required": ["version", "tasks", "context"],
   "properties": {
-    "version": { "type": "integer", "const": 1 },
+    "version": { "type": "integer", "enum": [1, 2, 3] },
     "tasks": {
       "type": "object",
       "additionalProperties": {
@@ -2735,6 +2735,24 @@ func runContextSchema(cmd *cobra.Command, args []string) error {
           "priority": { "type": "integer", "minimum": 0, "maximum": 4 },
           "blocked_by": { "type": "array", "items": { "type": "string" } },
           "owner": { "type": ["string", "null"] },
+          "claimed_at": { "type": ["string", "null"], "format": "date-time" },
+          "parent_id": { "type": ["string", "null"] },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "fields": { "type": "object", "additionalProperties": { "type": "string" } },
+          "timer_start": { "type": ["string", "null"], "format": "date-time" },
+          "duration": { "type": "integer", "minimum": 0, "description": "Duration in nanoseconds" },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "text", "created_at"],
+              "properties": {
+                "id": { "type": "string" },
+                "text": { "type": "string" },
+                "created_at": { "type": "string", "format": "date-time" }
+              }
+            }
+          },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
         }
@@ -2742,25 +2760,46 @@ func runContextSchema(cmd *cobra.Command, args []string) error {
     },
     "context": {
       "type": "object",
-      "required": ["learnings", "decisions", "notes"],
+      "required": ["learnings", "decisions"],
       "properties": {
-        "learnings": { "type": "array", "items": { "type": "string" } },
+        "learnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "text", "created_at"],
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" },
+              "is_rule": { "type": "boolean" },
+              "created_at": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
         "decisions": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "chose", "over", "because"],
+            "required": ["id", "chose", "over", "because", "created_at"],
             "properties": {
               "id": { "type": "string" },
               "chose": { "type": "string" },
               "over": { "type": "array", "items": { "type": "string" } },
-              "because": { "type": "string" }
+              "because": { "type": "string" },
+              "created_at": { "type": "string", "format": "date-time" }
             }
           }
-        },
-        "notes": {
-          "type": "object",
-          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "archive": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["original_task", "archived_at"],
+        "properties": {
+          "original_task": { "$ref": "#/properties/tasks/additionalProperties" },
+          "summary": { "type": "string" },
+          "archived_at": { "type": "string", "format": "date-time" }
         }
       }
     }
@@ -3011,9 +3050,9 @@ Examples:
 }
 
 func migrateToV3(dryRun bool) error {
-	// Check for existing .tasuku.json
-	oldStore := store.DefaultStorageWithWarning()
-	if !oldStore.Exists() {
+	// Check for existing .tasuku.json (use migration-specific function)
+	oldStore := store.GetV2StoreForMigration()
+	if oldStore == nil {
 		return fmt.Errorf("no .tasuku.json found to migrate")
 	}
 
