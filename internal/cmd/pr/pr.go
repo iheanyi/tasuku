@@ -32,11 +32,11 @@ func hasGhCLI() bool {
 	return err == nil
 }
 
-// Cmd is the parent command for PR operations.
-var Cmd = &cobra.Command{
-	Use:   "pr",
-	Short: "GitHub Pull Request integration",
-	Long: `Integrate with GitHub Pull Requests using the gh CLI.
+func newPRCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "pr",
+		Short: "GitHub Pull Request integration",
+		Long: `Integrate with GitHub Pull Requests using the gh CLI.
 
 Requires the GitHub CLI (gh) to be installed and authenticated.
 If gh is not installed, commands will show installation instructions.
@@ -51,31 +51,22 @@ Examples:
   tk pr create --task auth-feature --done  # Create PR and mark task done
   tk pr list                            # List open PRs
   tk pr list --state all                # List all PRs`,
+	}
+
+	cmd.AddCommand(newCreateCmd())
+	cmd.AddCommand(newListCmd())
+
+	return cmd
 }
 
-// Flags for pr create
-var (
-	prTaskID   string
-	prMarkDone bool
-)
+// Cmd is the parent command for PR operations.
+var Cmd = newPRCmd()
 
-func init() {
-	Cmd.AddCommand(createCmd)
-	Cmd.AddCommand(listCmd)
-
-	// Add flags to pr create
-	createCmd.Flags().StringVar(&prTaskID, "task", "", "Task ID to link to the PR")
-	createCmd.Flags().BoolVar(&prMarkDone, "done", false, "Mark the task as done after creating PR")
-
-	// Allow unknown flags to pass through to gh
-	createCmd.Flags().SetInterspersed(false)
-	listCmd.Flags().SetInterspersed(false)
-}
-
-var createCmd = &cobra.Command{
-	Use:   "create",
-	Short: "Create a new pull request",
-	Long: `Create a new GitHub pull request, optionally linked to a task.
+func newCreateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a new pull request",
+		Long: `Create a new GitHub pull request, optionally linked to a task.
 
 When a task is specified with --task, the task description is included
 in the PR body. Use --done to automatically mark the task as complete
@@ -89,13 +80,21 @@ Examples:
   tk pr create --task auth-feature --done  # Mark task done after PR
   tk pr create --title "My PR" --body "Description"  # Pass flags to gh
   tk pr create --draft                  # Create draft PR`,
-	RunE: runCreate,
+		RunE: runCreate,
+	}
+
+	cmd.Flags().String("task", "", "Task ID to link to the PR")
+	cmd.Flags().Bool("done", false, "Mark the task as done after creating PR")
+	cmd.Flags().SetInterspersed(false)
+
+	return cmd
 }
 
-var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List pull requests",
-	Long: `List GitHub pull requests.
+func newListCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List pull requests",
+		Long: `List GitHub pull requests.
 
 All flags are passed through to 'gh pr list'.
 
@@ -105,7 +104,12 @@ Examples:
   tk pr list --state merged     # List merged PRs
   tk pr list --author @me       # List your PRs
   tk pr list --json number,title,state  # JSON output`,
-	RunE: runList,
+		RunE: runList,
+	}
+
+	cmd.Flags().SetInterspersed(false)
+
+	return cmd
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
@@ -114,28 +118,31 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	taskID, _ := cmd.Flags().GetString("task")
+	markDone, _ := cmd.Flags().GetBool("done")
+
 	// Build gh pr create command
 	ghArgs := []string{"pr", "create"}
 
 	// If a task is linked, add task info to PR body
 	var hasLinkedTask bool
 	var taskDescription string
-	if prTaskID != "" {
+	if taskID != "" {
 		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
 		if err != nil {
 			return fmt.Errorf("failed to read tasks: %w", err)
 		}
 
-		t, exists := f.Tasks[prTaskID]
+		t, exists := f.Tasks[taskID]
 		if !exists {
-			return fmt.Errorf("task not found: %s", prTaskID)
+			return fmt.Errorf("task not found: %s", taskID)
 		}
 		hasLinkedTask = true
 		taskDescription = t.Description
 
 		// Build task context for PR body
-		taskContext := buildTaskContext(prTaskID, t, f)
+		taskContext := buildTaskContext(taskID, t, f)
 
 		// Check if user already provided --body flag
 		hasBody := false
@@ -166,12 +173,12 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// If task was linked and --done flag was set, mark task as done
-	if hasLinkedTask && prMarkDone {
+	if hasLinkedTask && markDone {
 		s := store.DefaultStorageWithWarning()
-		if err := s.SetStatus(prTaskID, task.StatusDone); err != nil {
-			fmt.Printf("Warning: PR created but failed to mark task %s as done: %v\n", prTaskID, err)
+		if err := s.SetStatus(taskID, task.StatusDone); err != nil {
+			fmt.Printf("Warning: PR created but failed to mark task %s as done: %v\n", taskID, err)
 		} else {
-			fmt.Printf("Marked task %s as done\n", prTaskID)
+			fmt.Printf("Marked task %s as done\n", taskID)
 		}
 	} else if hasLinkedTask {
 		fmt.Printf("Linked to task: %s\n", taskDescription)

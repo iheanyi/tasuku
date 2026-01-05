@@ -13,11 +13,11 @@ import (
 	"github.com/iheanyi/tasuku/internal/store"
 )
 
-// Cmd is the parent command for all MCP operations
-var Cmd = &cobra.Command{
-	Use:   "mcp",
-	Short: "MCP server for AI tool integration",
-	Long: `Model Context Protocol (MCP) server for AI tool integration.
+func newMCPCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "mcp",
+		Short: "MCP server for AI tool integration",
+		Long: `Model Context Protocol (MCP) server for AI tool integration.
 
 Available subcommands:
   serve      Start the MCP server (stdio mode for AI tools)
@@ -33,16 +33,18 @@ Examples:
   tk mcp install    # Auto-configure in Claude Code/Cursor
   tk mcp serve      # Start MCP server (used by AI tools)
   tk mcp config     # Show config for manual setup`,
+	}
+
+	cmd.AddCommand(serveCmd)
+	cmd.AddCommand(newInstallCmd())
+	cmd.AddCommand(uninstallCmd)
+	cmd.AddCommand(configCmd)
+
+	return cmd
 }
 
-func init() {
-	Cmd.AddCommand(serveCmd)
-	Cmd.AddCommand(installCmd)
-	Cmd.AddCommand(uninstallCmd)
-	Cmd.AddCommand(configCmd)
-
-	installCmd.Flags().Bool("force", false, "Force reinstall even if already configured")
-}
+// Cmd is the parent command for all MCP operations
+var Cmd = newMCPCmd()
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -61,10 +63,11 @@ MCP Tools Exposed:
 	RunE: runServe,
 }
 
-var installCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Auto-configure MCP in AI tools",
-	Long: `Automatically configure the Tasuku MCP server in supported AI tools.
+func newInstallCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "install",
+		Short: "Auto-configure MCP in AI tools",
+		Long: `Automatically configure the Tasuku MCP server in supported AI tools.
 
 Supported tools:
   - Claude Code (~/.claude.json)
@@ -74,7 +77,12 @@ The configuration will be added to existing settings without
 overwriting other MCP servers or configurations.
 
 Use --force to reinstall even if already configured.`,
-	RunE: runInstall,
+		RunE: runInstall,
+	}
+
+	cmd.Flags().Bool("force", false, "Force reinstall even if already configured")
+
+	return cmd
 }
 
 var uninstallCmd = &cobra.Command{

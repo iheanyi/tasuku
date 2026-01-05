@@ -13,10 +13,11 @@ import (
 	"github.com/iheanyi/tasuku/internal/store"
 )
 
-var tagCmd = &cobra.Command{
-	Use:   "tag",
-	Short: "Manage task tags",
-	Long: `Manage tags on tasks for filtering and organization.
+func newTagCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "tag",
+		Short: "Manage task tags",
+		Long: `Manage tags on tasks for filtering and organization.
 
 Subcommands:
   add       Add a tag to a task
@@ -27,13 +28,16 @@ Examples:
   tk task tag add my-task backend       # Add 'backend' tag
   tk task tag remove my-task backend    # Remove 'backend' tag
   tk task tag list                      # List all tags in project`,
+	}
+
+	cmd.AddCommand(tagAddCmd)
+	cmd.AddCommand(tagRemoveCmd)
+	cmd.AddCommand(tagListCmd)
+
+	return cmd
 }
 
-func init() {
-	tagCmd.AddCommand(tagAddCmd)
-	tagCmd.AddCommand(tagRemoveCmd)
-	tagCmd.AddCommand(tagListCmd)
-}
+var tagCmd = newTagCmd()
 
 var tagAddCmd = &cobra.Command{
 	Use:   "add <task-id> <tag>",

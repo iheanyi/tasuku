@@ -12,10 +12,11 @@ import (
 	"github.com/iheanyi/tasuku/internal/store"
 )
 
-var fieldCmd = &cobra.Command{
-	Use:   "field",
-	Short: "Manage custom fields on tasks",
-	Long: `Manage custom key-value metadata fields on tasks.
+func newFieldCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "field",
+		Short: "Manage custom fields on tasks",
+		Long: `Manage custom key-value metadata fields on tasks.
 
 Custom fields allow you to attach arbitrary metadata to tasks
 for tracking additional information like estimates, URLs,
@@ -32,14 +33,17 @@ Examples:
   tk task field get my-task estimate
   tk task field list my-task
   tk task field remove my-task estimate`,
+	}
+
+	cmd.AddCommand(fieldSetCmd)
+	cmd.AddCommand(fieldGetCmd)
+	cmd.AddCommand(fieldListCmd)
+	cmd.AddCommand(fieldRemoveCmd)
+
+	return cmd
 }
 
-func init() {
-	fieldCmd.AddCommand(fieldSetCmd)
-	fieldCmd.AddCommand(fieldGetCmd)
-	fieldCmd.AddCommand(fieldListCmd)
-	fieldCmd.AddCommand(fieldRemoveCmd)
-}
+var fieldCmd = newFieldCmd()
 
 var fieldSetCmd = &cobra.Command{
 	Use:   "set <task-id> <key> <value>",

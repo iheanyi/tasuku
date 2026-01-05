@@ -11,12 +11,12 @@ import (
 	"github.com/iheanyi/tasuku/internal/store"
 )
 
-// Cmd is the parent command for all server operations
-var Cmd = &cobra.Command{
-	Use:     "server",
-	Aliases: []string{"srv"},
-	Short:   "Manage Tasuku server",
-	Long: `Manage the Tasuku server for AI tool integration or HTTP API access.
+func newServerCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "server",
+		Aliases: []string{"srv"},
+		Short:   "Manage Tasuku server",
+		Long: `Manage the Tasuku server for AI tool integration or HTTP API access.
 
 Subcommands:
   start     Start the MCP or HTTP server
@@ -24,19 +24,21 @@ Subcommands:
 Examples:
   tk server start              # Start MCP server (stdio mode)
   tk server start --http :3000 # Start HTTP server`,
+	}
+
+	cmd.AddCommand(newStartCmd())
+
+	return cmd
 }
 
-func init() {
-	Cmd.AddCommand(startCmd)
+// Cmd is the parent command for all server operations
+var Cmd = newServerCmd()
 
-	startCmd.Flags().Int("port", 0, "HTTP port (deprecated, use --http)")
-	startCmd.Flags().String("http", "", "HTTP address (e.g., :3000 or localhost:8080)")
-}
-
-var startCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Start the Tasuku server (MCP or HTTP)",
-	Long: `Start a server for AI tool integration or HTTP API access.
+func newStartCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start the Tasuku server (MCP or HTTP)",
+		Long: `Start a server for AI tool integration or HTTP API access.
 
 Server Modes:
 
@@ -71,7 +73,13 @@ Web Dashboard:
 See also:
   tk mcp install               # Auto-configure MCP in your AI tools
   tk mcp config                # Show MCP configuration JSON`,
-	RunE: runStart,
+		RunE: runStart,
+	}
+
+	cmd.Flags().Int("port", 0, "HTTP port (deprecated, use --http)")
+	cmd.Flags().String("http", "", "HTTP address (e.g., :3000 or localhost:8080)")
+
+	return cmd
 }
 
 func runStart(cmd *cobra.Command, args []string) error {

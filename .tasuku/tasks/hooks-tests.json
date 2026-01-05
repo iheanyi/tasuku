@@ -1,0 +1,11 @@
+{
+  "id": "hooks-tests",
+  "status": "blocked",
+  "description": "Add test coverage for hooks package",
+  "blocked_by": [
+    "test-harness"
+  ],
+  "owner": null,
+  "created_at": "2026-01-05T20:39:28.808821Z",
+  "updated_at": "2026-01-05T20:39:38.633901Z"
+}

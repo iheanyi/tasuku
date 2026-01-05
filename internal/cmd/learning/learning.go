@@ -16,29 +16,25 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
+func newLearningCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "learning",
+		Short:   "Manage learnings",
+		Long:    `Manage project learnings - insights and knowledge discovered during work.`,
+		Aliases: []string{"learnings"},
+	}
+
+	cmd.AddCommand(listCmd)
+	cmd.AddCommand(newAddCmd())
+	cmd.AddCommand(removeCmd)
+	cmd.AddCommand(newPromoteCmd())
+	cmd.AddCommand(rulesCmd)
+
+	return cmd
+}
+
 // Cmd is the parent command for all learning operations
-var Cmd = &cobra.Command{
-	Use:     "learning",
-	Short:   "Manage learnings",
-	Long:    `Manage project learnings - insights and knowledge discovered during work.`,
-	Aliases: []string{"learnings"},
-}
-
-func init() {
-	Cmd.AddCommand(listCmd)
-	Cmd.AddCommand(addCmd)
-	Cmd.AddCommand(removeCmd)
-	Cmd.AddCommand(promoteCmd)
-	Cmd.AddCommand(rulesCmd)
-
-	// Flags for add command
-	addCmd.Flags().Bool("permanent", false, "Also append learning to CLAUDE.md")
-	addCmd.Flags().Bool("rule", false, "Explicitly mark this learning as a rule")
-
-	// Flags for promote command
-	promoteCmd.Flags().String("to", "", "Target context file (auto-detected if not specified)")
-	promoteCmd.Flags().Bool("keep", false, "Keep the learning in Tasuku after promoting")
-}
+var Cmd = newLearningCmd()
 
 var listCmd = &cobra.Command{
 	Use:   "list",
@@ -51,10 +47,11 @@ Examples:
 	RunE: runList,
 }
 
-var addCmd = &cobra.Command{
-	Use:   "add \"insight\"",
-	Short: "Record an insight or knowledge discovered during work",
-	Long: `Record an insight, discovery, or piece of knowledge learned while working.
+func newAddCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "add \"insight\"",
+		Short: "Record an insight or knowledge discovered during work",
+		Long: `Record an insight, discovery, or piece of knowledge learned while working.
 Learnings are stored in the context section and help build project knowledge.
 
 Use --permanent to also append the learning to CLAUDE.md for persistent documentation.
@@ -63,8 +60,14 @@ Examples:
   tk learning add "Redis connection pooling significantly improves API latency"
   tk learning add "The auth middleware must run before rate limiting" --permanent
   tk learning add "Users expect the save button in the top-right corner"`,
-	Args: cobra.ExactArgs(1),
-	RunE: runAdd,
+		Args: cobra.ExactArgs(1),
+		RunE: runAdd,
+	}
+
+	cmd.Flags().Bool("permanent", false, "Also append learning to CLAUDE.md")
+	cmd.Flags().Bool("rule", false, "Explicitly mark this learning as a rule")
+
+	return cmd
 }
 
 var removeCmd = &cobra.Command{
@@ -83,10 +86,11 @@ Examples:
 	RunE: runRemove,
 }
 
-var promoteCmd = &cobra.Command{
-	Use:   "promote <id or text>",
-	Short: "Promote a learning to permanent documentation",
-	Long: `Move a learning from Tasuku to your AI context file.
+func newPromoteCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "promote <id or text>",
+		Short: "Promote a learning to permanent documentation",
+		Long: `Move a learning from Tasuku to your AI context file.
 
 Tasuku auto-detects which context file to use based on your project:
 - CLAUDE.md (Claude Code)
@@ -101,8 +105,14 @@ Examples:
   tk learning promote "redis"               # Promote learning containing "redis"
   tk learning promote a3x9k2 --to AGENTS.md # Promote to specific file
   tk learning promote a3x9k2 --keep         # Keep in learnings after promoting`,
-	Args: cobra.ExactArgs(1),
-	RunE: runPromote,
+		Args: cobra.ExactArgs(1),
+		RunE: runPromote,
+	}
+
+	cmd.Flags().String("to", "", "Target context file (auto-detected if not specified)")
+	cmd.Flags().Bool("keep", false, "Keep the learning in Tasuku after promoting")
+
+	return cmd
 }
 
 var rulesCmd = &cobra.Command{

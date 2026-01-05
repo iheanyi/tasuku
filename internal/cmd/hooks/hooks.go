@@ -14,11 +14,11 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// Cmd is the parent command for all hooks operations
-var Cmd = &cobra.Command{
-	Use:   "hooks",
-	Short: "Manage git hooks and AI integration hooks",
-	Long: `Manage hooks for git and AI tool integration with Tasuku.
+func newHooksCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "hooks",
+		Short: "Manage git hooks and AI integration hooks",
+		Long: `Manage hooks for git and AI tool integration with Tasuku.
 
 Git Hook Subcommands:
   install    Install pre-commit and post-commit hooks
@@ -36,15 +36,26 @@ The sync command applies the nudge rule: only project-level tasks are synced,
 session-level implementation steps stay in TodoWrite only.
 
 Run 'tk hooks <subcommand> --help' for more details.`,
+	}
+
+	cmd.AddCommand(installCmd)
+	cmd.AddCommand(uninstallCmd)
+	cmd.AddCommand(sessionCmd)
+	cmd.AddCommand(syncCmd)
+
+	return cmd
 }
 
-// DeprecatedHookCmd is the deprecated parent command for backward compatibility
-var DeprecatedHookCmd = &cobra.Command{
-	Use:        "hook",
-	Hidden:     true,
-	Deprecated: "use 'tk hooks session' or 'tk hooks sync' instead",
-	Short:      "Run Claude Code integration hooks",
-	Long: `Run internal hooks for Claude Code integration.
+// Cmd is the parent command for all hooks operations
+var Cmd = newHooksCmd()
+
+func newDeprecatedHookCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:        "hook",
+		Hidden:     true,
+		Deprecated: "use 'tk hooks session' or 'tk hooks sync' instead",
+		Short:      "Run Claude Code integration hooks",
+		Long: `Run internal hooks for Claude Code integration.
 
 Available subcommands:
   session    Display Tasuku context summary at session start
@@ -52,7 +63,16 @@ Available subcommands:
 
 These are typically called automatically by Claude Code integration,
 but can be run manually for debugging.`,
+	}
+
+	cmd.AddCommand(deprecatedSessionCmd)
+	cmd.AddCommand(deprecatedSyncCmd)
+
+	return cmd
 }
+
+// DeprecatedHookCmd is the deprecated parent command for backward compatibility
+var DeprecatedHookCmd = newDeprecatedHookCmd()
 
 var deprecatedSessionCmd = &cobra.Command{
 	Use:        "session",
@@ -88,16 +108,6 @@ Examples:
 	},
 }
 
-func init() {
-	Cmd.AddCommand(installCmd)
-	Cmd.AddCommand(uninstallCmd)
-	Cmd.AddCommand(sessionCmd)
-	Cmd.AddCommand(syncCmd)
-
-	// Deprecated hook command
-	DeprecatedHookCmd.AddCommand(deprecatedSessionCmd)
-	DeprecatedHookCmd.AddCommand(deprecatedSyncCmd)
-}
 
 var installCmd = &cobra.Command{
 	Use:   "install",

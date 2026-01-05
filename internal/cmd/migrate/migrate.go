@@ -15,31 +15,33 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// Cmd is the parent command for all migrate operations
-var Cmd = &cobra.Command{
-	Use:   "migrate",
-	Short: "Import tasks from another task management system",
-	Long: `Migrate tasks from another task management system into Tasuku.
+func newMigrateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Import tasks from another task management system",
+		Long: `Migrate tasks from another task management system into Tasuku.
 
 Available subcommands:
   beads    Import from Beads (.beads/issues.jsonl)
   v3       Migrate to V3 directory-based storage format
 
 Run 'tk migrate <subcommand> --help' for details on each source.`,
+	}
+
+	cmd.AddCommand(newBeadsCmd())
+	cmd.AddCommand(newV3Cmd())
+
+	return cmd
 }
 
-func init() {
-	Cmd.AddCommand(beadsCmd)
-	Cmd.AddCommand(v3Cmd)
+// Cmd is the parent command for all migrate operations
+var Cmd = newMigrateCmd()
 
-	beadsCmd.Flags().Bool("dry-run", false, "Preview migration without making changes")
-	v3Cmd.Flags().Bool("dry-run", false, "Preview migration without making changes")
-}
-
-var beadsCmd = &cobra.Command{
-	Use:   "beads",
-	Short: "Import tasks from Beads issue tracker",
-	Long: `Migrate tasks from a Beads (.beads/issues.jsonl) directory to Tasuku.
+func newBeadsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "beads",
+		Short: "Import tasks from Beads issue tracker",
+		Long: `Migrate tasks from a Beads (.beads/issues.jsonl) directory to Tasuku.
 
 This will:
   - Import all issues as tasks
@@ -53,16 +55,22 @@ Use --dry-run to preview what would be imported without making changes.
 Examples:
   tk migrate beads             # Import from Beads
   tk migrate beads --dry-run   # Preview migration without changes`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		return migrateFromBeads(dryRun)
-	},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			return migrateFromBeads(dryRun)
+		},
+	}
+
+	cmd.Flags().Bool("dry-run", false, "Preview migration without making changes")
+
+	return cmd
 }
 
-var v3Cmd = &cobra.Command{
-	Use:   "v3",
-	Short: "Migrate to V3 directory-based storage format",
-	Long: `Migrate from the single .tasuku.json file to the V3 directory-based format.
+func newV3Cmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "v3",
+		Short: "Migrate to V3 directory-based storage format",
+		Long: `Migrate from the single .tasuku.json file to the V3 directory-based format.
 
 The V3 format uses a .tasuku/ directory with one file per task:
   .tasuku/
@@ -86,10 +94,15 @@ Use --dry-run to preview what would be migrated without making changes.
 Examples:
   tk migrate v3            # Migrate to V3 format
   tk migrate v3 --dry-run  # Preview migration`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		return migrateToV3(dryRun)
-	},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dryRun, _ := cmd.Flags().GetBool("dry-run")
+			return migrateToV3(dryRun)
+		},
+	}
+
+	cmd.Flags().Bool("dry-run", false, "Preview migration without making changes")
+
+	return cmd
 }
 
 func migrateToV3(dryRun bool) error {

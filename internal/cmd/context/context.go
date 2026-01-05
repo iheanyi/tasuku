@@ -14,12 +14,12 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// Cmd is the parent command for all context operations
-var Cmd = &cobra.Command{
-	Use:     "context",
-	Aliases: []string{"ctx"},
-	Short:   "Manage project context (learnings, decisions, notes)",
-	Long: `Manage and inspect the project context in Tasuku.
+func newContextCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "context",
+		Aliases: []string{"ctx"},
+		Short:   "Manage project context (learnings, decisions, notes)",
+		Long: `Manage and inspect the project context in Tasuku.
 
 Subcommands:
   show      Dump the complete project context for agent consumption
@@ -30,13 +30,17 @@ Examples:
   tk context show              # Output full context as JSON
   tk context validate          # Validate Tasuku storage
   tk context schema            # Show JSON schema`,
+	}
+
+	cmd.AddCommand(showCmd)
+	cmd.AddCommand(validateCmd)
+	cmd.AddCommand(schemaCmd)
+
+	return cmd
 }
 
-func init() {
-	Cmd.AddCommand(showCmd)
-	Cmd.AddCommand(validateCmd)
-	Cmd.AddCommand(schemaCmd)
-}
+// Cmd is the parent command for all context operations
+var Cmd = newContextCmd()
 
 var showCmd = &cobra.Command{
 	Use:   "show",

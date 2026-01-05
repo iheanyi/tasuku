@@ -1,0 +1,9 @@
+{
+  "id": "task-split-coordination",
+  "status": "done",
+  "description": "Split coordination.go into claim.go, release.go, who.go",
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-05T20:39:28.851293Z",
+  "updated_at": "2026-01-05T20:44:27.808825Z"
+}

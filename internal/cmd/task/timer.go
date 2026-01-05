@@ -14,10 +14,11 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-var timerCmd = &cobra.Command{
-	Use:   "timer",
-	Short: "Track time spent on tasks",
-	Long: `Track time spent on tasks with start/stop timers.
+func newTimerCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "timer",
+		Short: "Track time spent on tasks",
+		Long: `Track time spent on tasks with start/stop timers.
 
 Time tracking allows you to measure how long you spend on each task.
 Duration is cumulative across multiple start/stop cycles.
@@ -32,13 +33,16 @@ Examples:
   tk task timer stop my-task      # Stop timer, record duration
   tk task timer status            # Show all active timers
   tk task timer status my-task    # Show timer for specific task`,
+	}
+
+	cmd.AddCommand(timerStartCmd)
+	cmd.AddCommand(timerStopCmd)
+	cmd.AddCommand(timerStatusCmd)
+
+	return cmd
 }
 
-func init() {
-	timerCmd.AddCommand(timerStartCmd)
-	timerCmd.AddCommand(timerStopCmd)
-	timerCmd.AddCommand(timerStatusCmd)
-}
+var timerCmd = newTimerCmd()
 
 var timerStartCmd = &cobra.Command{
 	Use:   "start <task-id>",

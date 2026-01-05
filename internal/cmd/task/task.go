@@ -19,12 +19,12 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// Cmd is the parent command for all task operations
-var Cmd = &cobra.Command{
-	Use:     "task",
-	Aliases: []string{"tasks", "t"},
-	Short:   "Manage tasks",
-	Long: `Manage tasks in your Tasuku project.
+func newTaskCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "task",
+		Aliases: []string{"tasks", "t"},
+		Short:   "Manage tasks",
+		Long: `Manage tasks in your Tasuku project.
 
 Subcommands:
   list      List all tasks
@@ -56,34 +56,38 @@ Examples:
   tk task list --tag backend   # Filter by tag
   tk t ls                      # Short alias for list
   tk tasks ready               # Show ready tasks`,
+	}
+
+	// Register all task subcommands
+	cmd.AddCommand(listCmd)
+	cmd.AddCommand(addCmd)
+	cmd.AddCommand(showCmd)
+	cmd.AddCommand(startCmd)
+	cmd.AddCommand(doneCmd)
+	cmd.AddCommand(blockCmd)
+	cmd.AddCommand(unblockCmd)
+	cmd.AddCommand(deleteCmd)
+	cmd.AddCommand(editCmd)
+	cmd.AddCommand(pauseCmd)
+	cmd.AddCommand(ownerCmd)
+	cmd.AddCommand(readyCmd)
+	cmd.AddCommand(findCmd)
+	cmd.AddCommand(priorityCmd)
+	cmd.AddCommand(claimCmd)
+	cmd.AddCommand(releaseCmd)
+	cmd.AddCommand(whoCmd)
+	cmd.AddCommand(tagCmd)
+	cmd.AddCommand(fieldCmd)
+	cmd.AddCommand(timerCmd)
+	cmd.AddCommand(statsCmd)
+	cmd.AddCommand(depsCmd)
+	cmd.AddCommand(archiveCmd)
+
+	return cmd
 }
 
-func init() {
-	// Register all task subcommands
-	Cmd.AddCommand(listCmd)
-	Cmd.AddCommand(addCmd)
-	Cmd.AddCommand(showCmd)
-	Cmd.AddCommand(startCmd)
-	Cmd.AddCommand(doneCmd)
-	Cmd.AddCommand(blockCmd)
-	Cmd.AddCommand(unblockCmd)
-	Cmd.AddCommand(deleteCmd)
-	Cmd.AddCommand(editCmd)
-	Cmd.AddCommand(pauseCmd)
-	Cmd.AddCommand(ownerCmd)
-	Cmd.AddCommand(readyCmd)
-	Cmd.AddCommand(findCmd)
-	Cmd.AddCommand(priorityCmd)
-	Cmd.AddCommand(claimCmd)
-	Cmd.AddCommand(releaseCmd)
-	Cmd.AddCommand(whoCmd)
-	Cmd.AddCommand(tagCmd)
-	Cmd.AddCommand(fieldCmd)
-	Cmd.AddCommand(timerCmd)
-	Cmd.AddCommand(statsCmd)
-	Cmd.AddCommand(depsCmd)
-	Cmd.AddCommand(archiveCmd)
-}
+// Cmd is the parent command for all task operations
+var Cmd = newTaskCmd()
 
 // taskEntry holds a task with its ID for sorting/display
 type taskEntry struct {

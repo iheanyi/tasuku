@@ -14,19 +14,23 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// Cmd is the parent command for all note operations
-var Cmd = &cobra.Command{
-	Use:     "note",
-	Short:   "Manage notes",
-	Long:    `Manage notes attached to tasks.`,
-	Aliases: []string{"notes"},
+func newNoteCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "note",
+		Short:   "Manage notes",
+		Long:    `Manage notes attached to tasks.`,
+		Aliases: []string{"notes"},
+	}
+
+	cmd.AddCommand(listCmd)
+	cmd.AddCommand(addCmd)
+	cmd.AddCommand(removeCmd)
+
+	return cmd
 }
 
-func init() {
-	Cmd.AddCommand(listCmd)
-	Cmd.AddCommand(addCmd)
-	Cmd.AddCommand(removeCmd)
-}
+// Cmd is the parent command for all note operations
+var Cmd = newNoteCmd()
 
 var listCmd = &cobra.Command{
 	Use:   "list [task-id]",

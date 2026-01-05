@@ -28,11 +28,11 @@ import (
 
 const Version = "0.3.0"
 
-// RootCmd is the base command for tk
-var RootCmd = &cobra.Command{
-	Use:   "tk",
-	Short: "Tasuku - agent-first task management",
-	Long: `tk is an agent-first task management system designed for AI agents
+func newRootCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "tk",
+		Short: "Tasuku - agent-first task management",
+		Long: `tk is an agent-first task management system designed for AI agents
 working on codebases.
 
 Design Principles:
@@ -53,34 +53,38 @@ AI Tool Integration:
   tk mcp serve             # Start MCP server (for AI tools)
 
 For full documentation: https://github.com/iheanyi/tasuku`,
-	Version: Version,
-}
+		Version: Version,
+	}
 
-func init() {
 	// Global flags
-	RootCmd.PersistentFlags().StringVarP(&config.OutputFormat, "format", "f", "table", "Output format: table, json, yaml")
+	cmd.PersistentFlags().StringVarP(&config.OutputFormat, "format", "f", "table", "Output format: table, json, yaml")
 
 	// Register all subcommands
-	RootCmd.AddCommand(task.Cmd)
-	RootCmd.AddCommand(learning.Cmd)
-	RootCmd.AddCommand(decision.Cmd)
-	RootCmd.AddCommand(note.Cmd)
-	RootCmd.AddCommand(contextcmd.Cmd)
-	RootCmd.AddCommand(server.Cmd)
-	RootCmd.AddCommand(mcpcmd.Cmd)
-	RootCmd.AddCommand(hooks.Cmd)
-	RootCmd.AddCommand(migrate.Cmd)
-	RootCmd.AddCommand(pr.Cmd)
-	RootCmd.AddCommand(ui.Cmd)
+	cmd.AddCommand(task.Cmd)
+	cmd.AddCommand(learning.Cmd)
+	cmd.AddCommand(decision.Cmd)
+	cmd.AddCommand(note.Cmd)
+	cmd.AddCommand(contextcmd.Cmd)
+	cmd.AddCommand(server.Cmd)
+	cmd.AddCommand(mcpcmd.Cmd)
+	cmd.AddCommand(hooks.Cmd)
+	cmd.AddCommand(migrate.Cmd)
+	cmd.AddCommand(pr.Cmd)
+	cmd.AddCommand(ui.Cmd)
 
 	// Root-level commands
-	RootCmd.AddCommand(initCmd)
-	RootCmd.AddCommand(doctorCmd)
+	cmd.AddCommand(initCmd)
+	cmd.AddCommand(doctorCmd)
 
 	// Deprecated commands for backward compatibility
-	RootCmd.AddCommand(validateCmd)
-	RootCmd.AddCommand(hooks.DeprecatedHookCmd)
+	cmd.AddCommand(validateCmd)
+	cmd.AddCommand(hooks.DeprecatedHookCmd)
+
+	return cmd
 }
+
+// RootCmd is the base command for tk
+var RootCmd = newRootCmd()
 
 var initCmd = &cobra.Command{
 	Use:   "init",

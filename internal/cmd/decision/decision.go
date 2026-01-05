@@ -16,28 +16,23 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
+func newDecisionCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "decision",
+		Short:   "Manage decisions",
+		Long:    `Manage architectural and design decisions recorded during development.`,
+		Aliases: []string{"decisions"},
+	}
+
+	cmd.AddCommand(listCmd)
+	cmd.AddCommand(newDecisionAddCmd())
+	cmd.AddCommand(removeCmd)
+
+	return cmd
+}
+
 // Cmd is the parent command for all decision operations
-var Cmd = &cobra.Command{
-	Use:     "decision",
-	Short:   "Manage decisions",
-	Long:    `Manage architectural and design decisions recorded during development.`,
-	Aliases: []string{"decisions"},
-}
-
-func init() {
-	Cmd.AddCommand(listCmd)
-	Cmd.AddCommand(addCmd)
-	Cmd.AddCommand(removeCmd)
-
-	// Flags for add command
-	addCmd.Flags().String("id", "", "Decision ID")
-	addCmd.Flags().String("chose", "", "The option chosen")
-	addCmd.Flags().StringSlice("over", nil, "Alternatives considered (repeatable or comma-separated)")
-	addCmd.Flags().String("because", "", "Reasoning")
-	addCmd.MarkFlagRequired("id")
-	addCmd.MarkFlagRequired("chose")
-	addCmd.MarkFlagRequired("because")
-}
+var Cmd = newDecisionCmd()
 
 var listCmd = &cobra.Command{
 	Use:   "list",
@@ -50,10 +45,11 @@ Examples:
 	RunE: runList,
 }
 
-var addCmd = &cobra.Command{
-	Use:   "add --id <id> --chose <option> --over <alternatives> --because <reason>",
-	Short: "Record an architectural or design decision",
-	Long: `Document a decision made during development for future reference.
+func newDecisionAddCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "add --id <id> --chose <option> --over <alternatives> --because <reason>",
+		Short: "Record an architectural or design decision",
+		Long: `Document a decision made during development for future reference.
 
 Decisions capture:
   - What was chosen
@@ -75,7 +71,18 @@ Examples:
   tk decision add --id db-choice --chose PostgreSQL --over MySQL --over SQLite --because "Better JSON support"
   tk decision add --id auth-method --chose JWT --over sessions,OAuth --because "Stateless and scalable"
   tk decision add --id framework --chose Cobra --because "Standard Go CLI library"`,
-	RunE: runAdd,
+		RunE: runAdd,
+	}
+
+	cmd.Flags().String("id", "", "Decision ID")
+	cmd.Flags().String("chose", "", "The option chosen")
+	cmd.Flags().StringSlice("over", nil, "Alternatives considered (repeatable or comma-separated)")
+	cmd.Flags().String("because", "", "Reasoning")
+	cmd.MarkFlagRequired("id")
+	cmd.MarkFlagRequired("chose")
+	cmd.MarkFlagRequired("because")
+
+	return cmd
 }
 
 var removeCmd = &cobra.Command{

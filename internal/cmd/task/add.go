@@ -10,10 +10,11 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-var addCmd = &cobra.Command{
-	Use:   "add <description>",
-	Short: "Add a new task",
-	Long: `Create a new task with the given description.
+func newAddCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "add <description>",
+		Short: "Add a new task",
+		Long: `Create a new task with the given description.
 
 A unique task ID is auto-generated from the description (e.g., "Fix login bug"
 becomes "fix-login-bug"). You can override this with --id.
@@ -40,74 +41,77 @@ Examples:
   tk task add "Update documentation" --priority low
   tk task add "Add login page" --tag frontend --tag auth  # Multiple tags
   tk task add "Write unit tests" --parent feature-x       # Create subtask`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		description := args[0]
-		id, _ := cmd.Flags().GetString("id")
-		priority, _ := cmd.Flags().GetInt("priority")
-		tags, _ := cmd.Flags().GetStringSlice("tag")
-		parentID, _ := cmd.Flags().GetString("parent")
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			description := args[0]
+			id, _ := cmd.Flags().GetString("id")
+			priority, _ := cmd.Flags().GetInt("priority")
+			tags, _ := cmd.Flags().GetStringSlice("tag")
+			parentID, _ := cmd.Flags().GetString("parent")
 
-		s := store.DefaultStorageWithWarning()
+			s := store.DefaultStorageWithWarning()
 
-		// Generate ID if not provided, checking for collisions
-		if id == "" {
-			existingIDs := make(map[string]struct{})
-			if f, err := s.Read(); err == nil {
-				for taskID := range f.Tasks {
-					existingIDs[taskID] = struct{}{}
+			// Generate ID if not provided, checking for collisions
+			if id == "" {
+				existingIDs := make(map[string]struct{})
+				if f, err := s.Read(); err == nil {
+					for taskID := range f.Tasks {
+						existingIDs[taskID] = struct{}{}
+					}
+				}
+				id = task.GenerateTaskID(description, existingIDs)
+			}
+
+			var priorityPtr *int
+			if priority >= 0 && priority <= 4 {
+				priorityPtr = &priority
+			}
+
+			// Trim whitespace from tags
+			for i := range tags {
+				tags[i] = strings.TrimSpace(tags[i])
+			}
+
+			// Create task - either as subtask or regular task
+			if parentID != "" {
+				if err := s.AddSubtask(id, description, parentID); err != nil {
+					return err
+				}
+				if priorityPtr != nil {
+					s.SetPriority(id, *priorityPtr)
+				}
+				for _, tag := range tags {
+					s.AddTag(id, tag)
+				}
+			} else {
+				if err := s.AddTaskWithTags(id, description, priorityPtr, tags); err != nil {
+					return err
 				}
 			}
-			id = task.GenerateTaskID(description, existingIDs)
-		}
 
-		var priorityPtr *int
-		if priority >= 0 && priority <= 4 {
-			priorityPtr = &priority
-		}
-
-		// Trim whitespace from tags
-		for i := range tags {
-			tags[i] = strings.TrimSpace(tags[i])
-		}
-
-		// Create task - either as subtask or regular task
-		if parentID != "" {
-			if err := s.AddSubtask(id, description, parentID); err != nil {
-				return err
-			}
+			priorityStr := ""
 			if priorityPtr != nil {
-				s.SetPriority(id, *priorityPtr)
+				priorityStr = fmt.Sprintf(" (priority: %s)", task.PriorityName(*priorityPtr))
 			}
-			for _, tag := range tags {
-				s.AddTag(id, tag)
+			tagDisplay := ""
+			if len(tags) > 0 {
+				tagDisplay = fmt.Sprintf(" [%s]", strings.Join(tags, ", "))
 			}
-		} else {
-			if err := s.AddTaskWithTags(id, description, priorityPtr, tags); err != nil {
-				return err
+			parentStr := ""
+			if parentID != "" {
+				parentStr = fmt.Sprintf(" (subtask of: %s)", parentID)
 			}
-		}
+			fmt.Printf("Created task: %s%s%s%s\n", id, priorityStr, tagDisplay, parentStr)
+			return nil
+		},
+	}
 
-		priorityStr := ""
-		if priorityPtr != nil {
-			priorityStr = fmt.Sprintf(" (priority: %s)", task.PriorityName(*priorityPtr))
-		}
-		tagDisplay := ""
-		if len(tags) > 0 {
-			tagDisplay = fmt.Sprintf(" [%s]", strings.Join(tags, ", "))
-		}
-		parentStr := ""
-		if parentID != "" {
-			parentStr = fmt.Sprintf(" (subtask of: %s)", parentID)
-		}
-		fmt.Printf("Created task: %s%s%s%s\n", id, priorityStr, tagDisplay, parentStr)
-		return nil
-	},
+	cmd.Flags().String("id", "", "Task ID (auto-generated if not provided)")
+	cmd.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
+	cmd.Flags().StringSliceP("tag", "t", nil, "Tags (repeatable or comma-separated)")
+	cmd.Flags().String("parent", "", "Parent task ID to create a subtask")
+
+	return cmd
 }
 
-func init() {
-	addCmd.Flags().String("id", "", "Task ID (auto-generated if not provided)")
-	addCmd.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
-	addCmd.Flags().StringSliceP("tag", "t", nil, "Tags (repeatable or comma-separated)")
-	addCmd.Flags().String("parent", "", "Parent task ID to create a subtask")
-}
+var addCmd = newAddCmd()
