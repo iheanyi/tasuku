@@ -153,18 +153,57 @@ go tool cover -html=coverage.out
 
 ## MCP Server
 
-The MCP server exposes these tools:
+### CLI/MCP Parity Principle
 
-| Tool | Description |
-|------|-------------|
-| `tk_list` | List all tasks with optional status filter |
-| `tk_add` | Create a new task |
-| `tk_start` | Mark task as in_progress |
-| `tk_done` | Mark task as complete |
-| `tk_block` | Mark task as blocked |
-| `tk_learn` | Add a learning to context |
-| `tk_decide` | Record a decision |
-| `tk_context` | Get full context for agent consumption |
+**Every CLI command must have a corresponding MCP tool.** This is critical for agent-first design:
+
+- Agents interact via MCP tools, humans via CLI
+- Same capabilities, same behavior, different interfaces
+- When adding a new CLI command, always add the MCP tool
+- When adding a new MCP tool, consider if CLI equivalent is needed
+
+This ensures agents can do everything humans can do, which is the whole point of Tasuku.
+
+### MCP Tools Reference
+
+| Tool | CLI Equivalent | Description |
+|------|----------------|-------------|
+| **Core Task Operations** |||
+| `tk_list` | `tk task list` | List tasks with optional status filter |
+| `tk_add` | `tk task add` | Create a new task |
+| `tk_show` | `tk task show` | Get detailed task info (notes, priority, timestamps) |
+| `tk_start` | `tk task start` | Mark task as in_progress |
+| `tk_done` | `tk task done` | Mark task as complete |
+| `tk_pause` | `tk task pause` | Revert in_progress → ready, clear owner |
+| `tk_edit` | `tk task edit` | Update task description |
+| `tk_delete` | `tk task delete` | Permanently delete a task |
+| `tk_priority` | `tk task priority` | Set priority (critical/high/normal/low/backlog) |
+| **Blocking & Dependencies** |||
+| `tk_block` | `tk task block` | Mark task as blocked by others |
+| `tk_unblock` | `tk task unblock` | Remove blockers (all or specific) |
+| **Ownership & Coordination** |||
+| `tk_owner` | `tk task owner` | Set or clear task owner |
+| `tk_claim` | `tk task claim` | Claim task for exclusive agent work |
+| `tk_release` | `tk task release` | Release claimed task |
+| **Context & Search** |||
+| `tk_context` | `tk context show` | Get full context for agent consumption |
+| `tk_find` | `tk task find` | Search across tasks, notes, learnings, decisions |
+| `tk_learn` | `tk learn` | Add a learning to context |
+| `tk_decide` | `tk decide` | Record an architectural decision |
+| `tk_note` | `tk note` | Add a note to a task |
+| **Tags & Custom Fields** |||
+| `tk_tag_add` | `tk task tag add` | Add tag to a task |
+| `tk_tag_remove` | `tk task tag remove` | Remove tag from a task |
+| `tk_field_set` | `tk task field set` | Set custom field on task |
+| `tk_field_remove` | `tk task field remove` | Remove custom field |
+| **Time Tracking** |||
+| `tk_timer_start` | `tk task timer start` | Start timer on task |
+| `tk_timer_stop` | `tk task timer stop` | Stop timer, record elapsed time |
+| `tk_timer_status` | `tk task timer status` | Get status of running timers |
+| **Archiving** |||
+| `tk_archive` | `tk task archive add` | Archive a done task |
+| `tk_archive_restore` | `tk task archive restore` | Restore archived task |
+| `tk_archive_list` | `tk task archive list` | List archived tasks |
 
 ### Running the server
 
