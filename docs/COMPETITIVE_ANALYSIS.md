@@ -66,16 +66,18 @@ Three agent-first task management tools have emerged for AI coding assistants:
 | **File locking** | Yes (flock) | Via daemon | No |
 | **Git sync** | Manual | Automatic | Manual |
 | **MCP server** | Built-in | Plugin | No |
-| **Claude Code hooks** | No | No | Built-in |
+| **Claude Code hooks** | Yes (V2.0) | No | Built-in |
 | **Dependencies** | None | SQLite runtime | None |
 | **Human-readable data** | JSON | JSONL | SQLite |
 | **Parallel agent safety** | Yes | Via daemon | Not addressed |
 | **Decision tracking** | Yes | No | No |
 | **Learning capture** | Yes | No | No |
 | **Task notes** | Yes | Via comments | Via description |
-| **Priority levels** | No | Yes (0-4) | Yes (0-4) |
+| **Priority levels** | Yes (0-4) | Yes (0-4) | Yes (0-4) |
+| **Time tracking** | Yes (V2.0) | No | No |
+| **Custom fields** | Yes (V2.0) | No | No |
 | **Epic hierarchy** | Via blocking | Native | Via parent |
-| **Ready queue** | Via list filter | `bd ready` | `dot ready` |
+| **Ready queue** | `tk task ready` | `bd ready` | `dot ready` |
 
 ---
 
@@ -93,11 +95,11 @@ Three agent-first task management tools have emerged for AI coding assistants:
 7. **Beads migration** - `tk migrate` converts existing beads projects
 
 **Weaknesses:**
-1. **No priority system** - Tasks have no priority levels (ready/in_progress/blocked/done only)
-2. **No TodoWrite sync** - Doesn't integrate with Claude's built-in TodoWrite
-3. **No hook integration** - No automatic session startup context
+1. ~~**No priority system**~~ ✅ Fixed - Now has 0-4 priority levels
+2. ~~**No TodoWrite sync**~~ ✅ Fixed - `tk hooks sync` integrates with TodoWrite
+3. ~~**No hook integration**~~ ✅ Fixed - `tk hooks session` for startup context
 4. **JSON scaling** - Large projects may see slower reads (though rare in practice)
-5. **No search** - No built-in search command (use grep/jq)
+5. ~~**No search**~~ ✅ Fixed - `tk task find` searches all content
 6. **New project** - Less battle-tested than beads
 
 ### Beads
@@ -256,20 +258,23 @@ Unlike beads (comprehensive but complex) or dots (minimal but sparse), Tasuku oc
 
 ## Recommendations
 
-### Immediate (v1.1)
-1. Add priority levels (0-4)
-2. Add `tk ready` command
-3. Add `--json` flag to commands
+### Immediate (v1.1) - ✅ ALL COMPLETE
+1. ✅ Add priority levels (0-4) - `tk task priority`
+2. ✅ Add `tk ready` command - `tk task ready`
+3. ✅ Add `--json` flag to commands - `-f json` on all commands
 
-### Short-term (v1.2)
-4. TodoWrite hook integration
-5. Session startup hook
-6. Search command
+### Short-term (v1.2) - ✅ ALL COMPLETE
+4. ✅ TodoWrite hook integration - `tk hooks sync`
+5. ✅ Session startup hook - `tk hooks session`
+6. ✅ Search command - `tk task find`
 
-### Medium-term (v2.0)
-7. Tree visualization
-8. Web viewer
-9. Archive/compact
+### Medium-term (v2.0) - MOSTLY COMPLETE
+7. ✅ Tree visualization - `tk task deps`
+8. ❌ Web viewer - Not yet implemented
+9. ❌ Archive/compact - Not yet implemented
+10. ✅ Time tracking - `tk task timer` (V2.0)
+11. ✅ Custom fields - `tk task field` (V2.0)
+12. ✅ GitHub PR integration - `tk pr` (V2.0)
 
 This positions Tasuku as the "thoughtful middle ground" - more capable than dots, simpler than beads, with unique context-capture features neither competitor offers.
 
@@ -378,19 +383,19 @@ Or document how to use `tk context | aider --message-file -`
 
 ### Recommended Integration Roadmap
 
-#### Phase 1: Universal CLI (v1.1)
-- [ ] Add `--json` flag to all commands
-- [ ] Add `--quiet` flag (exit codes only)
-- [ ] Publish JSON Schema for `.tasuku.json`
-- [ ] Add `tk schema` command to output schema
+#### Phase 1: Universal CLI (v1.1) - ✅ COMPLETE
+- [x] Add `--json` flag to all commands - `-f json`
+- [x] Add `--quiet` flag (exit codes only) - `-q` flag
+- [x] Publish JSON Schema for `.tasuku.json` - `tk server schema`
+- [x] Add `tk schema` command to output schema - `tk server schema`
 
-#### Phase 2: HTTP API (v1.2)
-- [ ] Add `tk serve --http :3000`
-- [ ] OpenAPI 3.0 specification
-- [ ] Swagger UI at `/docs`
-- [ ] CORS headers for web clients
+#### Phase 2: HTTP API (v1.2) - ✅ COMPLETE
+- [x] Add `tk serve --http :3000` - `tk server http`
+- [x] OpenAPI 3.0 specification - `/schema` endpoint
+- [ ] Swagger UI at `/docs` - Not yet
+- [x] CORS headers for web clients - Implemented
 
-#### Phase 3: Agent-Specific Adapters (v2.0)
+#### Phase 3: Agent-Specific Adapters (v2.0) - PARTIAL
 - [ ] OpenAI function calling spec
 - [ ] Aider integration guide
 - [ ] VS Code extension (for Copilot context)
@@ -428,14 +433,14 @@ Or document how to use `tk context | aider --message-file -`
 | Feature | Tasuku | Beads | Dots |
 |---------|--------|-------|------|
 | **MCP Server** | Built-in | Plugin | No |
-| **HTTP API** | Planned | No | No |
-| **JSON CLI Output** | Planned | Yes | Yes |
-| **OpenAPI Spec** | Planned | No | No |
-| **JSON Schema** | Planned | No | No |
+| **HTTP API** | ✅ Built-in | No | No |
+| **JSON CLI Output** | ✅ Built-in | Yes | Yes |
+| **OpenAPI Spec** | ✅ `/schema` | No | No |
+| **JSON Schema** | ✅ `tk server schema` | No | No |
 | **LSP Server** | Planned | No | No |
 | **Agent-agnostic** | Yes | Claude-focused | Claude-focused |
 
-**Key Insight:** Neither Beads nor Dots explicitly targets multi-agent environments. Tasuku can differentiate by being the first truly agent-agnostic task manager.
+**Key Insight:** Tasuku is now the most feature-complete agent-agnostic task manager with MCP, HTTP API, and JSON Schema support.
 
 ---
 
