@@ -1,0 +1,15 @@
+{
+  "name": "tasuku",
+  "version": "2.0.0",
+  "description": "Agent-first task management system with MCP integration for AI coding assistants",
+  "author": {
+    "name": "Iheanyi Ekechukwu",
+    "url": "https://github.com/iheanyi"
+  },
+  "homepage": "https://github.com/iheanyi/tasuku",
+  "repository": "https://github.com/iheanyi/tasuku",
+  "license": "MIT",
+  "keywords": ["task-management", "agents", "mcp", "productivity", "workflow"],
+  "mcpServers": "../.mcp.json",
+  "skills": "../skills/"
+}

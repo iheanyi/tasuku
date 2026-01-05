@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "tasuku": {
+      "command": "tk",
+      "args": ["mcp", "serve"],
+      "env": {}
+    }
+  }
+}
