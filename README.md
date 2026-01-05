@@ -73,15 +73,57 @@ tk task list --format json    # Output as JSON
 | `tk task add "desc" --parent parent-id` | Add as subtask |
 | `tk task add "desc" --priority high` | Add with priority (critical/high/normal/low/backlog) |
 | `tk task show <id>` | Show task details |
+| `tk task edit <id> "new description"` | Update task description |
 | `tk task start <id>` | Mark task as in progress |
+| `tk task pause <id>` | Pause work (revert to ready) |
 | `tk task done <id>` | Mark task as complete |
 | `tk task block <id> --by <other>` | Mark task as blocked |
 | `tk task unblock <id>` | Remove all blockers from task |
 | `tk task delete <id>` | Delete a task |
 | `tk task find <query>` | Search tasks, learnings, and decisions |
 | `tk task priority <id> <level>` | Set task priority |
-| `tk ready` | List tasks ready to work on (sorted by priority) |
+| `tk task ready` | List tasks ready to work on (sorted by priority) |
+| `tk task deps <id>` | Show task dependency tree |
+| `tk task stats` | Show task statistics and progress |
 | `tk validate` | Check task files for errors |
+| `tk doctor` | Diagnose Tasuku setup and MCP configuration |
+| `tk ui` | Launch the terminal user interface |
+
+### Agent Coordination
+
+| Command | Description |
+|---------|-------------|
+| `tk task owner <id> <name>` | Assign task to an owner |
+| `tk task owner <id> --clear` | Remove owner from task |
+| `tk task claim <id> <agent>` | Claim task for exclusive agent work |
+| `tk task release <id>` | Release a claimed task |
+| `tk task who` | Show tasks claimed by each owner |
+
+### Tags & Custom Fields
+
+| Command | Description |
+|---------|-------------|
+| `tk task tag add <id> <tag>` | Add a tag to a task |
+| `tk task tag remove <id> <tag>` | Remove a tag from a task |
+| `tk task list --tag <tag>` | Filter tasks by tag |
+| `tk task field set <id> <key> <value>` | Set a custom field |
+| `tk task field remove <id> <key>` | Remove a custom field |
+
+### Time Tracking
+
+| Command | Description |
+|---------|-------------|
+| `tk task timer start <id>` | Start timer on a task |
+| `tk task timer stop <id>` | Stop timer and record time |
+| `tk task timer status` | Show all running timers |
+
+### Archiving
+
+| Command | Description |
+|---------|-------------|
+| `tk task archive add <id>` | Archive a completed task |
+| `tk task archive list` | List archived tasks |
+| `tk task archive restore <id>` | Restore an archived task |
 
 ### Context & Knowledge
 
@@ -299,15 +341,30 @@ This adds Tasuku to your Claude Code settings. Restart Claude Code to activate.
 
 Once installed, Claude has access to these tools:
 
-- `tk_list` - List tasks with optional status filter
-- `tk_add` - Create new tasks
-- `tk_start` - Begin working on a task
-- `tk_done` - Complete a task
-- `tk_block` - Mark task as blocked
-- `tk_learn` - Record learnings
-- `tk_decide` - Record decisions
-- `tk_note` - Add notes to tasks
+**Task Operations:**
+- `tk_list`, `tk_add`, `tk_show`, `tk_edit`, `tk_delete` - CRUD operations
+- `tk_start`, `tk_pause`, `tk_done` - Status transitions
+- `tk_block`, `tk_unblock` - Dependency management
+- `tk_priority` - Set task priority
+- `tk_find` - Search across tasks, notes, learnings
+
+**Agent Coordination:**
+- `tk_claim`, `tk_release`, `tk_owner` - Task ownership for multi-agent work
+
+**Tags & Fields:**
+- `tk_tag_add`, `tk_tag_remove` - Manage task tags
+- `tk_field_set`, `tk_field_remove` - Custom metadata
+
+**Time Tracking:**
+- `tk_timer_start`, `tk_timer_stop`, `tk_timer_status` - Track time spent
+
+**Context:**
 - `tk_context` - Get full project context
+- `tk_learn`, `tk_decide`, `tk_note` - Record knowledge
+- `tk_suggest` - Check if task should persist to Tasuku
+
+**Archiving:**
+- `tk_archive`, `tk_archive_list`, `tk_archive_restore` - Archive management
 
 ### Manual Configuration
 
@@ -323,6 +380,36 @@ If you prefer manual setup, add this to `~/.claude.json`:
   }
 }
 ```
+
+## Terminal UI
+
+Launch an interactive terminal dashboard:
+
+```bash
+tk ui
+```
+
+### Keybindings
+
+| Key | Action |
+|-----|--------|
+| `j/k`, arrows | Navigate tasks |
+| `enter` | View task details |
+| `n` | Create new task |
+| `e` | Edit task description |
+| `s` | Start task |
+| `d` | Mark done |
+| `t` | Toggle timer |
+| `a` | Archive done task |
+| `A` | Archive all done tasks |
+| `/` | Filter/search tasks |
+| `0-4` | Filter by status |
+| `p` | Sort by priority |
+| `N` | View notes |
+| `L` | View learnings |
+| `D` | View decisions |
+| `?` | Help |
+| `q` | Quit |
 
 ## Hooks
 
