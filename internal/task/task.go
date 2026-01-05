@@ -188,6 +188,26 @@ func PriorityName(p int) string {
 	}
 }
 
+// ParsePriority parses a priority string to an integer level.
+// Accepts both numeric (0-4) and named (critical/high/normal/low/backlog) values.
+// Returns -1 if invalid.
+func ParsePriority(s string) int {
+	switch strings.ToLower(s) {
+	case "0", "critical":
+		return PriorityCritical
+	case "1", "high":
+		return PriorityHigh
+	case "2", "normal":
+		return PriorityNormal
+	case "3", "low":
+		return PriorityLow
+	case "4", "backlog":
+		return PriorityBacklog
+	default:
+		return -1
+	}
+}
+
 // Decision represents an architectural decision.
 type Decision struct {
 	ID        string    `json:"id"`

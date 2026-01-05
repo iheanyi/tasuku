@@ -1,4 +1,4 @@
-package main
+package task
 
 import (
 	"encoding/json"
@@ -9,20 +9,14 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/iheanyi/tasuku/internal/cmd/config"
 	"github.com/iheanyi/tasuku/internal/store"
 )
-
-// =============================================================================
-// Tag Management Commands (V2.0)
-// =============================================================================
 
 var tagCmd = &cobra.Command{
 	Use:   "tag",
 	Short: "Manage task tags",
 	Long: `Manage tags on tasks for filtering and organization.
-
-Tags allow you to categorize and filter tasks by topic, component,
-or any other grouping you find useful.
 
 Subcommands:
   add       Add a tag to a task
@@ -30,25 +24,21 @@ Subcommands:
   list      List tags on a task (or all tags in project)
 
 Examples:
-  tk task tag my-task add backend       # Add 'backend' tag
-  tk task tag my-task remove backend    # Remove 'backend' tag
-  tk task tag my-task list              # List tags on task
+  tk task tag add my-task backend       # Add 'backend' tag
+  tk task tag remove my-task backend    # Remove 'backend' tag
   tk task tag list                      # List all tags in project`,
+}
+
+func init() {
+	tagCmd.AddCommand(tagAddCmd)
+	tagCmd.AddCommand(tagRemoveCmd)
+	tagCmd.AddCommand(tagListCmd)
 }
 
 var tagAddCmd = &cobra.Command{
 	Use:   "add <task-id> <tag>",
 	Short: "Add a tag to a task",
-	Long: `Add a tag to a task.
-
-Tags are case-sensitive strings. You can add multiple tags by
-calling this command multiple times or using comma-separated values
-with the --tag flag on 'tk task add'.
-
-Examples:
-  tk task tag add auth-feature backend
-  tk task tag add auth-feature security`,
-	Args: cobra.ExactArgs(2),
+	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		tag := args[1]
@@ -67,12 +57,7 @@ var tagRemoveCmd = &cobra.Command{
 	Use:     "remove <task-id> <tag>",
 	Aliases: []string{"rm"},
 	Short:   "Remove a tag from a task",
-	Long: `Remove a tag from a task.
-
-Examples:
-  tk task tag remove auth-feature backend
-  tk task tag rm auth-feature security`,
-	Args: cobra.ExactArgs(2),
+	Args:    cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		tag := args[1]
@@ -87,7 +72,6 @@ Examples:
 	},
 }
 
-// tagListInfo holds tag listing information for output
 type tagListInfo struct {
 	TaskID string   `json:"task_id,omitempty" yaml:"task_id,omitempty"`
 	Tags   []string `json:"tags" yaml:"tags"`
@@ -101,18 +85,7 @@ type allTagsInfo struct {
 var tagListCmd = &cobra.Command{
 	Use:   "list [task-id]",
 	Short: "List tags on a task or all tags in project",
-	Long: `List tags.
-
-Without a task ID, lists all unique tags used in the project along
-with which tasks have each tag.
-
-With a task ID, lists all tags on that specific task.
-
-Examples:
-  tk task tag list                  # List all tags in project
-  tk task tag list auth-feature     # List tags on specific task
-  tk task tag list -f json          # Output as JSON`,
-	Args: cobra.MaximumNArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		s := store.DefaultStorageWithWarning()
 		f, err := s.Read()
@@ -121,22 +94,18 @@ Examples:
 		}
 
 		if len(args) == 1 {
-			// List tags for specific task
 			taskID := args[0]
 			t, exists := f.Tasks[taskID]
 			if !exists {
 				return fmt.Errorf("task not found: %s", taskID)
 			}
 
-			info := tagListInfo{
-				TaskID: taskID,
-				Tags:   t.Tags,
-			}
+			info := tagListInfo{TaskID: taskID, Tags: t.Tags}
 			if info.Tags == nil {
 				info.Tags = []string{}
 			}
 
-			switch outputFormat {
+			switch config.OutputFormat {
 			case "json":
 				data, _ := json.MarshalIndent(info, "", "  ")
 				fmt.Println(string(data))
@@ -153,7 +122,7 @@ Examples:
 			return nil
 		}
 
-		// List all tags in project
+		// List all tags
 		tagToTasks := make(map[string][]string)
 		for id, t := range f.Tasks {
 			for _, tag := range t.Tags {
@@ -161,25 +130,20 @@ Examples:
 			}
 		}
 
-		// Sort tags
 		var tags []string
 		for tag := range tagToTasks {
 			tags = append(tags, tag)
 		}
 		sort.Strings(tags)
 
-		// Build output
 		var allTags []allTagsInfo
 		for _, tag := range tags {
 			tasks := tagToTasks[tag]
 			sort.Strings(tasks)
-			allTags = append(allTags, allTagsInfo{
-				Tag:   tag,
-				Tasks: tasks,
-			})
+			allTags = append(allTags, allTagsInfo{Tag: tag, Tasks: tasks})
 		}
 
-		switch outputFormat {
+		switch config.OutputFormat {
 		case "json":
 			data, _ := json.MarshalIndent(allTags, "", "  ")
 			fmt.Println(string(data))
@@ -198,10 +162,4 @@ Examples:
 		}
 		return nil
 	},
-}
-
-func init() {
-	tagCmd.AddCommand(tagAddCmd)
-	tagCmd.AddCommand(tagRemoveCmd)
-	tagCmd.AddCommand(tagListCmd)
 }

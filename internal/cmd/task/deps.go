@@ -1,4 +1,4 @@
-package main
+package task
 
 import (
 	"encoding/json"
@@ -9,15 +9,12 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/iheanyi/tasuku/internal/cmd/config"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// =============================================================================
-// Task Deps Command (under task parent - noun-verb pattern)
-// =============================================================================
-
-var taskDepsCmd = &cobra.Command{
+var depsCmd = &cobra.Command{
 	Use:   "deps [task-id]",
 	Short: "Show task dependency tree",
 	Long: `Show task blocking relationships as a tree.
@@ -46,18 +43,14 @@ func runTaskDeps(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// If a specific task ID is provided, show its dependency chain
 	if len(args) == 1 {
 		taskID := args[0]
 		return outputTaskDepsForTask(taskID, f.Tasks)
 	}
 
-	// Show all blocking relationships
 	return outputAllTaskDeps(f.Tasks)
 }
 
-// findBlockedTasks returns a list of task IDs that are blocked by the given task.
-// This is a reverse lookup of the blocked_by relationship.
 func findBlockedTasks(taskID string, tasks map[string]task.Task) []string {
 	var blocks []string
 	for id, t := range tasks {
@@ -72,7 +65,6 @@ func findBlockedTasks(taskID string, tasks map[string]task.Task) []string {
 	return blocks
 }
 
-// taskDepInfo holds dependency information for JSON/YAML output
 type taskDepInfo struct {
 	ID        string   `json:"id" yaml:"id"`
 	Status    string   `json:"status" yaml:"status"`
@@ -88,7 +80,7 @@ func outputTaskDepsForTask(taskID string, tasks map[string]task.Task) error {
 
 	blocks := findBlockedTasks(taskID, tasks)
 
-	switch outputFormat {
+	switch config.OutputFormat {
 	case "json":
 		info := taskDepInfo{
 			ID:        taskID,
@@ -108,7 +100,6 @@ func outputTaskDepsForTask(taskID string, tasks map[string]task.Task) error {
 		data, _ := yaml.Marshal(info)
 		fmt.Print(string(data))
 	default:
-		// Tree view for single task
 		fmt.Printf("%s [%s]\n", taskID, t.Status)
 
 		if len(t.BlockedBy) > 0 {
@@ -140,7 +131,8 @@ func outputTaskDepsForTask(taskID string, tasks map[string]task.Task) error {
 			for i, blockedID := range blocks {
 				connector := "    +--"
 				if i == len(blocks)-1 {
-					connector = "    \\--"
+					connector := "    \\--"
+					_ = connector // use the value
 				}
 				blockedStatus := "not found"
 				if blocked, exists := tasks[blockedID]; exists {
@@ -158,7 +150,6 @@ func outputTaskDepsForTask(taskID string, tasks map[string]task.Task) error {
 }
 
 func outputAllTaskDeps(tasks map[string]task.Task) error {
-	// Build a list of all tasks with their dependency info
 	var deps []taskDepInfo
 	for id, t := range tasks {
 		blocks := findBlockedTasks(id, tasks)
@@ -172,12 +163,11 @@ func outputAllTaskDeps(tasks map[string]task.Task) error {
 		}
 	}
 
-	// Sort by ID for consistent output
 	sort.Slice(deps, func(i, j int) bool {
 		return deps[i].ID < deps[j].ID
 	})
 
-	switch outputFormat {
+	switch config.OutputFormat {
 	case "json":
 		data, _ := json.MarshalIndent(deps, "", "  ")
 		fmt.Println(string(data))

@@ -1,4 +1,4 @@
-package main
+package task
 
 import (
 	"encoding/json"
@@ -10,15 +10,12 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/iheanyi/tasuku/internal/cmd/config"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// =============================================================================
-// Task Stats Command (under task parent - noun-verb pattern)
-// =============================================================================
-
-var taskStatsCmd = &cobra.Command{
+var statsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Show task statistics and progress",
 	Long: `Display task statistics including counts by status, completion percentage,
@@ -31,30 +28,6 @@ Examples:
 	RunE: runStats,
 }
 
-// =============================================================================
-// Deprecated stats Command (kept for backward compatibility)
-// =============================================================================
-
-func init() {
-	rootCmd.AddCommand(statsCmd)
-}
-
-var statsCmd = &cobra.Command{
-	Use:        "stats",
-	Hidden:     true,
-	Deprecated: "use 'tk task stats' instead",
-	Short:      "Show task statistics and progress",
-	Long: `Display task statistics including counts by status, completion percentage,
-context counts (learnings/decisions), and tasks with most blockers.
-
-Examples:
-  tk stats              # Show stats in table format
-  tk stats -f json      # Output as JSON
-  tk stats -f yaml      # Output as YAML`,
-	RunE: runStats,
-}
-
-// Shared implementation for stats
 func runStats(cmd *cobra.Command, args []string) error {
 	s := store.DefaultStorageWithWarning()
 	f, err := s.Read()
@@ -66,7 +39,6 @@ func runStats(cmd *cobra.Command, args []string) error {
 	return outputStats(stats)
 }
 
-// Stats represents task statistics
 type Stats struct {
 	TotalTasks      int            `json:"total_tasks" yaml:"total_tasks"`
 	ByStatus        map[string]int `json:"by_status" yaml:"by_status"`
@@ -79,13 +51,11 @@ type Stats struct {
 	OldestTasks     []OldTask      `json:"oldest_tasks,omitempty" yaml:"oldest_tasks,omitempty"`
 }
 
-// BlockedTask represents a task with blockers count
 type BlockedTask struct {
 	ID           string `json:"id" yaml:"id"`
 	BlockerCount int    `json:"blocker_count" yaml:"blocker_count"`
 }
 
-// OldTask represents a task with its age
 type OldTask struct {
 	ID        string    `json:"id" yaml:"id"`
 	CreatedAt time.Time `json:"created_at" yaml:"created_at"`
@@ -98,7 +68,6 @@ func computeStats(f *task.File) Stats {
 		StatusPercent: make(map[string]int),
 	}
 
-	// Count tasks by status
 	for _, t := range f.Tasks {
 		stats.TotalTasks++
 		stats.ByStatus[string(t.Status)]++
@@ -107,7 +76,6 @@ func computeStats(f *task.File) Stats {
 		}
 	}
 
-	// Calculate percentages
 	if stats.TotalTasks > 0 {
 		stats.CompletionPct = (stats.CompletedCount * 100) / stats.TotalTasks
 		for status, count := range stats.ByStatus {
@@ -115,11 +83,9 @@ func computeStats(f *task.File) Stats {
 		}
 	}
 
-	// Count context items
 	stats.LearningsCount = len(f.Context.Learnings)
 	stats.DecisionsCount = len(f.Context.Decisions)
 
-	// Find tasks with most blockers
 	var blockedTasks []BlockedTask
 	for id, t := range f.Tasks {
 		if len(t.BlockedBy) > 0 {
@@ -137,7 +103,6 @@ func computeStats(f *task.File) Stats {
 	}
 	stats.MostBlocked = blockedTasks
 
-	// Find oldest non-done tasks
 	var oldTasks []OldTask
 	now := time.Now()
 	for id, t := range f.Tasks {
@@ -179,19 +144,18 @@ func formatDurationAge(d time.Duration) string {
 }
 
 func outputStats(stats Stats) error {
-	switch outputFormat {
+	switch config.OutputFormat {
 	case "json":
 		data, _ := json.MarshalIndent(stats, "", "  ")
 		fmt.Println(string(data))
 	case "yaml":
 		data, _ := yaml.Marshal(stats)
 		fmt.Print(string(data))
-	default: // table
+	default:
 		fmt.Println("Task Statistics")
 		fmt.Println(strings.Repeat("-", 40))
 		fmt.Printf("Total tasks:     %d\n", stats.TotalTasks)
 
-		// Status breakdown
 		statuses := []struct {
 			name   string
 			status string

@@ -36,6 +36,11 @@ type Storage interface {
 	// Blocking
 	BlockTask(id string, blockers []string) error
 	UnblockTask(id string) error
+	RemoveBlocker(id string, blocker string) error
+
+	// Task management
+	DeleteTask(id string) error
+	EditTask(id string, description string) error
 
 	// Ownership
 	SetOwner(id string, owner string) error

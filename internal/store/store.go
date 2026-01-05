@@ -393,6 +393,62 @@ func (s *Store) UnblockTask(id string) error {
 	})
 }
 
+// RemoveBlocker removes a specific blocker from a task.
+// If no blockers remain, sets status to ready.
+func (s *Store) RemoveBlocker(id string, blocker string) error {
+	return s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		newBlockers := make([]string, 0, len(t.BlockedBy))
+		found := false
+		for _, b := range t.BlockedBy {
+			if b == blocker {
+				found = true
+			} else {
+				newBlockers = append(newBlockers, b)
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("store: task %q is not blocked by %q", id, blocker)
+		}
+
+		t.BlockedBy = newBlockers
+		if len(newBlockers) == 0 {
+			t.Status = task.StatusReady
+		}
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+		return nil
+	})
+}
+
+// DeleteTask removes a task permanently.
+func (s *Store) DeleteTask(id string) error {
+	return s.Update(func(f *task.File) error {
+		if _, exists := f.Tasks[id]; !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		delete(f.Tasks, id)
+
+		// Also remove notes for this task
+		if f.Context.Notes != nil {
+			delete(f.Context.Notes, id)
+		}
+
+		return nil
+	})
+}
+
+// EditTask updates a task's description. Alias for SetDescription.
+func (s *Store) EditTask(id string, description string) error {
+	return s.SetDescription(id, description)
+}
+
 // SetOwner sets the owner of a task.
 func (s *Store) SetOwner(id string, owner string) error {
 	return s.Update(func(f *task.File) error {

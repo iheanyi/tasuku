@@ -1,4 +1,5 @@
-package main
+// Package ui provides CLI commands for the terminal user interface.
+package ui
 
 import (
 	"fmt"
@@ -10,7 +11,8 @@ import (
 	"github.com/iheanyi/tasuku/internal/tui"
 )
 
-var uiCmd = &cobra.Command{
+// Cmd is the command for launching the TUI.
+var Cmd = &cobra.Command{
 	Use:   "ui",
 	Short: "Launch the terminal user interface",
 	Long: `Launch an interactive terminal user interface for managing tasks.
@@ -37,10 +39,6 @@ For a web-based dashboard, use:
 
 Then open http://localhost:8080 in your browser.`,
 	RunE: runUI,
-}
-
-func init() {
-	// No flags needed for now
 }
 
 func runUI(cmd *cobra.Command, args []string) error {

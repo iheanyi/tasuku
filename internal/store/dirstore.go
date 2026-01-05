@@ -580,6 +580,38 @@ func (s *DirStore) UnblockTask(id string) error {
 	})
 }
 
+// RemoveBlocker removes a specific blocker from a task.
+// If no blockers remain, sets status to ready.
+func (s *DirStore) RemoveBlocker(id string, blocker string) error {
+	return s.updateTask(id, func(t *task.Task) error {
+		newBlockers := make([]string, 0, len(t.BlockedBy))
+		found := false
+		for _, b := range t.BlockedBy {
+			if b == blocker {
+				found = true
+			} else {
+				newBlockers = append(newBlockers, b)
+			}
+		}
+
+		if !found {
+			return fmt.Errorf("store: task %q is not blocked by %q", id, blocker)
+		}
+
+		t.BlockedBy = newBlockers
+		if len(newBlockers) == 0 {
+			t.Status = task.StatusReady
+		}
+		t.UpdatedAt = time.Now().UTC()
+		return nil
+	})
+}
+
+// EditTask updates a task's description.
+func (s *DirStore) EditTask(id string, description string) error {
+	return s.SetDescription(id, description)
+}
+
 // SetOwner sets the owner of a task.
 func (s *DirStore) SetOwner(id string, owner string) error {
 	return s.updateTask(id, func(t *task.Task) error {

@@ -1,4 +1,5 @@
-package main
+// Package pr provides CLI commands for GitHub PR integration.
+package pr
 
 import (
 	"bytes"
@@ -12,10 +13,6 @@ import (
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
-
-// =============================================================================
-// GitHub PR Integration Commands (V2.0)
-// =============================================================================
 
 const ghInstallMessage = `GitHub CLI (gh) is not installed.
 
@@ -35,8 +32,8 @@ func hasGhCLI() bool {
 	return err == nil
 }
 
-// prCmd is the parent command for PR operations.
-var prCmd = &cobra.Command{
+// Cmd is the parent command for PR operations.
+var Cmd = &cobra.Command{
 	Use:   "pr",
 	Short: "GitHub Pull Request integration",
 	Long: `Integrate with GitHub Pull Requests using the gh CLI.
@@ -56,8 +53,26 @@ Examples:
   tk pr list --state all                # List all PRs`,
 }
 
-// prCreateCmd creates a new pull request.
-var prCreateCmd = &cobra.Command{
+// Flags for pr create
+var (
+	prTaskID   string
+	prMarkDone bool
+)
+
+func init() {
+	Cmd.AddCommand(createCmd)
+	Cmd.AddCommand(listCmd)
+
+	// Add flags to pr create
+	createCmd.Flags().StringVar(&prTaskID, "task", "", "Task ID to link to the PR")
+	createCmd.Flags().BoolVar(&prMarkDone, "done", false, "Mark the task as done after creating PR")
+
+	// Allow unknown flags to pass through to gh
+	createCmd.Flags().SetInterspersed(false)
+	listCmd.Flags().SetInterspersed(false)
+}
+
+var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new pull request",
 	Long: `Create a new GitHub pull request, optionally linked to a task.
@@ -74,11 +89,10 @@ Examples:
   tk pr create --task auth-feature --done  # Mark task done after PR
   tk pr create --title "My PR" --body "Description"  # Pass flags to gh
   tk pr create --draft                  # Create draft PR`,
-	RunE: runPrCreate,
+	RunE: runCreate,
 }
 
-// prListCmd lists pull requests.
-var prListCmd = &cobra.Command{
+var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List pull requests",
 	Long: `List GitHub pull requests.
@@ -91,30 +105,10 @@ Examples:
   tk pr list --state merged     # List merged PRs
   tk pr list --author @me       # List your PRs
   tk pr list --json number,title,state  # JSON output`,
-	RunE: runPrList,
+	RunE: runList,
 }
 
-// Flags for pr create
-var (
-	prTaskID   string
-	prMarkDone bool
-)
-
-func init() {
-	// Add subcommands
-	prCmd.AddCommand(prCreateCmd)
-	prCmd.AddCommand(prListCmd)
-
-	// Add flags to pr create
-	prCreateCmd.Flags().StringVar(&prTaskID, "task", "", "Task ID to link to the PR")
-	prCreateCmd.Flags().BoolVar(&prMarkDone, "done", false, "Mark the task as done after creating PR")
-
-	// Allow unknown flags to pass through to gh
-	prCreateCmd.Flags().SetInterspersed(false)
-	prListCmd.Flags().SetInterspersed(false)
-}
-
-func runPrCreate(cmd *cobra.Command, args []string) error {
+func runCreate(cmd *cobra.Command, args []string) error {
 	if !hasGhCLI() {
 		fmt.Println(ghInstallMessage)
 		return nil
@@ -124,7 +118,7 @@ func runPrCreate(cmd *cobra.Command, args []string) error {
 	ghArgs := []string{"pr", "create"}
 
 	// If a task is linked, add task info to PR body
-	var linkedTask *task.Task
+	var hasLinkedTask bool
 	var taskDescription string
 	if prTaskID != "" {
 		s := store.DefaultStorageWithWarning()
@@ -137,7 +131,7 @@ func runPrCreate(cmd *cobra.Command, args []string) error {
 		if !exists {
 			return fmt.Errorf("task not found: %s", prTaskID)
 		}
-		linkedTask = &t
+		hasLinkedTask = true
 		taskDescription = t.Description
 
 		// Build task context for PR body
@@ -172,14 +166,14 @@ func runPrCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// If task was linked and --done flag was set, mark task as done
-	if linkedTask != nil && prMarkDone {
+	if hasLinkedTask && prMarkDone {
 		s := store.DefaultStorageWithWarning()
 		if err := s.SetStatus(prTaskID, task.StatusDone); err != nil {
 			fmt.Printf("Warning: PR created but failed to mark task %s as done: %v\n", prTaskID, err)
 		} else {
 			fmt.Printf("Marked task %s as done\n", prTaskID)
 		}
-	} else if linkedTask != nil {
+	} else if hasLinkedTask {
 		fmt.Printf("Linked to task: %s\n", taskDescription)
 	}
 
@@ -217,7 +211,7 @@ func buildTaskContext(taskID string, t task.Task, f *task.File) string {
 	return buf.String()
 }
 
-func runPrList(cmd *cobra.Command, args []string) error {
+func runList(cmd *cobra.Command, args []string) error {
 	if !hasGhCLI() {
 		fmt.Println(ghInstallMessage)
 		return nil

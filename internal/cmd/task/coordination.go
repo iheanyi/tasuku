@@ -1,83 +1,18 @@
-package main
+package task
 
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"os/user"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/iheanyi/tasuku/internal/cmd/config"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
-
-// getAgentName returns the current agent/user name for claims.
-// Priority: TASUKU_AGENT env var > git user.name > system username > hostname
-func getAgentName() string {
-	// Check env var first
-	if agent := os.Getenv("TASUKU_AGENT"); agent != "" {
-		return agent
-	}
-
-	// Try git user.name
-	if out, err := exec.Command("git", "config", "user.name").Output(); err == nil {
-		if name := strings.TrimSpace(string(out)); name != "" {
-			return name
-		}
-	}
-
-	// Try system username
-	if u, err := user.Current(); err == nil && u.Username != "" {
-		return u.Username
-	}
-
-	// Fall back to hostname
-	if hostname, err := os.Hostname(); err == nil {
-		return hostname
-	}
-
-	return "unknown"
-}
-
-// gitCommitAndPush commits task changes and pushes to remote
-func gitCommitAndPush(message string) error {
-	// Check if we're in a git repo
-	if err := exec.Command("git", "rev-parse", "--git-dir").Run(); err != nil {
-		return fmt.Errorf("not in a git repository")
-	}
-
-	// Add .tasuku/ changes
-	if err := exec.Command("git", "add", ".tasuku/").Run(); err != nil {
-		// Try legacy format
-		exec.Command("git", "add", ".tasuku.json").Run()
-	}
-
-	// Check if there are changes to commit
-	statusOut, _ := exec.Command("git", "status", "--porcelain", ".tasuku/", ".tasuku.json").Output()
-	if len(strings.TrimSpace(string(statusOut))) == 0 {
-		return nil // Nothing to commit
-	}
-
-	// Commit
-	if err := exec.Command("git", "commit", "-m", message).Run(); err != nil {
-		return fmt.Errorf("git commit failed: %w", err)
-	}
-
-	// Push (ignore errors - might not have remote or push access)
-	exec.Command("git", "push").Run()
-
-	return nil
-}
-
-// =============================================================================
-// Agent Coordination Commands (V2.0 - claim/release/who)
-// =============================================================================
 
 var claimCmd = &cobra.Command{
 	Use:   "claim <task-id> [agent-name]",
@@ -117,7 +52,6 @@ Examples:
 			return err
 		}
 
-		// Also set status to in_progress
 		if err := s.SetStatus(taskID, task.StatusInProgress); err != nil {
 			return err
 		}
@@ -193,7 +127,6 @@ func init() {
 	releaseCmd.Flags().Bool("sync", false, "Commit and push release for multi-worktree coordination")
 }
 
-// claimInfo holds claim information for output
 type claimInfo struct {
 	TaskID    string     `json:"task_id" yaml:"task_id"`
 	Owner     string     `json:"owner" yaml:"owner"`
@@ -256,7 +189,7 @@ Examples:
 			return claims[i].TaskID < claims[j].TaskID
 		})
 
-		switch outputFormat {
+		switch config.OutputFormat {
 		case "json":
 			data, _ := json.MarshalIndent(claims, "", "  ")
 			fmt.Println(string(data))
@@ -301,5 +234,3 @@ Examples:
 		return nil
 	},
 }
-
-// Note: formatRelativeTime is defined in main.go

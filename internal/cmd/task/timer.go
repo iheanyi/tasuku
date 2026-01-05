@@ -1,4 +1,4 @@
-package main
+package task
 
 import (
 	"encoding/json"
@@ -9,13 +9,10 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/iheanyi/tasuku/internal/cmd/config"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
-
-// =============================================================================
-// Timer Management Commands (V2.0)
-// =============================================================================
 
 var timerCmd = &cobra.Command{
 	Use:   "timer",
@@ -35,6 +32,12 @@ Examples:
   tk task timer stop my-task      # Stop timer, record duration
   tk task timer status            # Show all active timers
   tk task timer status my-task    # Show timer for specific task`,
+}
+
+func init() {
+	timerCmd.AddCommand(timerStartCmd)
+	timerCmd.AddCommand(timerStopCmd)
+	timerCmd.AddCommand(timerStatusCmd)
 }
 
 var timerStartCmd = &cobra.Command{
@@ -98,7 +101,6 @@ Examples:
 	},
 }
 
-// timerStatusInfo holds timer status information for output
 type timerStatusInfo struct {
 	TaskID      string `json:"task_id" yaml:"task_id"`
 	Description string `json:"description" yaml:"description"`
@@ -124,7 +126,6 @@ Examples:
 		s := store.DefaultStorageWithWarning()
 
 		if len(args) == 1 {
-			// Show status for specific task
 			taskID := args[0]
 			f, err := s.Read()
 			if err != nil {
@@ -139,7 +140,6 @@ Examples:
 			return outputTimerStatus(taskID, t)
 		}
 
-		// Show all active timers
 		activeTimers, err := s.GetActiveTimers()
 		if err != nil {
 			return err
@@ -167,7 +167,7 @@ func outputTimerStatus(id string, t task.Task) error {
 		info.Elapsed = formatDuration(elapsed)
 	}
 
-	switch outputFormat {
+	switch config.OutputFormat {
 	case "json":
 		data, _ := json.MarshalIndent(info, "", "  ")
 		fmt.Println(string(data))
@@ -190,7 +190,6 @@ func outputTimerStatus(id string, t task.Task) error {
 }
 
 func outputActiveTimers(timers map[string]task.Task) error {
-	// Sort by task ID for consistent output
 	var ids []string
 	for id := range timers {
 		ids = append(ids, id)
@@ -210,7 +209,7 @@ func outputActiveTimers(timers map[string]task.Task) error {
 		})
 	}
 
-	switch outputFormat {
+	switch config.OutputFormat {
 	case "json":
 		data, _ := json.MarshalIndent(infos, "", "  ")
 		fmt.Println(string(data))
@@ -221,7 +220,7 @@ func outputActiveTimers(timers map[string]task.Task) error {
 		fmt.Printf("Active timers (%d):\n\n", len(infos))
 		for _, info := range infos {
 			fmt.Printf("  %s\n", info.TaskID)
-			fmt.Printf("    Description: %s\n", truncateString(info.Description, 50))
+			fmt.Printf("    Description: %s\n", truncate(info.Description, 50))
 			fmt.Printf("    Running:     %s\n", info.Elapsed)
 			fmt.Printf("    Total:       %s\n", info.Total)
 			fmt.Println()
@@ -230,7 +229,6 @@ func outputActiveTimers(timers map[string]task.Task) error {
 	return nil
 }
 
-// formatDuration formats a time.Duration in a human-readable way.
 func formatDuration(d time.Duration) string {
 	if d == 0 {
 		return "0s"
@@ -247,18 +245,4 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm%ds", minutes, seconds)
 	}
 	return fmt.Sprintf("%ds", seconds)
-}
-
-// truncateString truncates a string to the specified length.
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}
-
-func init() {
-	timerCmd.AddCommand(timerStartCmd)
-	timerCmd.AddCommand(timerStopCmd)
-	timerCmd.AddCommand(timerStatusCmd)
 }

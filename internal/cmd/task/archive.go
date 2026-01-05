@@ -1,4 +1,4 @@
-package main
+package task
 
 import (
 	"encoding/json"
@@ -9,13 +9,10 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/iheanyi/tasuku/internal/cmd/config"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
-
-// =============================================================================
-// Archive Management Commands
-// =============================================================================
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
@@ -40,6 +37,18 @@ Examples:
   tk task archive list                     # List archived tasks
   tk task archive restore my-task          # Restore to active tasks
   tk task archive clear                    # Clear all archived tasks`,
+}
+
+func init() {
+	archiveCmd.AddCommand(archiveAddCmd)
+	archiveCmd.AddCommand(archiveAllCmd)
+	archiveCmd.AddCommand(archiveListCmd)
+	archiveCmd.AddCommand(archiveShowCmd)
+	archiveCmd.AddCommand(archiveRestoreCmd)
+	archiveCmd.AddCommand(archiveClearCmd)
+
+	archiveAddCmd.Flags().StringVar(&archiveSummary, "summary", "", "Summary of what was accomplished")
+	archiveAllCmd.Flags().StringVar(&archiveOlderThan, "older-than", "", "Archive tasks older than duration (e.g., 7d, 24h, 2w)")
 }
 
 var archiveOlderThan string
@@ -93,7 +102,7 @@ Examples:
 			return fmt.Errorf("--older-than is required (e.g., 7d, 24h, 2w)")
 		}
 
-		duration, err := parseDuration(archiveOlderThan)
+		duration, err := parseArchiveDuration(archiveOlderThan)
 		if err != nil {
 			return fmt.Errorf("invalid duration %q: %w", archiveOlderThan, err)
 		}
@@ -116,8 +125,7 @@ Examples:
 	},
 }
 
-// parseDuration parses a human-friendly duration string like "7d", "24h", "2w"
-func parseDuration(s string) (time.Duration, error) {
+func parseArchiveDuration(s string) (time.Duration, error) {
 	if len(s) < 2 {
 		return 0, fmt.Errorf("duration too short")
 	}
@@ -142,7 +150,6 @@ func parseDuration(s string) (time.Duration, error) {
 	}
 }
 
-// archivedTaskInfo for JSON/YAML output
 type archivedTaskInfo struct {
 	ID          string    `json:"id" yaml:"id"`
 	Description string    `json:"description" yaml:"description"`
@@ -176,7 +183,6 @@ Examples:
 			return nil
 		}
 
-		// Sort by archived date
 		var items []archivedTaskInfo
 		for id, t := range archived {
 			item := archivedTaskInfo{
@@ -196,7 +202,7 @@ Examples:
 			return items[i].ArchivedAt.After(items[j].ArchivedAt)
 		})
 
-		switch outputFormat {
+		switch config.OutputFormat {
 		case "json":
 			data, _ := json.MarshalIndent(items, "", "  ")
 			fmt.Println(string(data))
@@ -251,7 +257,7 @@ Examples:
 			item.TotalTime = task.Duration(archived.TotalTime).FormatHumanReadable()
 		}
 
-		switch outputFormat {
+		switch config.OutputFormat {
 		case "json":
 			data, _ := json.MarshalIndent(item, "", "  ")
 			fmt.Println(string(data))
@@ -327,17 +333,4 @@ Examples:
 		}
 		return nil
 	},
-}
-
-func init() {
-	archiveCmd.AddCommand(archiveAddCmd)
-	archiveCmd.AddCommand(archiveAllCmd)
-	archiveCmd.AddCommand(archiveListCmd)
-	archiveCmd.AddCommand(archiveShowCmd)
-	archiveCmd.AddCommand(archiveRestoreCmd)
-	archiveCmd.AddCommand(archiveClearCmd)
-
-	// Add flags
-	archiveAddCmd.Flags().StringVar(&archiveSummary, "summary", "", "Summary of what was accomplished")
-	archiveAllCmd.Flags().StringVar(&archiveOlderThan, "older-than", "", "Archive tasks older than duration (e.g., 7d, 24h, 2w)")
 }

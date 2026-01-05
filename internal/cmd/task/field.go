@@ -1,4 +1,4 @@
-package main
+package task
 
 import (
 	"encoding/json"
@@ -8,12 +8,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/iheanyi/tasuku/internal/cmd/config"
 	"github.com/iheanyi/tasuku/internal/store"
 )
-
-// =============================================================================
-// Field Management Commands (V2.0)
-// =============================================================================
 
 var fieldCmd = &cobra.Command{
 	Use:   "field",
@@ -35,6 +32,13 @@ Examples:
   tk task field get my-task estimate
   tk task field list my-task
   tk task field remove my-task estimate`,
+}
+
+func init() {
+	fieldCmd.AddCommand(fieldSetCmd)
+	fieldCmd.AddCommand(fieldGetCmd)
+	fieldCmd.AddCommand(fieldListCmd)
+	fieldCmd.AddCommand(fieldRemoveCmd)
 }
 
 var fieldSetCmd = &cobra.Command{
@@ -100,7 +104,7 @@ Examples:
 			return fmt.Errorf("field '%s' not found on task %s", key, taskID)
 		}
 
-		switch outputFormat {
+		switch config.OutputFormat {
 		case "json":
 			data, _ := json.MarshalIndent(map[string]string{key: value}, "", "  ")
 			fmt.Println(string(data))
@@ -114,7 +118,6 @@ Examples:
 	},
 }
 
-// fieldListInfo holds field listing information for output
 type fieldListInfo struct {
 	TaskID string            `json:"task_id" yaml:"task_id"`
 	Fields map[string]string `json:"fields" yaml:"fields"`
@@ -153,7 +156,7 @@ Examples:
 			Fields: fields,
 		}
 
-		switch outputFormat {
+		switch config.OutputFormat {
 		case "json":
 			data, _ := json.MarshalIndent(info, "", "  ")
 			fmt.Println(string(data))
@@ -165,7 +168,6 @@ Examples:
 				fmt.Printf("Task %s has no custom fields\n", taskID)
 			} else {
 				fmt.Printf("Fields on %s:\n", taskID)
-				// Sort keys for consistent output
 				keys := make([]string, 0, len(fields))
 				for k := range fields {
 					keys = append(keys, k)
@@ -204,11 +206,4 @@ Examples:
 		fmt.Printf("Removed field '%s' from task %s\n", key, taskID)
 		return nil
 	},
-}
-
-func init() {
-	fieldCmd.AddCommand(fieldSetCmd)
-	fieldCmd.AddCommand(fieldGetCmd)
-	fieldCmd.AddCommand(fieldListCmd)
-	fieldCmd.AddCommand(fieldRemoveCmd)
 }
