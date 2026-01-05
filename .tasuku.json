@@ -114,12 +114,12 @@
       "updated_at": "2026-01-05T04:32:32.610515Z"
     },
     "plugin-distribution": {
-      "status": "in_progress",
+      "status": "done",
       "description": "Package Tasuku as a Claude Code plugin for distribution",
       "blocked_by": [],
       "owner": null,
       "created_at": "2026-01-05T04:44:19.544021Z",
-      "updated_at": "2026-01-05T04:51:42.316724Z"
+      "updated_at": "2026-01-05T04:55:14.08998Z"
     },
     "slash-commands": {
       "status": "done",
@@ -128,6 +128,70 @@
       "owner": null,
       "created_at": "2026-01-05T04:29:44.341151Z",
       "updated_at": "2026-01-05T04:39:50.215301Z"
+    },
+    "v3-archive-move": {
+      "status": "done",
+      "description": "Archive moves task files from tasks/ to archive/ directory",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T05:03:04.214224Z",
+      "updated_at": "2026-01-05T05:11:12.988358Z"
+    },
+    "v3-auto-detect": {
+      "status": "in_progress",
+      "description": "Auto-detect old .tasuku.json format and prompt for migration",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T05:03:04.360986Z",
+      "updated_at": "2026-01-05T05:11:26.078835Z"
+    },
+    "v3-context-jsonl": {
+      "status": "done",
+      "description": "Use JSONL append-only format for learnings and decisions (merge-friendly)",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T05:03:04.154929Z",
+      "updated_at": "2026-01-05T05:11:20.968421Z"
+    },
+    "v3-directory-storage": {
+      "status": "done",
+      "description": "V3.0: Migrate from single .tasuku.json to .tasuku/ directory structure for merge-conflict-free parallel work",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T05:03:03.995027Z",
+      "updated_at": "2026-01-05T05:11:20.958835Z"
+    },
+    "v3-migration-cmd": {
+      "status": "done",
+      "description": "Add tk migrate v3 command to convert .tasuku.json to .tasuku/ directory",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T05:03:04.285336Z",
+      "updated_at": "2026-01-05T05:11:12.977443Z"
+    },
+    "v3-store-refactor": {
+      "status": "done",
+      "description": "Refactor internal/store to use directory-based storage with one JSON file per task",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T05:03:04.078939Z",
+      "updated_at": "2026-01-05T05:07:56.052706Z"
+    },
+    "v3-subtasks": {
+      "status": "done",
+      "description": "Add parent_id field for subtasks with flat file storage",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T05:03:04.430875Z",
+      "updated_at": "2026-01-05T05:09:47.159437Z"
+    },
+    "v3-tree-view": {
+      "status": "ready",
+      "description": "Add tk task list --tree to show hierarchical subtask view",
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T05:03:04.64144Z",
+      "updated_at": "2026-01-05T05:11:20.949048Z"
     }
   },
   "context": {
