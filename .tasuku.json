@@ -1,6 +1,15 @@
 {
   "version": 1,
   "tasks": {
+    "add-blocking-viz": {
+      "status": "done",
+      "description": "Add blocking relationship visualization (tk task tree or tk task deps)",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T23:25:14.494892Z",
+      "updated_at": "2026-01-04T23:44:32.78033Z"
+    },
     "add-circular-dep-check": {
       "status": "done",
       "description": "Add circular dependency detection to tk validate",
@@ -11,13 +20,13 @@
       "updated_at": "2026-01-04T21:41:29.858722Z"
     },
     "add-context-timestamps": {
-      "status": "ready",
+      "status": "done",
       "description": "Add timestamps to notes and decisions in data model",
       "priority": 3,
       "blocked_by": [],
       "owner": null,
       "created_at": "2026-01-04T21:17:26.619195Z",
-      "updated_at": "2026-01-04T21:17:26.619195Z"
+      "updated_at": "2026-01-04T23:44:46.744169Z"
     },
     "add-decisions-list": {
       "status": "done",
@@ -276,6 +285,15 @@
       "created_at": "2026-01-04T20:24:51.89442Z",
       "updated_at": "2026-01-04T20:30:37.073127Z"
     },
+    "ensure-noun-verb": {
+      "status": "done",
+      "description": "Ensure all commands follow noun-verb pattern consistently",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-04T23:25:15.744035Z",
+      "updated_at": "2026-01-04T23:44:32.876568Z"
+    },
     "fix-beads-migration-to-parse-iss": {
       "status": "done",
       "description": "Fix Beads migration to parse issues.jsonl format",
@@ -312,13 +330,13 @@
       "updated_at": "2026-01-04T18:26:14.58194Z"
     },
     "grove-integration": {
-      "status": "ready",
+      "status": "done",
       "description": "Add Grove integration for optional worktree management on task start/done",
       "priority": 2,
       "blocked_by": [],
       "owner": null,
       "created_at": "2026-01-04T21:17:56.07086Z",
-      "updated_at": "2026-01-04T21:17:56.07086Z"
+      "updated_at": "2026-01-04T23:44:46.64319Z"
     },
     "mcp-server": {
       "status": "done",
@@ -379,17 +397,99 @@
       "owner": null,
       "created_at": "2026-01-04T20:52:55.103818Z",
       "updated_at": "2026-01-04T21:45:51.455035Z"
+    },
+    "v2-agent-coordination": {
+      "status": "ready",
+      "description": "V2.0: Agent coordination - claim/release commands for multi-agent work",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T01:39:32.824757Z",
+      "updated_at": "2026-01-05T01:39:32.824757Z"
+    },
+    "v2-custom-fields": {
+      "status": "ready",
+      "description": "V2.0: Custom task fields - user-defined metadata on tasks",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T01:39:38.563698Z",
+      "updated_at": "2026-01-05T01:39:38.563698Z"
+    },
+    "v2-gh-pr": {
+      "status": "ready",
+      "description": "V2.0: GitHub PR integration - tk pr wraps gh CLI for PR creation",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T01:39:39.79342Z",
+      "updated_at": "2026-01-05T01:39:39.79342Z"
+    },
+    "v2-never-always": {
+      "status": "ready",
+      "description": "V2.0: Never/Always detection - auto-detect patterns, suggest promoting to learnings",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T01:39:37.228321Z",
+      "updated_at": "2026-01-05T01:39:37.228321Z"
+    },
+    "v2-tags-labels": {
+      "status": "ready",
+      "description": "V2.0: Tags/labels system - add tags to tasks, filter by tag",
+      "priority": 1,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T01:39:34.204606Z",
+      "updated_at": "2026-01-05T01:39:34.204606Z"
+    },
+    "v2-time-tracking": {
+      "status": "ready",
+      "description": "V2.0: Time tracking - start/stop timer, track duration per task",
+      "priority": 2,
+      "blocked_by": [],
+      "owner": null,
+      "created_at": "2026-01-05T01:39:36.055896Z",
+      "updated_at": "2026-01-05T01:39:36.055896Z"
     }
   },
   "context": {
     "learnings": [
-      "CLI command is 'tk' to avoid collisions",
-      "Using flock for file locking (works on macOS/Linux)",
-      "JSON chosen over YAML for faster parsing and less ambiguity",
-      "MCP server will use stdio mode for Claude Code integration",
-      "taskResult type in MCP server is local - use JSON marshal/unmarshal for testing",
-      "-h",
-      "--help"
+      {
+        "id": "f53a47",
+        "text": "CLI command is 'tk' to avoid collisions",
+        "created_at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "67a550",
+        "text": "Using flock for file locking (works on macOS/Linux)",
+        "created_at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "3a1aa3",
+        "text": "JSON chosen over YAML for faster parsing and less ambiguity",
+        "created_at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "91158f",
+        "text": "MCP server will use stdio mode for Claude Code integration",
+        "created_at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "428a70",
+        "text": "taskResult type in MCP server is local - use JSON marshal/unmarshal for testing",
+        "created_at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "71f97f",
+        "text": "-h",
+        "created_at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "29461c",
+        "text": "--help",
+        "created_at": "0001-01-01T00:00:00Z"
+      }
     ],
     "decisions": [
       {
@@ -399,7 +499,8 @@
           "TypeScript",
           "Rust"
         ],
-        "because": "Single binary, good concurrency, fast startup for CLI"
+        "because": "Single binary, good concurrency, fast startup for CLI",
+        "created_at": "0001-01-01T00:00:00Z"
       },
       {
         "id": "data-format",
@@ -409,7 +510,8 @@
           "TOML",
           "SQLite"
         ],
-        "because": "Faster parsing, unambiguous, better for programmatic access"
+        "because": "Faster parsing, unambiguous, better for programmatic access",
+        "created_at": "0001-01-01T00:00:00Z"
       },
       {
         "id": "agent-model",
@@ -418,7 +520,8 @@
           "Pure parallel",
           "Sequential handoff"
         ],
-        "because": "Best for token efficiency - workers get scoped context"
+        "because": "Best for token efficiency - workers get scoped context",
+        "created_at": "0001-01-01T00:00:00Z"
       },
       {
         "id": "grove-over-native",
@@ -426,13 +529,61 @@
         "over": [
           "Native worktree support"
         ],
-        "because": "Single responsibility - Tasuku manages tasks, Grove manages worktrees. Avoids duplication and leverages existing Grove infrastructure."
+        "because": "Single responsibility - Tasuku manages tasks, Grove manages worktrees. Avoids duplication and leverages existing Grove infrastructure.",
+        "created_at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "v2-scope",
+        "chose": "Local-first features",
+        "over": [
+          "Webhooks",
+          "GitHub Actions",
+          "remote sync"
+        ],
+        "because": "Tasuku is local-first with JSON file. Server-dependent features don't fit the philosophy. Focus on agent coordination, tags, time tracking, custom fields.",
+        "created_at": "0001-01-01T00:00:00Z"
       }
     ],
     "notes": {
       "grove-integration": [
-        "Approach: Auto-detect Grove availability. If Grove present, use grove_new for full experience (worktree + dev server). If not, fall back to native git worktree commands for basic isolation. Print tip about Grove for full experience.",
-        "Detection: Check if Grove MCP is configured in Claude settings or attempt grove_list call. Native fallback uses git worktree add ../tasuku-{task-id} -b {task-id}"
+        {
+          "id": "12d8fb",
+          "text": "Approach: Auto-detect Grove availability. If Grove present, use grove_new for full experience (worktree + dev server). If not, fall back to native git worktree commands for basic isolation. Print tip about Grove for full experience.",
+          "created_at": "0001-01-01T00:00:00Z"
+        },
+        {
+          "id": "48aaf5",
+          "text": "Detection: Check if Grove MCP is configured in Claude settings or attempt grove_list call. Native fallback uses git worktree add ../tasuku-{task-id} -b {task-id}",
+          "created_at": "0001-01-01T00:00:00Z"
+        }
+      ],
+      "v2-agent-coordination": [
+        {
+          "id": "dfa601",
+          "text": "Commands: tk task claim \u003cid\u003e, tk task release \u003cid\u003e, tk task who. Use owner field + timestamps. Consider lock timeout for stale claims.",
+          "created_at": "2026-01-05T01:39:55.247041Z"
+        }
+      ],
+      "v2-gh-pr": [
+        {
+          "id": "309b31",
+          "text": "Simple wrapper: gh pr create --title \u003cdesc\u003e --body \u003cnotes\u003e. Check gh is installed. Auto-detect current branch task ID from branch name.",
+          "created_at": "2026-01-05T01:39:59.473021Z"
+        }
+      ],
+      "v2-tags-labels": [
+        {
+          "id": "56aab1",
+          "text": "Add Tags []string to Task struct. Commands: tk task add --tag x,y, tk task list --tag x, tk task tag \u003cid\u003e add/remove \u003ctag\u003e. Consider tag autocomplete.",
+          "created_at": "2026-01-05T01:39:56.707292Z"
+        }
+      ],
+      "v2-time-tracking": [
+        {
+          "id": "473f9d",
+          "text": "Add TimeEntries []TimeEntry to Task. Commands: tk task time start/stop/show \u003cid\u003e. Calculate total duration. Consider Pomodoro-style features.",
+          "created_at": "2026-01-05T01:39:58.361688Z"
+        }
       ]
     }
   }
