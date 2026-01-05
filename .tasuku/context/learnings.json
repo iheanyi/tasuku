@@ -29,5 +29,10 @@
     "text": "CLI/MCP Parity Principle: Every CLI command must have a corresponding MCP tool. Agents interact via MCP, humans via CLI - same capabilities, different interfaces. When adding new CLI commands, always add the MCP tool equivalent.",
     "is_rule": true,
     "created_at": "2026-01-05T05:34:43.658568Z"
+  },
+  {
+    "id": "43de6c",
+    "text": "When adding items to TodoWrite that look like project-level tasks (features, bugs, milestones), also add them to tk to ensure persistence across sessions",
+    "created_at": "2026-01-05T13:36:37.397827Z"
   }
 ]

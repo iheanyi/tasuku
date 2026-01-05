@@ -60,5 +60,16 @@
     ],
     "because": "Agent-first design means agents must be able to do everything humans can. If CLI has a capability that MCP lacks, agents are second-class citizens. This defeats the purpose of Tasuku.",
     "created_at": "2026-01-05T04:34:19.542423Z"
+  },
+  {
+    "id": "todowrite-vs-tasuku",
+    "chose": "Different tools for different scopes",
+    "over": [
+      "Auto-sync between tools",
+      "Always use tk only",
+      "Always use TodoWrite only"
+    ],
+    "because": "TodoWrite is session-scoped (ephemeral implementation steps), Tasuku is project-scoped (persistent features/bugs). Avoids infinite loops while ensuring important tasks are tracked.",
+    "created_at": "0001-01-01T00:00:00Z"
   }
 ]

@@ -319,6 +319,36 @@ Record architectural decisions here as we make them:
 6. **Cobra CLI framework** - Industry standard, proper `--flag` syntax, shell completion, Viper config integration
 7. **Grove integration over native worktree support** - Tasuku manages tasks, Grove manages worktrees. Each tool does one thing well. Avoids duplication and leverages existing Grove infrastructure.
 8. **Subtasks via parent_id field** - Flat file storage with `parent_id` reference rather than nested directories. Enables tree view (`--tree`) while keeping storage simple.
+9. **StringSlice for multi-value flags** - Flags like `--by`, `--tag`, `--over` use Cobra's `StringSlice` to support both `--flag a --flag b` and `--flag a,b` patterns.
+10. **TodoWrite vs Tasuku distinction** - Two different tools for two different purposes:
+    - **TodoWrite**: Session-level implementation steps (ephemeral, helps track progress within a conversation)
+    - **Tasuku (tk)**: Project-level tasks (persistent, survives across sessions, visible to other agents)
+    - When a task is a feature, bug, or project milestone → add to tk
+    - When a task is an implementation step like "fix type error" → use TodoWrite only
+
+## Agent Task Management
+
+When working on this codebase, follow these guidelines for task tracking:
+
+### When to use `tk` (Tasuku)
+- New features or enhancements (e.g., "Add dark mode support")
+- Bug reports (e.g., "Fix race condition in auth")
+- Project milestones (e.g., "V3 migration")
+- Tasks that should persist across sessions
+- Tasks that other agents might need to see
+
+### When to use TodoWrite only
+- Implementation steps within a session (e.g., "Update file X", "Fix type error in Y")
+- Temporary tracking of sub-steps
+- Progress tracking that doesn't need to persist
+
+### Nudge Rule
+If you add something to TodoWrite that looks like a **project-level task** (feature, bug, refactor, milestone), consider also adding it to tk:
+```bash
+tk task add "Description" --priority high --tag feature
+```
+
+This ensures important work is tracked persistently and visible to future sessions.
 
 ## Future Enhancements (Planned)
 
