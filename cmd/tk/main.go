@@ -238,7 +238,7 @@ Examples:
 		fmt.Println("Next steps:")
 		fmt.Println("  tk task add \"Your first task\"")
 		fmt.Println("  tk hooks install              # Optional: git hooks")
-		fmt.Println("  tk mcp install                # Optional: Claude Code integration")
+		fmt.Println("  tk mcp install                # Optional: AI tool integration (Claude Code, Cursor)")
 		return nil
 	},
 }
