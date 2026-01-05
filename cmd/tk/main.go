@@ -3177,11 +3177,14 @@ Git Hook Subcommands:
 
 AI Integration Subcommands:
   session    Display Tasuku context summary at session start
-  sync       Sync tasks from TodoWrite JSON input
+  sync       Sync tasks from TodoWrite JSON input (uses nudge rule)
 
 The git hooks provide:
-  - pre-commit: Validates .tasuku.json before commits
+  - pre-commit: Validates Tasuku storage before commits
   - post-commit: Suggests task status updates based on commit messages
+
+The sync command applies the nudge rule: only project-level tasks are synced,
+session-level implementation steps stay in TodoWrite only.
 
 Run 'tk hooks <subcommand> --help' for more details.`,
 }
@@ -3196,7 +3199,7 @@ any existing hook content. The hooks are marked with special comments
 so they can be safely removed later.
 
 Hooks installed:
-  - pre-commit: Validates .tasuku.json before allowing commits
+  - pre-commit: Validates Tasuku storage before allowing commits
   - post-commit: Detects task references in commit messages and suggests updates`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return installHooks()
@@ -3237,8 +3240,11 @@ var hooksSyncCmd = &cobra.Command{
 	Short: "Sync tasks from TodoWrite JSON",
 	Long: `Sync tasks from Claude Code's TodoWrite tool.
 
-Reads JSON from stdin in TodoWrite format and syncs to .tasuku.json.
-Creates new tasks or updates status of existing ones.
+Reads JSON from stdin in TodoWrite format and applies the nudge rule:
+- Project-level tasks (features, bugs, refactors) are synced to Tasuku
+- Session-level tasks (fix type error, update file) stay in TodoWrite only
+
+This prevents cluttering your task list with temporary implementation steps.
 
 Examples:
   tk hooks sync < todos.json         # Sync from file
@@ -3290,8 +3296,8 @@ var hookSyncCmd = &cobra.Command{
 	Short:      "Sync tasks from TodoWrite JSON",
 	Long: `Sync tasks from Claude Code's TodoWrite tool.
 
-Reads JSON from stdin in TodoWrite format and syncs to .tasuku.json.
-Creates new tasks or updates status of existing ones.
+Reads JSON from stdin in TodoWrite format and applies the nudge rule.
+Only project-level tasks are synced to Tasuku.
 
 Examples:
   tk hook sync < todos.json          # Sync from file
@@ -3317,7 +3323,7 @@ var doctorCmd = &cobra.Command{
 
 This command verifies:
   - tk binary is accessible and shows its location
-  - .tasuku.json exists in the current directory or parent directories
+  - Tasuku storage exists (.tasuku/ directory or .tasuku.json file)
   - MCP is configured in Claude Code, Cursor, and other AI tools
   - The configured binary path matches the current tk installation
   - The MCP server can start and respond to requests
@@ -3344,15 +3350,15 @@ func runDoctor() error {
 		fmt.Printf("✓ tk binary: %s\n", executable)
 	}
 
-	// 2. Check .tasuku.json
+	// 2. Check Tasuku storage
 	s := store.DefaultStorageWithWarning()
 	tasukuPath := s.Path()
-	if _, err := os.Stat(tasukuPath); os.IsNotExist(err) {
-		fmt.Printf("✗ No .tasuku.json found (searched from %s)\n", mustGetwd())
-		fmt.Println("  Run 'tk init' to create one")
+	if !s.Exists() {
+		fmt.Printf("✗ No Tasuku storage found (searched from %s)\n", mustGetwd())
+		fmt.Println("  Run 'tk init' to create .tasuku/ directory")
 		hasErrors = true
 	} else {
-		fmt.Printf("✓ .tasuku.json: %s\n", tasukuPath)
+		fmt.Printf("✓ Tasuku storage: %s\n", tasukuPath)
 	}
 
 	fmt.Println()
@@ -4166,7 +4172,7 @@ func hookSession() error {
 func hookSync() error {
 	s := store.DefaultStorageWithWarning()
 	if !s.Exists() {
-		return fmt.Errorf("no .tasuku.json found - run 'tk init' first")
+		return fmt.Errorf("no Tasuku storage found - run 'tk init' first")
 	}
 
 	var todos []struct {
@@ -4190,10 +4196,21 @@ func hookSync() error {
 	}
 
 	synced := 0
+	skipped := 0
 	for _, todo := range todos {
 		id := generateID(todo.Content)
 		if id == "" {
 			continue
+		}
+
+		// Apply nudge rule: only sync project-level tasks
+		// Session-level tasks stay in TodoWrite only
+		if !shouldPersistTask(todo.Content) {
+			// Task already exists? Update status. New task? Skip it.
+			if _, exists := f.Tasks[id]; !exists {
+				skipped++
+				continue
+			}
 		}
 
 		var status task.Status
@@ -4225,7 +4242,65 @@ func hookSync() error {
 	if synced > 0 {
 		fmt.Printf("Synced %d tasks from TodoWrite\n", synced)
 	}
+	if skipped > 0 {
+		fmt.Printf("Skipped %d session-level items (use 'tk suggest' to check)\n", skipped)
+	}
 	return nil
+}
+
+// shouldPersistTask checks if a task description indicates a project-level task
+// that should be persisted to tk. Returns false for session-level implementation steps.
+func shouldPersistTask(description string) bool {
+	desc := strings.ToLower(description)
+
+	// Keywords that indicate project-level tasks (should persist)
+	projectKeywords := []string{
+		"implement", "add feature", "build", "create", "develop",
+		"fix bug", "bugfix", "hotfix", "patch",
+		"refactor", "rewrite", "redesign", "rearchitect",
+		"migrate", "upgrade", "update dependency",
+		"integrate", "connect", "setup", "configure",
+		"support", "enable", "add support",
+		"milestone", "epic", "feature", "story",
+		"api endpoint", "database", "schema",
+		"authentication", "authorization", "security",
+		"performance", "optimize", "cache",
+		"deploy", "release", "ship",
+	}
+
+	// Keywords that indicate session-level tasks (should NOT persist)
+	sessionKeywords := []string{
+		"fix type error", "fix typo", "fix lint",
+		"update file", "edit file", "modify file",
+		"read file", "check file", "review file",
+		"run test", "run build", "run script",
+		"verify", "check", "confirm", "ensure",
+		"debug", "investigate", "look into",
+		"format", "cleanup", "tidy",
+		"add comment", "add docstring", "add import",
+		"remove unused", "delete unused",
+		"rename variable", "rename function",
+	}
+
+	shouldPersist := false
+
+	// Check for project keywords
+	for _, kw := range projectKeywords {
+		if strings.Contains(desc, kw) {
+			shouldPersist = true
+			break
+		}
+	}
+
+	// Session keywords override
+	for _, kw := range sessionKeywords {
+		if strings.Contains(desc, kw) {
+			shouldPersist = false
+			break
+		}
+	}
+
+	return shouldPersist
 }
 
 // =============================================================================
@@ -4551,7 +4626,7 @@ func installHooks() error {
 		name        string
 		description string
 	}{
-		{"pre-commit", "validates .tasuku.json"},
+		{"pre-commit", "validates Tasuku storage"},
 		{"post-commit", "suggests task status updates"},
 	}
 
