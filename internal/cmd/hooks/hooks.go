@@ -20,18 +20,21 @@ func newHooksCmd() *cobra.Command {
 		Short: "Manage git hooks and AI integration hooks",
 		Long: `Manage hooks for git and AI tool integration with Tasuku.
 
-Git Hook Subcommands:
-  install    Install pre-commit and post-commit hooks
-  uninstall  Remove Tasuku hooks (preserves other hook content)
+Install/Uninstall:
+  install    Install hooks (git and/or Claude Code)
+  uninstall  Remove hooks (git and/or Claude Code)
 
-AI Integration Subcommands:
+Utility Commands:
   session    Display Tasuku context summary at session start
   sync       Sync tasks from TodoWrite JSON input (uses nudge rule)
   plan-sync  Extract tasks from plan files (uses nudge rule)
 
-The git hooks provide:
+Git hooks provide:
   - pre-commit: Validates Tasuku storage before commits
   - post-commit: Suggests task status updates based on commit messages
+
+Claude Code hooks provide:
+  - ExitPlanMode: Prompts to sync plan to Tasuku tasks
 
 The sync/plan-sync commands apply the nudge rule: only project-level tasks
 are synced, session-level implementation steps are skipped.
@@ -39,8 +42,8 @@ are synced, session-level implementation steps are skipped.
 Run 'tk hooks <subcommand> --help' for more details.`,
 	}
 
-	cmd.AddCommand(installCmd)
-	cmd.AddCommand(uninstallCmd)
+	cmd.AddCommand(newInstallCmd())
+	cmd.AddCommand(newUninstallCmd())
 	cmd.AddCommand(sessionCmd)
 	cmd.AddCommand(syncCmd)
 	cmd.AddCommand(planSyncCmd)
@@ -51,33 +54,125 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 // Cmd is the parent command for all hooks operations
 var Cmd = newHooksCmd()
 
-var installCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Install Tasuku git hooks",
-	Long: `Install Tasuku git hooks (pre-commit and post-commit).
+func newInstallCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "install",
+		Short: "Install Tasuku hooks",
+		Long: `Install Tasuku hooks for git and/or Claude Code.
 
-This will add Tasuku integration to your git hooks while preserving
-any existing hook content. The hooks are marked with special comments
-so they can be safely removed later.
+By default, installs all hooks. Use flags to install specific hooks only.
 
-Hooks installed:
-  - pre-commit: Validates Tasuku storage before allowing commits
-  - post-commit: Detects task references in commit messages and suggests updates`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return installHooks()
-	},
+Git hooks:
+  - pre-commit: Validates Tasuku storage before commits
+  - post-commit: Suggests task status updates based on commit messages
+
+Claude Code hooks:
+  - ExitPlanMode: Prompts to sync plan to Tasuku tasks
+
+Examples:
+  tk hooks install           # Install all hooks (git + claude)
+  tk hooks install --git     # Install only git hooks
+  tk hooks install --claude  # Install only Claude Code hooks`,
+		RunE: runInstall,
+	}
+
+	cmd.Flags().Bool("git", false, "Install git hooks only")
+	cmd.Flags().Bool("claude", false, "Install Claude Code hooks only")
+	cmd.Flags().Bool("force", false, "Overwrite existing hooks")
+
+	return cmd
 }
 
-var uninstallCmd = &cobra.Command{
-	Use:   "uninstall",
-	Short: "Remove Tasuku git hooks",
-	Long: `Remove Tasuku git hooks while preserving other hook content.
+func newUninstallCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Remove Tasuku hooks",
+		Long: `Remove Tasuku hooks from git and/or Claude Code.
 
-This only removes the Tasuku-specific sections from your git hooks.
-Any other hook content (from other tools) will be preserved.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return uninstallHooks()
-	},
+By default, removes all hooks. Use flags to remove specific hooks only.
+
+Examples:
+  tk hooks uninstall           # Remove all hooks
+  tk hooks uninstall --git     # Remove only git hooks
+  tk hooks uninstall --claude  # Remove only Claude Code hooks`,
+		RunE: runUninstall,
+	}
+
+	cmd.Flags().Bool("git", false, "Remove git hooks only")
+	cmd.Flags().Bool("claude", false, "Remove Claude Code hooks only")
+
+	return cmd
+}
+
+func runInstall(cmd *cobra.Command, args []string) error {
+	gitOnly, _ := cmd.Flags().GetBool("git")
+	claudeOnly, _ := cmd.Flags().GetBool("claude")
+	force, _ := cmd.Flags().GetBool("force")
+
+	// If neither specified, install all
+	installGit := !claudeOnly || gitOnly
+	installClaude := !gitOnly || claudeOnly
+
+	// If both flags given, install both
+	if gitOnly && claudeOnly {
+		installGit = true
+		installClaude = true
+	}
+
+	var errors []string
+
+	if installGit {
+		if err := installGitHooks(); err != nil {
+			errors = append(errors, fmt.Sprintf("git: %v", err))
+		}
+	}
+
+	if installClaude {
+		if err := installClaudeHooks(force); err != nil {
+			errors = append(errors, fmt.Sprintf("claude: %v", err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("some hooks failed to install:\n  %s", strings.Join(errors, "\n  "))
+	}
+
+	return nil
+}
+
+func runUninstall(cmd *cobra.Command, args []string) error {
+	gitOnly, _ := cmd.Flags().GetBool("git")
+	claudeOnly, _ := cmd.Flags().GetBool("claude")
+
+	// If neither specified, uninstall all
+	uninstallGit := !claudeOnly || gitOnly
+	uninstallClaude := !gitOnly || claudeOnly
+
+	// If both flags given, uninstall both
+	if gitOnly && claudeOnly {
+		uninstallGit = true
+		uninstallClaude = true
+	}
+
+	var errors []string
+
+	if uninstallGit {
+		if err := uninstallGitHooks(); err != nil {
+			errors = append(errors, fmt.Sprintf("git: %v", err))
+		}
+	}
+
+	if uninstallClaude {
+		if err := uninstallClaudeHooks(); err != nil {
+			errors = append(errors, fmt.Sprintf("claude: %v", err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("some hooks failed to uninstall:\n  %s", strings.Join(errors, "\n  "))
+	}
+
+	return nil
 }
 
 var sessionCmd = &cobra.Command{
@@ -485,7 +580,7 @@ func removeTasukuSection(hookPath string) (deleted bool, found bool, err error) 
 	return false, true, os.WriteFile(hookPath, []byte(newContent), 0755)
 }
 
-func installHooks() error {
+func installGitHooks() error {
 	if _, err := os.Stat(".git"); os.IsNotExist(err) {
 		return fmt.Errorf("not a git repository")
 	}
@@ -516,7 +611,7 @@ func installHooks() error {
 	return nil
 }
 
-func uninstallHooks() error {
+func uninstallGitHooks() error {
 	hooksDir := ".git/hooks"
 
 	hooks := []string{"pre-commit", "post-commit"}
