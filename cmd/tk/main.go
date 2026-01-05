@@ -53,7 +53,7 @@ Getting Started:
 
 AI Tool Integration:
   tk mcp install           # Auto-configure MCP for Claude Code/Cursor
-  tk serve                 # Start MCP server (for AI tools)
+  tk mcp serve             # Start MCP server (for AI tools)
 
 For full documentation: https://github.com/iheanyi/tasuku`,
 	Version: version,
@@ -86,6 +86,7 @@ func init() {
 	taskCmd.AddCommand(tagCmd)
 	taskCmd.AddCommand(fieldCmd)
 	taskCmd.AddCommand(timerCmd)
+	taskCmd.AddCommand(archiveCmd)
 	rootCmd.AddCommand(taskCmd)
 
 	// Non-task root commands
@@ -104,8 +105,10 @@ func init() {
 
 	// Server parent command (noun-verb pattern)
 	serverCmd.AddCommand(serverStartCmd)
-	serverCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(serverCmd)
+
+	// MCP as top-level command (MCP is a noun - Model Context Protocol)
+	rootCmd.AddCommand(mcpCmd)
 
 	// Hooks parent command (includes session/sync from old hook command)
 	hooksCmd.AddCommand(hooksInstallCmd)
@@ -119,6 +122,12 @@ func init() {
 
 	// GitHub PR integration (V2.0)
 	rootCmd.AddCommand(prCmd)
+
+	// Terminal UI
+	rootCmd.AddCommand(uiCmd)
+
+	// Doctor command for diagnosing setup issues
+	rootCmd.AddCommand(doctorCmd)
 
 	// Deprecated commands (hidden, for backward compatibility)
 	rootCmd.AddCommand(learnCmd)
@@ -2778,6 +2787,7 @@ Server Modes:
   HTTP server (--http or --port):
     Runs a REST API server for programmatic access.
     Useful for integration with other tools or custom scripts.
+    Includes a web dashboard at the root URL (/).
 
 MCP Tools Exposed:
   tk_list, tk_add, tk_start, tk_done, tk_block, tk_unblock,
@@ -2788,9 +2798,18 @@ Examples:
   tk server start --http :3000        # Start HTTP server on port 3000
   tk server start --http localhost:8080  # HTTP on specific address
 
+Web Dashboard:
+  When running in HTTP mode, open the root URL in your browser
+  (e.g., http://localhost:3000) to view the interactive dashboard.
+  The dashboard supports:
+  - Real-time task status with HTMX
+  - Click to start/done/archive tasks
+  - Filter by status
+  - Progress visualization
+
 See also:
-  tk server mcp install        # Auto-configure MCP in your AI tools
-  tk server mcp config         # Show MCP configuration JSON`,
+  tk mcp install               # Auto-configure MCP in your AI tools
+  tk mcp config                # Show MCP configuration JSON`,
 	RunE: runServerStart,
 }
 
@@ -2804,7 +2823,8 @@ func runServerStart(cmd *cobra.Command, args []string) error {
 	port, _ := cmd.Flags().GetInt("port")
 	httpAddr, _ := cmd.Flags().GetString("http")
 
-	s := store.Default()
+	// Use FindUp to locate .tasuku.json - enables MCP to work from any subdirectory
+	s := store.DefaultWithFindUp()
 
 	// HTTP mode via --http
 	if httpAddr != "" {
@@ -2844,6 +2864,7 @@ Server Modes:
   HTTP server (--http or --port):
     Runs a REST API server for programmatic access.
     Useful for integration with other tools or custom scripts.
+    Includes a web dashboard at the root URL (/).
 
 MCP Tools Exposed:
   tk_list, tk_add, tk_start, tk_done, tk_block, tk_unblock,
@@ -2854,6 +2875,10 @@ Examples:
   tk serve --http :3000        # Start HTTP server on port 3000
   tk serve --http localhost:8080  # HTTP on specific address
   tk serve --port 3000         # HTTP server (deprecated, use --http)
+
+Web Dashboard:
+  When running in HTTP mode, open the root URL in your browser
+  (e.g., http://localhost:3000) to view the interactive dashboard.
 
 See also:
   tk mcp install               # Auto-configure MCP in your AI tools
@@ -3054,23 +3079,271 @@ func init() {
 }
 
 // =============================================================================
+// Doctor Command
+// =============================================================================
+
+var doctorCmd = &cobra.Command{
+	Use:   "doctor",
+	Short: "Diagnose Tasuku setup and MCP configuration",
+	Long: `Check your Tasuku installation and MCP configuration for common issues.
+
+This command verifies:
+  - tk binary is accessible and shows its location
+  - .tasuku.json exists in the current directory or parent directories
+  - MCP is configured in Claude Code, Cursor, and other AI tools
+  - The configured binary path matches the current tk installation
+  - The MCP server can start and respond to requests
+
+Run this when Tasuku tools aren't appearing in your AI assistant.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runDoctor()
+	},
+}
+
+func runDoctor() error {
+	fmt.Println("Tasuku Doctor")
+	fmt.Println("=============")
+	fmt.Println()
+
+	hasErrors := false
+
+	// 1. Check tk binary
+	executable, err := os.Executable()
+	if err != nil {
+		fmt.Println("✗ Could not determine tk binary location")
+		hasErrors = true
+	} else {
+		fmt.Printf("✓ tk binary: %s\n", executable)
+	}
+
+	// 2. Check .tasuku.json
+	s := store.DefaultWithFindUp()
+	tasukuPath := s.Path()
+	if _, err := os.Stat(tasukuPath); os.IsNotExist(err) {
+		fmt.Printf("✗ No .tasuku.json found (searched from %s)\n", mustGetwd())
+		fmt.Println("  Run 'tk init' to create one")
+		hasErrors = true
+	} else {
+		fmt.Printf("✓ .tasuku.json: %s\n", tasukuPath)
+	}
+
+	fmt.Println()
+	fmt.Println("MCP Configuration")
+	fmt.Println("-----------------")
+
+	// 3. Check AI tool configurations
+	tools := getSupportedAITools()
+	configuredTools := 0
+	mismatchedPaths := []string{}
+
+	for _, tool := range tools {
+		// Check if settings file exists
+		if _, err := os.Stat(tool.SettingsPath); os.IsNotExist(err) {
+			continue
+		}
+
+		data, err := os.ReadFile(tool.SettingsPath)
+		if err != nil {
+			continue
+		}
+
+		var settings map[string]interface{}
+		if err := json.Unmarshal(data, &settings); err != nil {
+			continue
+		}
+
+		mcpServers, ok := settings[tool.MCPKey].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		tasukuConfig, exists := mcpServers["tasuku"].(map[string]interface{})
+		if !exists {
+			fmt.Printf("✗ %s: MCP not configured\n", tool.Name)
+			fmt.Printf("  Run 'tk mcp install' to configure\n")
+			hasErrors = true
+			continue
+		}
+
+		configuredPath, _ := tasukuConfig["command"].(string)
+		configuredArgs, _ := tasukuConfig["args"].([]interface{})
+
+		// Check if path matches current executable
+		if configuredPath != executable {
+			fmt.Printf("⚠ %s: configured but path mismatch\n", tool.Name)
+			fmt.Printf("  Configured: %s\n", configuredPath)
+			fmt.Printf("  Current:    %s\n", executable)
+			mismatchedPaths = append(mismatchedPaths, tool.Name)
+		} else {
+			argsStr := ""
+			for _, arg := range configuredArgs {
+				if s, ok := arg.(string); ok {
+					argsStr += s + " "
+				}
+			}
+			fmt.Printf("✓ %s: configured (%s %s)\n", tool.Name, filepath.Base(configuredPath), strings.TrimSpace(argsStr))
+		}
+		configuredTools++
+	}
+
+	if configuredTools == 0 {
+		fmt.Println("✗ No AI tools have Tasuku MCP configured")
+		fmt.Println("  Run 'tk mcp install' to auto-configure")
+		hasErrors = true
+	}
+
+	// 4. Test MCP server
+	fmt.Println()
+	fmt.Println("MCP Server Test")
+	fmt.Println("---------------")
+
+	// Quick test: can we create a server and get tools?
+	if _, err := os.Stat(tasukuPath); err == nil {
+		mcpServer := mcp.New(s)
+		tools := mcpServer.Tools()
+		fmt.Printf("✓ MCP server responds with %d tools\n", len(tools))
+
+		// List a few tools
+		if len(tools) > 0 {
+			toolNames := []string{}
+			for _, t := range tools {
+				toolNames = append(toolNames, t.Name)
+			}
+			if len(toolNames) > 5 {
+				toolNames = toolNames[:5]
+				fmt.Printf("  Tools: %s, ... (+%d more)\n", strings.Join(toolNames, ", "), len(tools)-5)
+			} else {
+				fmt.Printf("  Tools: %s\n", strings.Join(toolNames, ", "))
+			}
+		}
+	} else {
+		fmt.Println("⚠ Cannot test MCP server (no .tasuku.json)")
+	}
+
+	// 5. Check CLI/MCP parity
+	fmt.Println()
+	fmt.Println("CLI/MCP Parity")
+	fmt.Println("--------------")
+
+	if _, err := os.Stat(tasukuPath); err == nil {
+		mcpServer := mcp.New(s)
+		mcpTools := mcpServer.Tools()
+
+		// Build set of MCP tool names
+		mcpToolSet := make(map[string]bool)
+		for _, t := range mcpTools {
+			mcpToolSet[t.Name] = true
+		}
+
+		// Define expected MCP tools for CLI commands
+		// Maps CLI command path to expected MCP tool(s)
+		cliToMCP := map[string][]string{
+			"task list":     {"tk_list"},
+			"task add":      {"tk_add"},
+			"task show":     {"tk_show"},
+			"task start":    {"tk_start"},
+			"task done":     {"tk_done"},
+			"task block":    {"tk_block"},
+			"task unblock":  {"tk_unblock"},
+			"task pause":    {"tk_pause"},
+			"task find":     {"tk_find"},
+			"task priority": {"tk_priority"},
+			"task delete":   {"tk_delete"},
+			"task edit":     {"tk_edit"},
+			"task owner":    {"tk_owner"},
+			"task claim":    {"tk_claim"},
+			"task release":  {"tk_release"},
+			"task tag":      {"tk_tag_add", "tk_tag_remove"},
+			"task field":    {"tk_field_set", "tk_field_remove"},
+			"task timer":    {"tk_timer_start", "tk_timer_stop", "tk_timer_status"},
+			"task archive":  {"tk_archive", "tk_archive_restore", "tk_archive_list"},
+			"context learn": {"tk_learn"},
+			"context decide":{"tk_decide"},
+			"context note":  {"tk_note"},
+			"context show":  {"tk_context"},
+		}
+
+		missingTools := []string{}
+		for cli, expectedTools := range cliToMCP {
+			for _, tool := range expectedTools {
+				if !mcpToolSet[tool] {
+					missingTools = append(missingTools, fmt.Sprintf("%s (missing %s)", cli, tool))
+				}
+			}
+		}
+
+		if len(missingTools) == 0 {
+			fmt.Printf("✓ All %d CLI commands have corresponding MCP tools\n", len(cliToMCP))
+		} else {
+			fmt.Printf("✗ %d CLI commands missing MCP tools:\n", len(missingTools))
+			for _, m := range missingTools {
+				fmt.Printf("  - %s\n", m)
+			}
+			hasErrors = true
+		}
+	} else {
+		fmt.Println("⚠ Cannot check parity (no .tasuku.json)")
+	}
+
+	// Summary
+	fmt.Println()
+	if hasErrors {
+		fmt.Println("Issues found. See recommendations above.")
+		if configuredTools > 0 {
+			fmt.Println()
+			fmt.Println("If MCP is configured but tools aren't visible:")
+			fmt.Println("  1. Restart your AI tool (Claude Code, Cursor, etc.)")
+			fmt.Println("  2. Run '/mcp' in Claude Code to check MCP status")
+		}
+		return nil
+	}
+
+	if len(mismatchedPaths) > 0 {
+		fmt.Println("Configuration path mismatch detected.")
+		fmt.Println("Run 'tk mcp install' to update configuration.")
+		return nil
+	}
+
+	fmt.Println("Everything looks good!")
+	fmt.Println()
+	fmt.Println("If tools still aren't visible in your AI assistant:")
+	fmt.Println("  1. Restart your AI tool (Claude Code, Cursor, etc.)")
+	fmt.Println("  2. Run '/mcp' in Claude Code to check MCP status")
+
+	return nil
+}
+
+func mustGetwd() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "."
+	}
+	return wd
+}
+
+// =============================================================================
 // MCP Commands
 // =============================================================================
 
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
-	Short: "Manage MCP server configuration for AI tools",
-	Long: `Manage the MCP (Model Context Protocol) server for AI tool integration.
+	Short: "MCP server for AI tool integration",
+	Long: `Model Context Protocol (MCP) server for AI tool integration.
 
 Available subcommands:
+  serve      Start the MCP server (stdio mode for AI tools)
   install    Auto-configure Tasuku MCP in Claude Code, Cursor, etc.
   uninstall  Remove Tasuku MCP configuration from AI tools
   config     Display MCP configuration JSON for manual setup
 
-The MCP server enables AI tools to interact with Tasuku directly,
-allowing them to list, create, and update tasks.
+The MCP server enables AI tools like Claude Code and Cursor to
+interact with Tasuku directly, allowing them to list, create,
+and update tasks.
 
-Run 'tk mcp <subcommand> --help' for more details.`,
+Examples:
+  tk mcp install    # Auto-configure in Claude Code/Cursor
+  tk mcp serve      # Start MCP server (used by AI tools)
+  tk mcp config     # Show config for manual setup`,
 }
 
 var mcpInstallCmd = &cobra.Command{
@@ -3113,7 +3386,29 @@ to configure MCP manually in your AI tool settings.`,
 	},
 }
 
+var mcpServeCmd = &cobra.Command{
+	Use:   "serve",
+	Short: "Start the MCP server",
+	Long: `Start the MCP (Model Context Protocol) server in stdio mode.
+
+This is the mode used by AI tools like Claude Code and Cursor.
+The server communicates via stdin/stdout using the MCP protocol.
+
+You typically don't run this directly - instead use 'tk mcp install'
+to configure your AI tool to run it automatically.
+
+MCP Tools Exposed:
+  tk_list, tk_add, tk_start, tk_done, tk_block, tk_unblock,
+  tk_learn, tk_decide, tk_context, and more.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		s := store.DefaultWithFindUp()
+		mcpServer := mcp.New(s)
+		return mcpServer.Run()
+	},
+}
+
 func init() {
+	mcpCmd.AddCommand(mcpServeCmd)
 	mcpCmd.AddCommand(mcpInstallCmd)
 	mcpCmd.AddCommand(mcpUninstallCmd)
 	mcpCmd.AddCommand(mcpConfigCmd)
@@ -4016,12 +4311,13 @@ func mcpConfig() error {
 	config := map[string]interface{}{
 		"tasuku": map[string]interface{}{
 			"command": executable,
-			"args":    []string{"serve"},
+			"args":    []string{"server", "start"},
+			"type":    "stdio",
 		},
 	}
 
 	data, _ := json.MarshalIndent(config, "", "  ")
-	fmt.Println("Add this to your Claude Code settings.json under 'mcpServers':")
+	fmt.Println("Add this to ~/.claude.json under 'mcpServers':")
 	fmt.Println()
 	fmt.Println(string(data))
 	return nil
@@ -4037,8 +4333,7 @@ type AITool struct {
 func getSupportedAITools() []AITool {
 	home, _ := os.UserHomeDir()
 	return []AITool{
-		{"Claude Code", home + "/.claude/settings.json", "mcpServers"},
-		{"Claude Code (local)", home + "/.claude/settings.local.json", "mcpServers"},
+		{"Claude Code", home + "/.claude.json", "mcpServers"},
 		{"Cursor", home + "/.cursor/mcp.json", "mcpServers"},
 		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers"},
 	}
@@ -4050,17 +4345,8 @@ func getClaudeSettingsPath() (string, error) {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	settingsPath := home + "/.claude/settings.json"
-	if _, err := os.Stat(settingsPath); err == nil {
-		return settingsPath, nil
-	}
-
-	localPath := home + "/.claude/settings.local.json"
-	if _, err := os.Stat(localPath); err == nil {
-		return localPath, nil
-	}
-
-	return settingsPath, nil
+	// Claude Code reads MCP servers from ~/.claude.json
+	return home + "/.claude.json", nil
 }
 
 func mcpInstall() error {
@@ -4106,7 +4392,8 @@ func mcpInstall() error {
 
 		mcpServers["tasuku"] = map[string]interface{}{
 			"command": executable,
-			"args":    []string{"serve"},
+			"args":    []string{"server", "start"},
+			"type":    "stdio",
 		}
 		settings[tool.MCPKey] = mcpServers
 
@@ -4134,7 +4421,8 @@ func mcpInstall() error {
 			"mcpServers": map[string]interface{}{
 				"tasuku": map[string]interface{}{
 					"command": executable,
-					"args":    []string{"serve"},
+					"args":    []string{"server", "start"},
+					"type":    "stdio",
 				},
 			},
 		}
