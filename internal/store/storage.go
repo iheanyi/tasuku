@@ -137,7 +137,7 @@ func DetectStorageTypeUp() (StorageType, string) {
 
 // AutoDetect returns the appropriate storage backend based on what exists.
 // It prefers .tasuku/ (V3) over .tasuku.json (V1/V2).
-// If neither exists, returns a file-based store for backward compatibility.
+// If neither exists, returns a V3 directory store (the default for new projects).
 func AutoDetect() Storage {
 	storageType, dir := DetectStorageTypeUp()
 
@@ -147,8 +147,8 @@ func AutoDetect() Storage {
 	case StorageTypeFile:
 		return New(filepath.Join(dir, DefaultFileName))
 	default:
-		// Default to file-based for backward compatibility
-		return New(DefaultFileName)
+		// Default to V3 directory-based storage for new projects
+		return NewDirStore(DirName)
 	}
 }
 
@@ -164,7 +164,8 @@ func AutoDetectWithWarning() (Storage, string) {
 		warning := fmt.Sprintf("Using legacy .tasuku.json format. Run 'tk migrate v3' to upgrade to directory-based storage for better merge conflict handling.")
 		return New(filepath.Join(dir, DefaultFileName)), warning
 	default:
-		return New(DefaultFileName), ""
+		// Default to V3 directory-based storage for new projects
+		return NewDirStore(DirName), ""
 	}
 }
 
