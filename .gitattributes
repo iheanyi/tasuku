@@ -1,0 +1,3 @@
+# Preserve line endings for golden files (teatest)
+# Git should not modify these files as text
+*.golden binary
