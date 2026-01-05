@@ -245,6 +245,39 @@ func GenerateShortID() string {
 	return hex.EncodeToString(b)
 }
 
+// GenerateTaskID creates a unique task ID from a description.
+// Format: kebab-case-description-xyz where xyz is a 3-char random suffix.
+// The description part is truncated to 24 chars to keep total ID length manageable.
+// This prevents collisions when similar descriptions are used.
+func GenerateTaskID(desc string) string {
+	result := ""
+	for _, r := range desc {
+		if r >= 'a' && r <= 'z' {
+			result += string(r)
+		} else if r >= 'A' && r <= 'Z' {
+			result += string(r + 32) // lowercase
+		} else if r == ' ' && len(result) > 0 && result[len(result)-1] != '-' {
+			result += "-"
+		}
+	}
+	result = strings.TrimSuffix(result, "-")
+
+	// Handle empty description
+	if result == "" {
+		return "task-" + GenerateShortID()[:3]
+	}
+
+	// Truncate to 24 chars to leave room for suffix
+	if len(result) > 24 {
+		result = result[:24]
+		result = strings.TrimSuffix(result, "-")
+	}
+
+	// Add random suffix for uniqueness
+	suffix := GenerateShortID()[:3] // 3 chars
+	return result + "-" + suffix
+}
+
 // Context holds agent learnings and decisions.
 type Context struct {
 	Learnings []Learning        `json:"learnings"`

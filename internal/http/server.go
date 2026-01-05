@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"net"
 	"net/http"
+	"os/exec"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -47,8 +50,65 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
 }
 
+// checkPortAvailable checks if a port is available and returns info about what's using it if not.
+func checkPortAvailable(addr string) error {
+	// Try to listen on the address
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		// Port is in use, try to find out what's using it
+		processInfo := getProcessUsingPort(addr)
+		if processInfo != "" {
+			return fmt.Errorf("port %s is already in use by: %s", addr, processInfo)
+		}
+		return fmt.Errorf("port %s is already in use (couldn't identify process)", addr)
+	}
+	ln.Close()
+	return nil
+}
+
+// getProcessUsingPort tries to find what process is using a port.
+func getProcessUsingPort(addr string) string {
+	// Extract port from address (e.g., ":8080" -> "8080", "localhost:8080" -> "8080")
+	port := addr
+	if idx := strings.LastIndex(addr, ":"); idx >= 0 {
+		port = addr[idx+1:]
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin", "linux":
+		// Use lsof on Unix-like systems
+		cmd = exec.Command("lsof", "-i", ":"+port, "-sTCP:LISTEN", "-n", "-P")
+	default:
+		return ""
+	}
+
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	// Parse lsof output - second line contains the process info
+	lines := strings.Split(string(output), "\n")
+	if len(lines) < 2 {
+		return ""
+	}
+
+	// Parse the second line to get process name and PID
+	fields := strings.Fields(lines[1])
+	if len(fields) >= 2 {
+		return fmt.Sprintf("%s (PID %s)", fields[0], fields[1])
+	}
+	return strings.TrimSpace(lines[1])
+}
+
 // Run starts the HTTP server on the given address.
 func (s *Server) Run(addr string) error {
+	// Check if port is available before starting
+	if err := checkPortAvailable(addr); err != nil {
+		return fmt.Errorf("cannot start server: %w\n\nTo fix this:\n  1. Stop the existing process, or\n  2. Use a different port: tk serve --http :8081", err)
+	}
+
 	fmt.Printf("Starting HTTP server on %s\n", addr)
 	fmt.Println("")
 	fmt.Println("Web Dashboard:")
@@ -822,22 +882,9 @@ func (s *Server) handleArchiveItem(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, `{"error": "not found"}`, http.StatusNotFound)
 }
 
-// generateID creates a kebab-case ID from description.
+// generateID creates a unique kebab-case ID from description.
 func generateID(desc string) string {
-	result := ""
-	for _, r := range desc {
-		if r >= 'a' && r <= 'z' {
-			result += string(r)
-		} else if r >= 'A' && r <= 'Z' {
-			result += string(r + 32)
-		} else if r == ' ' && len(result) > 0 && result[len(result)-1] != '-' {
-			result += "-"
-		}
-	}
-	if len(result) > 32 {
-		result = result[:32]
-	}
-	return strings.TrimSuffix(result, "-")
+	return task.GenerateTaskID(desc)
 }
 
 // Template data types for the web dashboard

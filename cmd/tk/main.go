@@ -371,7 +371,7 @@ Examples:
 		parentID, _ := cmd.Flags().GetString("parent")
 
 		if id == "" {
-			id = generateID(description)
+			id = task.GenerateTaskID(description)
 		}
 
 		s := store.DefaultStorageWithWarning()
@@ -4118,22 +4118,10 @@ func formatAge(t time.Time) string {
 }
 
 // generateID creates a kebab-case ID from description.
+// generateID is deprecated - use task.GenerateTaskID instead.
+// Kept for backward compatibility with tests.
 func generateID(desc string) string {
-	result := ""
-	for _, r := range desc {
-		if r >= 'a' && r <= 'z' {
-			result += string(r)
-		} else if r >= 'A' && r <= 'Z' {
-			result += string(r + 32)
-		} else if r == ' ' && len(result) > 0 && result[len(result)-1] != '-' {
-			result += "-"
-		}
-	}
-	result = strings.TrimSuffix(result, "-")
-	if len(result) > 32 {
-		result = result[:32]
-	}
-	return result
+	return task.GenerateTaskID(desc)
 }
 
 // =============================================================================

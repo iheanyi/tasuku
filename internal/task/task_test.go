@@ -330,3 +330,47 @@ func TestLearningIsRuleOmitEmpty(t *testing.T) {
 		t.Errorf("is_rule should be omitted when false, got: %s", jsonStr)
 	}
 }
+
+func TestGenerateTaskID(t *testing.T) {
+	// Test basic kebab-case conversion
+	id := GenerateTaskID("Fix login bug")
+	if !strings.HasPrefix(id, "fix-login-bug-") {
+		t.Errorf("expected prefix 'fix-login-bug-', got %s", id)
+	}
+
+	// Test that IDs are unique even for same description
+	id1 := GenerateTaskID("Same description")
+	id2 := GenerateTaskID("Same description")
+	if id1 == id2 {
+		t.Errorf("expected unique IDs, both got %s", id1)
+	}
+
+	// Test truncation for long descriptions
+	longDesc := "This is a very long task description that should be truncated"
+	id = GenerateTaskID(longDesc)
+	// Max 24 chars for description + 1 for hyphen + 3 for suffix = 28 chars max
+	if len(id) > 28 {
+		t.Errorf("expected ID length <= 28, got %d: %s", len(id), id)
+	}
+
+	// Test that similar descriptions produce different IDs (the original bug)
+	id1 = GenerateTaskID("Improve AddressInput component - add clear button")
+	id2 = GenerateTaskID("Improve AddressInput component - add recent searches")
+	if id1 == id2 {
+		t.Errorf("similar descriptions should produce different IDs, both got %s", id1)
+	}
+}
+
+func TestGenerateTaskID_Format(t *testing.T) {
+	id := GenerateTaskID("Hello World")
+	parts := strings.Split(id, "-")
+	if len(parts) < 3 {
+		t.Errorf("expected at least 3 parts (hello-world-xxx), got %d: %s", len(parts), id)
+	}
+
+	// Last part should be 3 character suffix
+	suffix := parts[len(parts)-1]
+	if len(suffix) != 3 {
+		t.Errorf("expected 3-char suffix, got %d chars: %s", len(suffix), suffix)
+	}
+}

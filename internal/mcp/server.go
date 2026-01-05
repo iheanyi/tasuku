@@ -1341,23 +1341,9 @@ func (s *Server) handleSuggest(args map[string]interface{}) (interface{}, error)
 	return result, nil
 }
 
-// generateID creates a kebab-case ID from description.
+// generateID creates a unique kebab-case ID from description.
 func generateID(desc string) string {
-	result := ""
-	for _, r := range desc {
-		if r >= 'a' && r <= 'z' {
-			result += string(r)
-		} else if r >= 'A' && r <= 'Z' {
-			result += string(r + 32)
-		} else if r == ' ' && len(result) > 0 && result[len(result)-1] != '-' {
-			result += "-"
-		}
-	}
-	result = strings.TrimSuffix(result, "-")
-	if len(result) > 32 {
-		result = result[:32]
-	}
-	return result
+	return task.GenerateTaskID(desc)
 }
 
 // Run starts the MCP server in stdio mode using JSON-RPC 2.0.

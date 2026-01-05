@@ -262,34 +262,42 @@ func TestHandleToolCall_Unknown(t *testing.T) {
 
 func TestGenerateID(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected string
+		input          string
+		expectedPrefix string
 	}{
-		{"Fix authentication bug", "fix-authentication-bug"},
-		{"Add logout button", "add-logout-button"},
-		{"UPPERCASE TEST", "uppercase-test"},
-		{"Multiple   Spaces", "multiple-spaces"},
-		{"Special!@#Characters", "specialcharacters"},
-		{"", ""},
+		{"Fix authentication bug", "fix-authentication-bug-"},
+		{"Add logout button", "add-logout-button-"},
+		{"UPPERCASE TEST", "uppercase-test-"},
+		{"Multiple   Spaces", "multiple-spaces-"},
+		{"Special!@#Characters", "specialcharacters-"},
+		{"", "task-"}, // Empty string generates task-xxx
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			result := generateID(tt.input)
-			if result != tt.expected {
-				t.Errorf("generateID(%q) = %q, expected %q",
-					tt.input, result, tt.expected)
+			if !strings.HasPrefix(result, tt.expectedPrefix) {
+				t.Errorf("generateID(%q) = %q, expected prefix %q",
+					tt.input, result, tt.expectedPrefix)
 			}
 		})
 	}
+
+	// Test uniqueness - same description should produce different IDs
+	id1 := generateID("Same description")
+	id2 := generateID("Same description")
+	if id1 == id2 {
+		t.Errorf("generateID should produce unique IDs, but got same: %s", id1)
+	}
 }
 
-func TestGenerateID_TruncatesAt32(t *testing.T) {
+func TestGenerateID_TruncatesLongDescriptions(t *testing.T) {
 	long := "This is a very long description that exceeds thirty two characters"
 	result := generateID(long)
 
-	if len(result) > 32 {
-		t.Errorf("generateID should truncate to 32 chars, got %d", len(result))
+	// Max 24 chars for description + 1 for hyphen + 3 for suffix = 28 chars max
+	if len(result) > 28 {
+		t.Errorf("generateID should truncate to ~28 chars, got %d: %s", len(result), result)
 	}
 }
 
