@@ -34,5 +34,20 @@
     "id": "43de6c",
     "text": "When adding items to TodoWrite that look like project-level tasks (features, bugs, milestones), also add them to tk to ensure persistence across sessions",
     "created_at": "2026-01-05T13:36:37.397827Z"
+  },
+  {
+    "id": "9b1e40",
+    "text": "JSON Schema in 'tk context schema' is outdated - missing V3 fields: parent_id, claimed_at, tags, fields, timer_start, duration, notes (now on task not context). Learnings should be objects with {id, text, is_rule, created_at}, not strings.",
+    "created_at": "2026-01-05T17:43:59.353858Z"
+  },
+  {
+    "id": "bfe274",
+    "text": "HTTP server has no handling for stale processes or port conflicts. Consider PID file or port check on startup. For dev hot-reload, use 'air' or 'watchexec'.",
+    "created_at": "2026-01-05T17:44:00.951959Z"
+  },
+  {
+    "id": "aebb8c",
+    "text": "When updating storage formats, check ALL user-facing strings: ErrNotInitialized, help text, error messages, hook scripts. Shared errors can leak format-specific messages.",
+    "created_at": "2026-01-05T17:44:02.5076Z"
   }
 ]
