@@ -45,7 +45,7 @@ Design Principles:
   - Human-readable: JSON file that can be edited by hand
 
 Getting Started:
-  tk init                  # Create .tasuku.json in current directory
+  tk init                  # Create .tasuku/ directory
   tk add "My first task"   # Add a task
   tk list                  # View all tasks
   tk start <task-id>       # Begin working on a task
@@ -1334,7 +1334,7 @@ Examples:
 var learningPromoteCmd = &cobra.Command{
 	Use:   "promote <id or text>",
 	Short: "Promote a learning to permanent documentation",
-	Long: `Move a learning from .tasuku.json to your AI context file.
+	Long: `Move a learning from Tasuku to your AI context file.
 
 Tasuku auto-detects which context file to use based on your project:
 - CLAUDE.md (Claude Code)
@@ -1417,7 +1417,7 @@ func init() {
 	learningAddCmd.Flags().Bool("permanent", false, "Also append learning to CLAUDE.md")
 	learningAddCmd.Flags().Bool("rule", false, "Explicitly mark this learning as a rule")
 	learningPromoteCmd.Flags().String("to", "", "Target context file (auto-detected if not specified)")
-	learningPromoteCmd.Flags().Bool("keep", false, "Keep the learning in .tasuku.json after promoting")
+	learningPromoteCmd.Flags().Bool("keep", false, "Keep the learning in Tasuku after promoting")
 
 	// Register learning subcommands
 	learningCmd.AddCommand(learningListCmd)
@@ -2146,7 +2146,7 @@ var promoteCmd = &cobra.Command{
 	Short: "Promote a learning to permanent documentation",
 	Hidden:     true,
 	Deprecated: "use 'tk learning promote' instead",
-	Long: `Move a learning from .tasuku.json to your AI context file.
+	Long: `Move a learning from Tasuku to your AI context file.
 
 Tasuku auto-detects which context file to use based on your project:
 - CLAUDE.md (Claude Code)
@@ -2225,7 +2225,7 @@ Examples:
 
 func init() {
 	promoteCmd.Flags().String("to", "", "Target context file (auto-detected if not specified)")
-	promoteCmd.Flags().Bool("keep", false, "Keep the learning in .tasuku.json after promoting")
+	promoteCmd.Flags().Bool("keep", false, "Keep the learning in Tasuku after promoting")
 }
 
 func appendToContextFile(filePath, learning string) error {
@@ -2573,23 +2573,23 @@ var contextParentCmd = &cobra.Command{
 	Use:     "context",
 	Aliases: []string{"ctx"},
 	Short:   "Manage project context (learnings, decisions, notes)",
-	Long: `Manage and inspect the project context in .tasuku.json.
+	Long: `Manage and inspect the project context in Tasuku.
 
 Subcommands:
   show      Dump the complete project context for agent consumption
-  validate  Validate .tasuku.json for correctness
-  schema    Output JSON Schema for .tasuku.json
+  validate  Validate Tasuku storage for correctness
+  schema    Output JSON Schema for Tasuku files
 
 Examples:
   tk context show              # Output full context as JSON
-  tk context validate          # Validate .tasuku.json
+  tk context validate          # Validate Tasuku storage
   tk context schema            # Show JSON schema`,
 }
 
 var contextShowCmd = &cobra.Command{
 	Use:   "show",
 	Short: "Dump the complete project context for agent consumption",
-	Long: `Output the entire .tasuku.json contents as structured data.
+	Long: `Output the entire Tasuku storage contents as structured data.
 
 This command is designed for AI agents that need the full project context,
 including all tasks, learnings, decisions, and notes.
@@ -2612,11 +2612,11 @@ Examples:
 
 var contextValidateCmd = &cobra.Command{
 	Use:   "validate",
-	Short: "Validate .tasuku.json",
-	Long: `Validate the .tasuku.json file for correctness.
+	Short: "Validate Tasuku storage",
+	Long: `Validate the Tasuku storage for correctness.
 
 Checks performed:
-- Version is supported (must be 1)
+- Version is supported
 - All tasks have non-empty descriptions
 - All tasks have valid statuses
 - No circular dependencies in blocked_by relationships
@@ -2628,11 +2628,11 @@ Examples:
 
 var contextSchemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "Output JSON Schema for .tasuku.json",
-	Long: `Output the JSON Schema definition for .tasuku.json files.
+	Short: "Output JSON Schema for Tasuku task files",
+	Long: `Output the JSON Schema definition for Tasuku task files.
 
 The schema defines:
-  - version: Must be 1 (integer)
+  - version: Schema version (integer)
   - tasks: Object mapping task IDs to task objects
     - status: ready, in_progress, blocked, or done
     - description: Task description (string)
@@ -2646,7 +2646,7 @@ The schema defines:
     - notes: Object mapping task IDs to note arrays
 
 Use Cases:
-  - IDE validation: Configure your editor to validate .tasuku.json
+  - IDE validation: Configure your editor to validate Tasuku files
   - Documentation: Reference for file format
   - Tooling: Build tools that work with Tasuku files
 
@@ -2779,7 +2779,7 @@ var contextCmd = &cobra.Command{
 	Hidden:     true,
 	Deprecated: "use 'tk context show' instead",
 	Short:      "Dump the complete project context for agent consumption",
-	Long: `Output the entire .tasuku.json contents as structured data.
+	Long: `Output the entire Tasuku storage contents as structured data.
 
 This command is designed for AI agents that need the full project context,
 including all tasks, learnings, decisions, and notes.
@@ -3648,11 +3648,11 @@ var validateCmd = &cobra.Command{
 	Use:        "validate",
 	Hidden:     true,
 	Deprecated: "use 'tk context validate' instead",
-	Short:      "Validate .tasuku.json",
-	Long: `Validate the .tasuku.json file for correctness.
+	Short:      "Validate Tasuku storage",
+	Long: `Validate the Tasuku storage for correctness.
 
 Checks performed:
-- Version is supported (must be 1)
+- Version is supported
 - All tasks have non-empty descriptions
 - All tasks have valid statuses
 - No circular dependencies in blocked_by relationships
@@ -3747,11 +3747,11 @@ var schemaCmd = &cobra.Command{
 	Use:        "schema",
 	Hidden:     true,
 	Deprecated: "use 'tk context schema' instead",
-	Short:      "Output JSON Schema for .tasuku.json",
-	Long: `Output the JSON Schema definition for .tasuku.json files.
+	Short:      "Output JSON Schema for Tasuku task files",
+	Long: `Output the JSON Schema definition for Tasuku task files.
 
 The schema defines:
-  - version: Must be 1 (integer)
+  - version: Schema version (integer)
   - tasks: Object mapping task IDs to task objects
     - status: ready, in_progress, blocked, or done
     - description: Task description (string)
@@ -3765,7 +3765,7 @@ The schema defines:
     - notes: Object mapping task IDs to note arrays
 
 Use Cases:
-  - IDE validation: Configure your editor to validate .tasuku.json
+  - IDE validation: Configure your editor to validate Tasuku files
   - Documentation: Reference for file format
   - Tooling: Build tools that work with Tasuku files
 
