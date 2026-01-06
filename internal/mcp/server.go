@@ -1239,6 +1239,9 @@ func (s *Server) handleDone(args map[string]interface{}) (interface{}, error) {
 		hints = append(hints, "This task has notes - consider if any insights should be recorded as learnings with tk_learn.")
 	}
 
+	// Reflection prompt - always shown for significant tasks
+	hints = append(hints, "REFLECT: Did completing this task involve decisions (tk_decide) or reveal learnings (tk_learn) worth preserving?")
+
 	// Suggest archiving if appropriate
 	hints = append(hints, "Consider archiving with tk_archive if this task is fully verified and no longer needs visibility.")
 

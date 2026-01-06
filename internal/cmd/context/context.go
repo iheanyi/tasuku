@@ -137,7 +137,7 @@ func RunValidate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	if f.Version < 1 || f.Version > 3 {
+	if f.Version < 1 || f.Version > 4 {
 		return fmt.Errorf("unsupported version: %d", f.Version)
 	}
 
@@ -171,11 +171,11 @@ func runSchema(cmd *cobra.Command, args []string) error {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/iheanyi/tasuku/schema.json",
   "title": "Tasuku File",
-  "description": "Schema for Tasuku task management storage (V3 directory format)",
+  "description": "Schema for Tasuku task management storage (V3 directory format or V4 Markdown format)",
   "type": "object",
   "required": ["version", "tasks", "context"],
   "properties": {
-    "version": { "type": "integer", "enum": [1, 2, 3] },
+    "version": { "type": "integer", "enum": [1, 2, 3, 4] },
     "tasks": {
       "type": "object",
       "additionalProperties": {

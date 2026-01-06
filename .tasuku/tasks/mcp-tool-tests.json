@@ -1,9 +1,0 @@
-{
-  "id": "mcp-tool-tests",
-  "status": "done",
-  "description": "Add unit tests for new MCP tools (show, delete, edit, pause, unblock, find, priority, owner, claim, release)",
-  "blocked_by": [],
-  "owner": null,
-  "created_at": "2026-01-05T04:44:19.35638Z",
-  "updated_at": "2026-01-05T04:50:02.245466Z"
-}

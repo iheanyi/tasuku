@@ -1,0 +1,12 @@
+---
+status: done
+priority: 1
+tags: [v4, storage, core]
+parent_id: v4-markdown-epic
+created_at: 2026-01-06T14:42:32.050674Z
+updated_at: 2026-01-06T17:17:37.751088Z
+---
+
+# Add V4 storage backend alongside V3 - Implement format auto-detection (check...
+
+Add V4 storage backend alongside V3 - Implement format auto-detection (check file extension .md vs .json), create V4Store struct implementing Store interface, update all store operations (Create, Read, Update, Delete, List) for Markdown format

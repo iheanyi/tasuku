@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,8 +51,12 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 	cmd.AddCommand(newUninstallCmd())
 	cmd.AddCommand(sessionCmd)
 	cmd.AddCommand(stopReminderCmd)
+	cmd.AddCommand(preCompactCmd)
 	cmd.AddCommand(syncCmd)
 	cmd.AddCommand(planSyncCmd)
+	cmd.AddCommand(todoCheckCmd)
+	cmd.AddCommand(subagentDoneCmd)
+	cmd.AddCommand(promptCheckCmd)
 
 	return cmd
 }
@@ -214,12 +219,94 @@ var stopReminderCmd = &cobra.Command{
 This is called by the Claude Code Stop hook to remind the agent about:
   - Running timers that should be stopped
   - Tasks marked as in_progress that may need status updates
-  - Any uncommitted learnings from the session
+  - Decisions or learnings that should be recorded
 
 Examples:
   tk hooks stop-reminder   # Check for reminders`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return hookStopReminder()
+	},
+}
+
+var preCompactCmd = &cobra.Command{
+	Use:   "pre-compact",
+	Short: "Capture decisions and learnings before context compaction",
+	Long: `Called by Claude Code PreCompact hook before context window is summarized.
+
+This is a critical checkpoint to capture insights before they're lost:
+  - Prompts for architectural decisions made during the session
+  - Prompts for learnings or gotchas discovered
+  - Lists any in-progress tasks that need status updates
+  - Shows recent git activity that might warrant documentation
+
+Examples:
+  tk hooks pre-compact   # Run pre-compaction checklist`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookPreCompact()
+	},
+}
+
+var todoCheckCmd = &cobra.Command{
+	Use:   "todo-check",
+	Short: "Check if TodoWrite items should persist to Tasuku",
+	Long: `Called by Claude Code PostToolUse hook after TodoWrite is used.
+
+Analyzes the todos that were just written and suggests persisting
+project-level tasks to Tasuku:
+  - Features, bugs, refactors → suggest adding to tk
+  - Implementation steps → keep in TodoWrite only
+
+This bridges session-level tracking (TodoWrite) with project-level
+persistence (Tasuku) automatically.
+
+The hook receives TodoWrite JSON via TOOL_INPUT environment variable.
+
+Examples:
+  tk hooks todo-check   # Analyze TodoWrite output`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookTodoCheck()
+	},
+}
+
+var subagentDoneCmd = &cobra.Command{
+	Use:   "subagent-done",
+	Short: "Capture insights after subagent (Task tool) completes",
+	Long: `Called by Claude Code SubagentStop hook when a Task tool subagent completes.
+
+Subagents often do deep exploration work (code searches, complex analysis,
+multi-step implementations). When they complete, prompt for:
+  - Learnings discovered during exploration
+  - Decisions made about implementation approaches
+  - Patterns or gotchas worth documenting
+
+This helps capture valuable insights that might otherwise be lost
+when subagent context is merged back.
+
+Examples:
+  tk hooks subagent-done   # Prompt for subagent insights`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookSubagentDone()
+	},
+}
+
+var promptCheckCmd = &cobra.Command{
+	Use:   "prompt-check",
+	Short: "Detect task-related intent in user prompts",
+	Long: `Called by Claude Code UserPromptSubmit hook when user sends a message.
+
+Analyzes the user's prompt to detect task-related intent:
+  - "implement X" / "fix bug Y" → suggest creating a task if none exists
+  - References to existing task IDs → show task context
+  - Work that should be tracked → gentle reminder about task creation
+
+This helps ensure significant work gets tracked in Tasuku from the start.
+
+The hook receives the user prompt via USER_PROMPT environment variable.
+
+Examples:
+  tk hooks prompt-check   # Analyze user prompt for task intent`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookPromptCheck()
 	},
 }
 
@@ -281,11 +368,335 @@ func hookStopReminder() error {
 		fmt.Println("   Consider: tk task done <id> or tk task pause <id>")
 	}
 
+	// Always prompt for reflection at session end
+	if !hasReminders {
+		fmt.Println("=== Tasuku Session Reminder ===")
+		hasReminders = true
+	}
+	fmt.Println("\n💡 Before ending this session, reflect:")
+	fmt.Println("   - Did you make any architectural decisions? → tk decide")
+	fmt.Println("   - Did you discover any gotchas or insights? → tk learn")
+	fmt.Println("   - Any 'never do X' or 'always do Y' patterns? → tk learn (auto-flagged as rule)")
+
 	if hasReminders {
 		fmt.Println("\n================================")
 	}
 
 	return nil
+}
+
+func hookPreCompact() error {
+	fmt.Println("=== Pre-Compaction Checkpoint ===")
+	fmt.Println("Context is about to be summarized. Capture important insights NOW!")
+	fmt.Println()
+
+	s := store.DefaultStorageWithWarning()
+
+	// Check for recent git activity
+	hasGitActivity := false
+	if out, err := execCommand("git", "log", "--oneline", "-5", "--since=1 hour ago"); err == nil && len(out) > 0 {
+		hasGitActivity = true
+		fmt.Println("📝 Recent commits (last hour):")
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		for _, line := range lines {
+			if line != "" {
+				fmt.Printf("   %s\n", line)
+			}
+		}
+		fmt.Println()
+	}
+
+	// Check for uncommitted changes
+	if out, err := execCommand("git", "status", "--porcelain"); err == nil && len(out) > 0 {
+		lineCount := len(strings.Split(strings.TrimSpace(out), "\n"))
+		fmt.Printf("📁 Uncommitted changes: %d file(s) modified\n\n", lineCount)
+	}
+
+	// Check Tasuku state
+	if s.Exists() {
+		f, err := s.Read()
+		if err == nil {
+			// In-progress tasks
+			var inProgress []string
+			for id, t := range f.Tasks {
+				if t.Status == task.StatusInProgress {
+					inProgress = append(inProgress, id)
+				}
+			}
+			if len(inProgress) > 0 {
+				fmt.Printf("🔄 Tasks in progress (%d):\n", len(inProgress))
+				for _, id := range inProgress {
+					t := f.Tasks[id]
+					desc := t.Description
+					if len(desc) > 50 {
+						desc = desc[:47] + "..."
+					}
+					fmt.Printf("   - %s: %s\n", id, desc)
+				}
+				fmt.Println()
+			}
+
+			// Running timers
+			var timers []string
+			for id, t := range f.Tasks {
+				if t.IsTimerRunning() {
+					timers = append(timers, id)
+				}
+			}
+			if len(timers) > 0 {
+				fmt.Printf("⏱️  Running timers: %v\n\n", timers)
+			}
+		}
+	}
+
+	// The key reflection prompts
+	fmt.Println("🧠 CAPTURE BEFORE CONTEXT IS LOST:")
+	fmt.Println()
+	fmt.Println("   DECISIONS - Did you choose between approaches?")
+	fmt.Println("   → tk decide --id <name> --chose \"X\" --over \"Y,Z\" --because \"reason\"")
+	fmt.Println()
+	fmt.Println("   LEARNINGS - Did you discover gotchas, patterns, or behaviors?")
+	fmt.Println("   → tk learn \"insight here\"")
+	fmt.Println()
+
+	if hasGitActivity {
+		fmt.Println("   💡 Your recent commits suggest significant work was done.")
+		fmt.Println("      Consider what decisions/learnings should persist!")
+		fmt.Println()
+	}
+
+	fmt.Println("These persist across sessions and help future agents!")
+	fmt.Println("==================================")
+
+	return nil
+}
+
+// hookTodoCheck analyzes TodoWrite output and suggests persisting project-level items
+func hookTodoCheck() error {
+	// Get TodoWrite input from environment (set by Claude Code hook)
+	toolInput := os.Getenv("TOOL_INPUT")
+	if toolInput == "" {
+		// No input, nothing to check
+		return nil
+	}
+
+	// Parse the TodoWrite JSON
+	var input struct {
+		Todos []struct {
+			Content    string `json:"content"`
+			Status     string `json:"status"`
+			ActiveForm string `json:"activeForm"`
+		} `json:"todos"`
+	}
+
+	if err := json.Unmarshal([]byte(toolInput), &input); err != nil {
+		// Not valid JSON or wrong format, skip silently
+		return nil
+	}
+
+	if len(input.Todos) == 0 {
+		return nil
+	}
+
+	// Check if Tasuku is initialized
+	s := store.DefaultStorageWithWarning()
+	var existingTasks map[string]bool
+	if s.Exists() {
+		f, err := s.Read()
+		if err == nil {
+			existingTasks = make(map[string]bool)
+			for id := range f.Tasks {
+				existingTasks[id] = true
+			}
+		}
+	}
+
+	// Analyze each todo for project-level indicators
+	var suggestions []string
+	for _, todo := range input.Todos {
+		if shouldPersistTask(todo.Content) {
+			// Check if similar task already exists
+			id := generateID(todo.Content)
+			if existingTasks != nil && existingTasks[id] {
+				continue // Already tracked
+			}
+
+			suggestions = append(suggestions, todo.Content)
+		}
+	}
+
+	if len(suggestions) == 0 {
+		return nil
+	}
+
+	// Output suggestions
+	fmt.Println("💡 Some TodoWrite items look project-level:")
+	for _, s := range suggestions {
+		desc := s
+		if len(desc) > 60 {
+			desc = desc[:57] + "..."
+		}
+		fmt.Printf("   → %s\n", desc)
+	}
+	fmt.Println()
+	fmt.Println("Consider persisting to Tasuku:")
+	fmt.Println("   tk task add \"description\" --priority high")
+	fmt.Println()
+	fmt.Println("Project-level tasks survive across sessions and help future agents!")
+
+	return nil
+}
+
+// hookSubagentDone prompts for insights after subagent completion
+func hookSubagentDone() error {
+	// Get subagent info from environment (set by Claude Code hook)
+	agentType := os.Getenv("SUBAGENT_TYPE")
+	// duration := os.Getenv("SUBAGENT_DURATION") // Future: filter by duration
+
+	// Only prompt for exploration-type subagents that do significant work
+	// Skip trivial agents like "haiku" quick lookups
+	significantAgents := map[string]bool{
+		"Explore":           true,
+		"general-purpose":   true,
+		"Plan":              true,
+		"code-reviewer":     true,
+		"database-design":   true,
+		"issue-summarizer":  true,
+	}
+
+	if agentType != "" && !significantAgents[agentType] {
+		// Not a significant agent type, skip
+		return nil
+	}
+
+	// Check if there's ongoing Tasuku work
+	s := store.DefaultStorageWithWarning()
+	if !s.Exists() {
+		return nil
+	}
+
+	f, err := s.Read()
+	if err != nil {
+		return nil
+	}
+
+	// Only prompt if there are in-progress tasks (active work session)
+	hasInProgress := false
+	for _, t := range f.Tasks {
+		if t.Status == task.StatusInProgress {
+			hasInProgress = true
+			break
+		}
+	}
+
+	if !hasInProgress {
+		return nil
+	}
+
+	// Output insight prompt
+	fmt.Println("🔍 Subagent exploration completed.")
+	fmt.Println()
+	fmt.Println("Did the exploration reveal:")
+	fmt.Println("   - Patterns or conventions in the codebase? → tk learn")
+	fmt.Println("   - Gotchas or unexpected behaviors? → tk learn")
+	fmt.Println("   - Design decisions to document? → tk decide")
+	fmt.Println()
+
+	return nil
+}
+
+// hookPromptCheck analyzes user prompts for task-related intent
+func hookPromptCheck() error {
+	// Get user prompt from environment (set by Claude Code hook)
+	userPrompt := os.Getenv("USER_PROMPT")
+	if userPrompt == "" {
+		return nil
+	}
+
+	// Skip very short prompts (likely follow-ups or confirmations)
+	if len(userPrompt) < 20 {
+		return nil
+	}
+
+	promptLower := strings.ToLower(userPrompt)
+
+	// Check if Tasuku is initialized
+	s := store.DefaultStorageWithWarning()
+	if !s.Exists() {
+		return nil
+	}
+
+	f, err := s.Read()
+	if err != nil {
+		return nil
+	}
+
+	// Check for explicit task ID references (e.g., "work on fix-auth-bug")
+	for id, t := range f.Tasks {
+		if strings.Contains(promptLower, strings.ToLower(id)) {
+			// Found task reference - show context
+			fmt.Printf("📋 Task referenced: %s\n", id)
+			fmt.Printf("   Status: %s\n", t.Status)
+			desc := t.Description
+			if len(desc) > 50 {
+				desc = desc[:47] + "..."
+			}
+			fmt.Printf("   %s\n", desc)
+			if t.Status == task.StatusReady {
+				fmt.Printf("   → Consider: tk task start %s\n", id)
+			}
+			fmt.Println()
+			return nil
+		}
+	}
+
+	// Keywords that suggest significant work that should be tracked
+	workKeywords := []string{
+		"implement", "add feature", "build", "create new",
+		"fix bug", "fix the", "debug", "resolve issue",
+		"refactor", "rewrite", "migrate",
+		"set up", "configure", "integrate",
+		"add support for", "enable",
+	}
+
+	// Check if prompt suggests significant work
+	suggestsWork := false
+	for _, kw := range workKeywords {
+		if strings.Contains(promptLower, kw) {
+			suggestsWork = true
+			break
+		}
+	}
+
+	if !suggestsWork {
+		return nil
+	}
+
+	// Check if there's already an in-progress task
+	hasInProgress := false
+	for _, t := range f.Tasks {
+		if t.Status == task.StatusInProgress {
+			hasInProgress = true
+			break
+		}
+	}
+
+	// If significant work requested and no task in progress, suggest creating one
+	if !hasInProgress {
+		fmt.Println("💡 This looks like significant work.")
+		fmt.Println("   Consider creating a task to track it:")
+		fmt.Println("   → tk task add \"description\" --priority high")
+		fmt.Println()
+	}
+
+	return nil
+}
+
+// execCommand runs a command and returns its output
+func execCommand(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	out, err := cmd.Output()
+	return string(out), err
 }
 
 // formatDuration formats a duration in a human-readable way
@@ -583,7 +994,7 @@ if [ -d .tasuku ] || [ -f .tasuku.json ]; then
     fi
 fi`
 	case "post-commit":
-		return `# Tasuku post-commit hook: suggest task status updates
+		return `# Tasuku post-commit hook: suggest task status updates and reflection
 COMMIT_MSG=$(git log -1 --pretty=%B)
 
 if [[ $COMMIT_MSG =~ \(#([a-zA-Z0-9-]+)\) ]]; then
@@ -591,7 +1002,13 @@ if [[ $COMMIT_MSG =~ \(#([a-zA-Z0-9-]+)\) ]]; then
     echo ""
     echo "Detected task reference: #$TASK_ID"
     echo "Consider: tk done $TASK_ID"
-fi`
+fi
+
+# Prompt for reflection after significant commits
+echo ""
+echo "💡 Post-commit reflection:"
+echo "   - Made an architectural decision? → tk decide"
+echo "   - Discovered a gotcha or insight? → tk learn"`
 	default:
 		return ""
 	}

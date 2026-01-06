@@ -6,7 +6,8 @@ Tasuku is an agent-first task management system. It's designed for AI agents wor
 - **Pull over push**: Agents query when needed, no constant injections
 - **Parallel-safe**: File locking for multiple agents
 - **Minimal context**: Only load what's needed for the current task
-- **Human-readable**: JSON files, can be edited by hand
+- **Human-readable**: Markdown files with YAML frontmatter (V4), can be edited by hand
+- **Rich content**: Full Markdown support with code blocks, lists, and formatting
 
 ## Architecture
 
@@ -14,37 +15,46 @@ Tasuku is an agent-first task management system. It's designed for AI agents wor
 tasuku/
 ├── cmd/tk/              # CLI entrypoint
 ├── internal/
-│   ├── store/           # Storage backends (V2 file, V3 directory)
+│   ├── store/           # Storage backends (V2 file, V3 JSON dir, V4 Markdown dir)
+│   │   └── v4/          # V4 Markdown-based storage implementation
 │   ├── task/            # Task domain logic
 │   ├── http/            # HTTP REST API server
 │   ├── mcp/             # MCP server for Claude Code integration
 │   └── tui/             # Terminal UI (bubble tea)
-├── .tasuku/             # V3 directory-based storage (default)
-│   ├── tasks/           # Individual task JSON files
+├── .tasuku/             # V4 directory-based storage (default)
+│   ├── tasks/           # Individual task Markdown files
 │   ├── archive/         # Archived task files
-│   └── context/         # learnings.json, decisions.json
+│   ├── context/         # learnings.md, decisions.md
+│   ├── config.json      # Version marker (version: 4)
+│   └── index.json       # Auto-generated index for fast queries
 └── CLAUDE.md            # This file
 ```
 
 ### Storage Formats
 
-**V3 (Default)**: Directory-based storage in `.tasuku/`
-- Each task is a separate JSON file in `tasks/<id>.json`
-- Archived tasks in `archive/<id>.json`
-- Context stored in `context/learnings.json` and `context/decisions.json`
-- Better for git diffs (one file per task = cleaner commits)
-- Parallel-safe with per-file locking
+**V4 (Default)**: Markdown-based storage in `.tasuku/`
+- Each task is a Markdown file with YAML frontmatter in `tasks/<id>.md`
+- Rich content support: code blocks, lists, bold, italic, etc.
+- Notes stored inline within task files (under `## Notes` section)
+- Context in `context/learnings.md` and `context/decisions.md`
+- Auto-generated `index.json` for fast agent queries without parsing all files
+- Version marker in `config.json` (`"version": 4`)
+
+**V3 (Legacy JSON)**: Directory-based JSON storage in `.tasuku/`
+- Each task is a JSON file in `tasks/<id>.json`
+- Context in `context/learnings.json` and `context/decisions.json`
+- Migrate to V4 with `tk migrate v4`
 
 **V2 (Legacy)**: Single `.tasuku.json` file
 - All tasks in one JSON file
 - Auto-detected and supported for backwards compatibility
-- Migrate with `tk migrate v3`
+- Migrate with `tk migrate v3` then `tk migrate v4`
 
 ## CLI Command: `tk`
 
 ```bash
 # Initialization
-tk init                    # Create .tasuku/ directory (V3)
+tk init                    # Create .tasuku/ directory (V4 Markdown)
 
 # Task Management (noun-verb style)
 tk task list               # List all tasks
@@ -78,13 +88,74 @@ tk health                  # Project health check with recommendations
 tk doctor                  # Diagnose MCP and CLI setup
 
 # Migration
-tk migrate v3              # Migrate from .tasuku.json to .tasuku/
+tk migrate v3              # Migrate from .tasuku.json to .tasuku/ (JSON)
+tk migrate v4              # Migrate from V3 JSON to V4 Markdown
 tk migrate beads           # Migrate from Beads format
 ```
 
 ## Data Model
 
-### V3 Directory Structure (Default)
+### V4 Directory Structure (Default)
+
+```
+.tasuku/
+├── tasks/
+│   └── task-id.md        # Individual task Markdown file
+├── archive/
+│   └── old-task.md       # Archived completed tasks
+├── context/
+│   ├── learnings.md      # Learnings in Markdown format
+│   └── decisions.md      # Decisions in Markdown format
+├── config.json           # Version marker {"version": 4}
+└── index.json            # Auto-generated index for fast queries
+```
+
+**Task File** (`.tasuku/tasks/task-id.md`):
+```markdown
+---
+status: ready
+priority: 2
+tags: [backend, api]
+blocked_by: [other-task-id]
+parent_id: parent-task
+owner: agent-1
+time_spent: 3600000000000
+fields:
+  estimate: 2h
+created_at: 2024-01-04T10:00:00Z
+updated_at: 2024-01-04T10:00:00Z
+---
+
+# Task title from first line of description
+
+Rest of the description supports **rich Markdown** formatting,
+including `code`, lists, and code blocks.
+
+## Notes
+
+### 2024-01-05 11:00 [abc123]
+Note content goes here with full Markdown support.
+```
+
+**Learnings** (`.tasuku/context/learnings.md`):
+```markdown
+# Learnings
+
+## learning-id - 2024-01-04T10:30:00Z
+Things discovered while working.
+```
+
+**Decisions** (`.tasuku/context/decisions.md`):
+```markdown
+# Decisions
+
+## decision-id - 2024-01-04T10:30:00Z
+**Chose**: Option A
+**Over**: Option B, Option C
+**Because**: Reasoning for the decision.
+```
+
+### V3 Directory Structure (Legacy JSON)
 
 ```
 .tasuku/
@@ -95,44 +166,6 @@ tk migrate beads           # Migrate from Beads format
 └── context/
     ├── learnings.json    # Array of learning entries
     └── decisions.json    # Array of decision entries
-```
-
-**Task File** (`.tasuku/tasks/task-id.json`):
-```json
-{
-  "status": "ready|in_progress|blocked|done",
-  "description": "What needs to be done",
-  "blocked_by": ["other-task-id"],
-  "parent_id": "parent-task",
-  "owner": "agent-1",
-  "priority": 2,
-  "tags": ["backend", "api"],
-  "fields": {"estimate": "2h"},
-  "time_spent": 3600,
-  "notes": [{"text": "Note 1", "created_at": "..."}],
-  "created_at": "2024-01-04T10:00:00Z",
-  "updated_at": "2024-01-04T10:00:00Z"
-}
-```
-
-**Learnings** (`.tasuku/context/learnings.json`):
-```json
-[
-  {"text": "Things discovered while working", "created_at": "..."}
-]
-```
-
-**Decisions** (`.tasuku/context/decisions.json`):
-```json
-[
-  {
-    "id": "decision-id",
-    "chose": "Option A",
-    "over": ["Option B", "Option C"],
-    "because": "Reasoning",
-    "created_at": "2024-01-04T10:00:00Z"
-  }
-]
 ```
 
 ### V2 Format (Legacy)
@@ -448,6 +481,11 @@ Record architectural decisions here as we make them:
     - When a task is a feature, bug, or project milestone → add to tk
     - When a task is an implementation step like "fix type error" → use TodoWrite only
 11. **Constructor pattern over init() for CLI commands** - Commands use `func newCmd() *cobra.Command` constructors instead of `var cmd` + `func init()`. This follows the PlanetScale CLI pattern for explicit initialization, better testability, and avoiding package-level flag variables.
+12. **UTC storage, local display for timestamps** - All timestamps (tasks, notes, learnings, decisions) are:
+    - **Stored**: UTC in RFC3339 format (`2024-01-04T10:30:00Z`) for sorting, cross-timezone consistency
+    - **Displayed**: Local timezone for human readability (`Jan 4, 2024 2:30 AM` in PST)
+    - **JSON/MCP output**: UTC for machine parsing
+    - Uses `task.FormatLocalTime()` helper for consistent display formatting
 
 ## Adding New Functionality Checklist
 
@@ -611,3 +649,4 @@ tk hooks install --claude  # Adds SessionStart and Stop hooks
 - Parallelize independent I/O operations using goroutines. When multiple reads/fetches don't depend on each other, run them concurrently with channels or errgroup. Example: Dashboard handler reads tasks + archived in parallel (internal/http/server.go:1068).
 - Leverage Go's type system fully: use generics for reusable data structures, define interfaces for abstraction, use custom types for domain concepts (e.g., type Status string), and prefer compile-time safety over runtime checks. Clarity trumps cleverness.
 - Always ensure switch cases that should handle a key return early to prevent fall-through to default key handlers. In TUI apps with bubbles/bubbletea, unhandled keys can pass to child components and cause unexpected state changes.
+- Always ensure MCP tool schema 'properties' include all parameters that the handler accepts. When implementing a handler with optional flags (like 'unblock' in tk_start), the flag MUST be documented in the InputSchema 'properties' with description. Missing schema properties means AI agents won't know the flag exists and can't use it effectively. This is a critical UX issue - verify schema matches handler implementation.

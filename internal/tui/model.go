@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/iheanyi/tasuku/internal/store"
@@ -65,6 +66,9 @@ type Model struct {
 	err          error
 	sortMode     SortMode     // current sort mode
 	statusFilter StatusFilter // current status filter
+
+	// Markdown renderer for rich content
+	mdRenderer *glamour.TermRenderer
 
 	// Confirmation dialog state
 	confirmAction  string // what action to confirm (e.g., "archive", "bulk_archive")
@@ -255,11 +259,18 @@ func New(s store.Storage) (*Model, error) {
 		progress.WithoutPercentage(),
 	)
 
+	// Initialize markdown renderer for rich content display
+	mdRenderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(80),
+	)
+
 	m := &Model{
-		store:    s,
-		file:     f,
-		view:     ViewDashboard,
-		progress: prog,
+		store:      s,
+		file:       f,
+		view:       ViewDashboard,
+		progress:   prog,
+		mdRenderer: mdRenderer,
 	}
 
 	m.initTaskList()
@@ -1175,13 +1186,22 @@ func (m Model) viewTaskDetail() string {
 	b.WriteString(fmt.Sprintf("Priority: %s %s\n", PrioritySymbol(t.GetPriority()), task.PriorityName(t.GetPriority())))
 	b.WriteString("\n")
 
-	// Description
+	// Description (render as Markdown if renderer available)
 	sectionStyle := lipgloss.NewStyle().
 		Foreground(ColorAccent).
 		Bold(true)
 	b.WriteString(sectionStyle.Render("Description"))
 	b.WriteString("\n")
-	b.WriteString(t.Description)
+	if m.mdRenderer != nil && containsMarkdown(t.Description) {
+		rendered, err := m.mdRenderer.Render(t.Description)
+		if err == nil {
+			b.WriteString(strings.TrimSpace(rendered))
+		} else {
+			b.WriteString(t.Description)
+		}
+	} else {
+		b.WriteString(t.Description)
+	}
 	b.WriteString("\n\n")
 
 	// Timer
@@ -1227,10 +1247,16 @@ func (m Model) viewTaskDetail() string {
 		b.WriteString("\n")
 	}
 
-	// Blocked by
-	if len(t.BlockedBy) > 0 {
+	// Blocked by (filter out empty strings)
+	var blockers []string
+	for _, blocker := range t.BlockedBy {
+		if blocker != "" {
+			blockers = append(blockers, blocker)
+		}
+	}
+	if len(blockers) > 0 {
 		b.WriteString(TaskBlockedStyle.Render("Blocked by: "))
-		b.WriteString(strings.Join(t.BlockedBy, ", "))
+		b.WriteString(strings.Join(blockers, ", "))
 		b.WriteString("\n\n")
 	}
 
@@ -1252,7 +1278,8 @@ func (m Model) renderEmptyState(message string, cliCommand string) string {
 }
 
 // renderModal creates a consistent modal dialog with title, content, and help text.
-func (m Model) renderModal(title string, borderColor lipgloss.Color, content string, helpText string) string {
+// Set useBorder to false for textarea content to avoid double-border artifacts.
+func (m Model) renderModal(title string, borderColor lipgloss.Color, content string, helpText string, useBorder bool) string {
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
@@ -1262,16 +1289,24 @@ func (m Model) renderModal(title string, borderColor lipgloss.Color, content str
 		Foreground(borderColor).
 		Bold(true)
 
-	inputStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(ColorSlate).
-		Padding(0, 1).
-		Width(50)
+	// Apply inner border only when requested (not for textareas which have their own styling)
+	var styledContent string
+	if useBorder {
+		inputStyle := lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(ColorSlate).
+			Padding(0, 1).
+			Width(50)
+		styledContent = inputStyle.Render(content)
+	} else {
+		// No border, just minimal padding for textareas
+		styledContent = lipgloss.NewStyle().Padding(0, 1).Render(content)
+	}
 
 	modalContent := lipgloss.JoinVertical(lipgloss.Left,
 		titleStyle.Render(title),
 		"",
-		inputStyle.Render(content),
+		styledContent,
 		"",
 		HelpStyle.Render(helpText),
 	)
@@ -1298,12 +1333,43 @@ func generateTaskID(desc string) string {
 	return result
 }
 
+// containsMarkdown checks if text contains Markdown formatting.
+// Returns true if there are indicators like headers, code blocks, emphasis, etc.
+func containsMarkdown(text string) bool {
+	// Check for common Markdown patterns
+	patterns := []string{
+		"```",  // Code blocks
+		"**",   // Bold
+		"__",   // Bold
+		"*",    // Italic (if single)
+		"_",    // Italic (if single)
+		"# ",   // Headers
+		"## ",  // Headers
+		"- ",   // Lists
+		"* ",   // Lists
+		"1. ",  // Ordered lists
+		"[",    // Links
+		"`",    // Inline code
+		"> ",   // Blockquotes
+		"---",  // Horizontal rule
+		"***",  // Horizontal rule
+	}
+
+	for _, p := range patterns {
+		if strings.Contains(text, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m Model) viewCreate() string {
 	modal := m.renderModal(
 		"New Task",
 		ColorAccent,
 		m.createInput.View(),
 		"ctrl+s: create  esc: cancel  (Enter adds newlines)",
+		false, // no inner border for textarea
 	)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
@@ -1316,6 +1382,7 @@ func (m Model) viewEdit() string {
 		ColorPrimary,
 		content,
 		"ctrl+s: save  esc: cancel  (Enter adds newlines)",
+		false, // no inner border for textarea
 	)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
@@ -1338,8 +1405,16 @@ func (m Model) viewNotes() string {
 		))
 	} else {
 		for i, n := range notes {
-			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, n.Text))
-			b.WriteString(fmt.Sprintf("     %s\n", HelpStyle.Render(n.CreatedAt.Format("2006-01-02 15:04"))))
+			// Render note text as Markdown if it contains formatting
+			noteText := n.Text
+			if m.mdRenderer != nil && containsMarkdown(noteText) {
+				rendered, err := m.mdRenderer.Render(noteText)
+				if err == nil {
+					noteText = strings.TrimSpace(rendered)
+				}
+			}
+			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, noteText))
+			b.WriteString(fmt.Sprintf("     %s\n", HelpStyle.Render(task.FormatLocalTime(n.CreatedAt))))
 		}
 	}
 
@@ -1396,7 +1471,7 @@ func (m Model) viewLearnings() string {
 			b.WriteString("\n")
 			for _, l := range regular {
 				b.WriteString(fmt.Sprintf("  - %s\n", l.Text))
-				b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(l.CreatedAt.Format("2006-01-02 15:04"))))
+				b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(task.FormatLocalTime(l.CreatedAt))))
 			}
 		}
 	}
@@ -1444,7 +1519,7 @@ func (m Model) viewDecisions() string {
 			if d.Because != "" {
 				b.WriteString(fmt.Sprintf("    %s\n", reasonStyle.Render("\""+d.Because+"\"")))
 			}
-			b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(d.CreatedAt.Format("2006-01-02 15:04"))))
+			b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(task.FormatLocalTime(d.CreatedAt))))
 			b.WriteString("\n")
 		}
 	}

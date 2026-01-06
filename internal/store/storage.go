@@ -4,11 +4,13 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/iheanyi/tasuku/internal/store/v4"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
@@ -87,15 +89,20 @@ type StorageType int
 
 const (
 	StorageTypeNone StorageType = iota
-	StorageTypeFile             // .tasuku.json
-	StorageTypeDir              // .tasuku/
+	StorageTypeFile             // .tasuku.json (V1/V2)
+	StorageTypeDir              // .tasuku/ (V3 JSON)
+	StorageTypeDirV4            // .tasuku/ (V4 Markdown)
 )
 
 // DetectStorageType checks which storage format exists in the given directory.
 func DetectStorageType(dir string) StorageType {
-	// Check for V3 directory format first (preferred)
+	// Check for directory format first (V3 or V4)
 	dirPath := filepath.Join(dir, DirName)
 	if info, err := os.Stat(dirPath); err == nil && info.IsDir() {
+		// Check if V4 (has config.json with version: 4)
+		if detectV4Format(dirPath) {
+			return StorageTypeDirV4
+		}
 		return StorageTypeDir
 	}
 
@@ -108,6 +115,25 @@ func DetectStorageType(dir string) StorageType {
 	return StorageTypeNone
 }
 
+// detectV4Format checks if a .tasuku directory uses V4 format.
+// V4 is distinguished by a config.json with "version": 4.
+func detectV4Format(dirPath string) bool {
+	configPath := filepath.Join(dirPath, "config.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return false
+	}
+
+	var config struct {
+		Version int `json:"version"`
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return false
+	}
+
+	return config.Version == 4
+}
+
 // DetectStorageTypeUp searches up directories to detect storage type.
 // Returns the storage type and the directory where storage was found.
 func DetectStorageTypeUp() (StorageType, string) {
@@ -117,9 +143,13 @@ func DetectStorageTypeUp() (StorageType, string) {
 	}
 
 	for {
-		// Check for V3 directory format first
+		// Check for directory format first (V3 or V4)
 		dirPath := filepath.Join(dir, DirName)
 		if info, err := os.Stat(dirPath); err == nil && info.IsDir() {
+			// Check if V4 (has config.json with version: 4)
+			if detectV4Format(dirPath) {
+				return StorageTypeDirV4, dir
+			}
 			return StorageTypeDir, dir
 		}
 
@@ -148,13 +178,15 @@ func DetectStorageTypeUp() (StorageType, string) {
 var ErrV2Detected = fmt.Errorf("legacy .tasuku.json format detected - run 'tk migrate v3' to upgrade")
 
 // AutoDetect returns the appropriate storage backend based on what exists.
-// It only supports V3 (.tasuku/) format. If V2 (.tasuku.json) is detected,
-// it returns nil and users should migrate using 'tk migrate v3'.
+// It supports V4 (.tasuku/ with config.json version=4) and V3 (.tasuku/) formats.
+// If V2 (.tasuku.json) is detected, it returns nil and users should migrate.
 // If neither exists, returns a V3 directory store (the default for new projects).
 func AutoDetect() Storage {
 	storageType, dir := DetectStorageTypeUp()
 
 	switch storageType {
+	case StorageTypeDirV4:
+		return v4.New(filepath.Join(dir, DirName))
 	case StorageTypeDir:
 		return NewDirStore(filepath.Join(dir, DirName))
 	case StorageTypeFile:
@@ -172,6 +204,8 @@ func AutoDetectWithWarning() (Storage, error) {
 	storageType, dir := DetectStorageTypeUp()
 
 	switch storageType {
+	case StorageTypeDirV4:
+		return v4.New(filepath.Join(dir, DirName)), nil
 	case StorageTypeDir:
 		return NewDirStore(filepath.Join(dir, DirName)), nil
 	case StorageTypeFile:

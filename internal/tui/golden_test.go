@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -19,6 +20,9 @@ import (
 func init() {
 	// Force ASCII color profile for consistent golden file output across environments
 	lipgloss.SetColorProfile(termenv.Ascii)
+
+	// Force UTC timezone for consistent timestamp rendering in golden tests
+	os.Setenv("TZ", "UTC")
 }
 
 // testTermWidth and testTermHeight provide consistent terminal dimensions for tests

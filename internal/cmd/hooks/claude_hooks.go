@@ -113,6 +113,15 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 					},
 				},
 			},
+			{
+				"matcher": "TodoWrite",
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks todo-check %s", executable, tasukuHookMarker),
+					},
+				},
+			},
 		},
 		"SessionStart": {
 			{
@@ -134,12 +143,46 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 				},
 			},
 		},
+		"PreCompact": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks pre-compact %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
+		"SubagentStop": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks subagent-done %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
+		"UserPromptSubmit": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks prompt-check %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
 	}
 }
 
 // installClaudeHooks installs Tasuku hooks in Claude Code settings.
-// If force is true, existing Tasuku hooks will be replaced.
-// If force is false and hooks already exist, they will be skipped with a message.
+// Uses smart incremental updates:
+//   - Adds new hooks without touching existing ones
+//   - Updates hooks whose commands have changed
+//   - Preserves user's non-Tasuku hooks
+//
+// If force is true, all Tasuku hooks are replaced (useful for downgrading).
 // If local is true, installs to ./.claude/settings.json instead of ~/.claude/settings.json.
 func installClaudeHooks(force, local bool) error {
 	settings, err := readClaudeSettings(local)
@@ -154,98 +197,88 @@ func installClaudeHooks(force, local bool) error {
 	}
 
 	tasukuHooks := getTasukuClaudeHooks()
-	installedCount := 0
+	addedCount := 0
+	updatedCount := 0
+	unchangedCount := 0
 
-	for hookType, newHooks := range tasukuHooks {
-		if len(newHooks) == 0 {
+	for hookType, desiredHooks := range tasukuHooks {
+		if len(desiredHooks) == 0 {
 			continue
 		}
 
 		existing, _ := hooks[hookType].([]interface{})
 
-		// Check for existing Tasuku hooks
-		hasExisting := false
-		for _, h := range existing {
-			if hook, ok := h.(map[string]interface{}); ok {
-				// Check nested hooks array format
-				if innerHooks, ok := hook["hooks"].([]interface{}); ok {
-					for _, ih := range innerHooks {
-						if innerHook, ok := ih.(map[string]interface{}); ok {
-							if command, ok := innerHook["command"].(string); ok {
-								if containsTasukuMarker(command) {
-									hasExisting = true
-									break
-								}
-							}
-						}
-					}
-				}
-				// Also check simple command format (backwards compat)
-				if command, ok := hook["command"].(string); ok {
-					if containsTasukuMarker(command) {
-						hasExisting = true
-						break
-					}
-				}
-			}
-		}
-
-		if hasExisting && !force {
-			fmt.Printf("Tasuku %s hooks already installed (use --force to overwrite)\n", hookType)
-			continue
-		}
-
-		// Remove existing Tasuku hooks if force
-		if hasExisting && force {
+		// If force mode, remove all Tasuku hooks first, then add fresh
+		if force {
 			var filtered []interface{}
 			for _, h := range existing {
-				if hook, ok := h.(map[string]interface{}); ok {
-					isTasuku := false
-					// Check nested hooks array format
-					if innerHooks, ok := hook["hooks"].([]interface{}); ok {
-						for _, ih := range innerHooks {
-							if innerHook, ok := ih.(map[string]interface{}); ok {
-								if command, ok := innerHook["command"].(string); ok {
-									if containsTasukuMarker(command) {
-										isTasuku = true
-										break
-									}
-								}
-							}
-						}
-					}
-					// Also check simple command format (backwards compat)
-					if command, ok := hook["command"].(string); ok {
-						if containsTasukuMarker(command) {
-							isTasuku = true
-						}
-					}
-					if !isTasuku {
-						filtered = append(filtered, h)
-					}
-				} else {
+				if !isTasukuHook(h) {
 					filtered = append(filtered, h)
 				}
 			}
 			existing = filtered
+
+			// Add all desired hooks
+			for _, newHook := range desiredHooks {
+				hookMap := copyHookMap(newHook)
+				existing = append(existing, hookMap)
+				addedCount++
+			}
+			hooks[hookType] = existing
+			continue
 		}
 
-		// Add new Tasuku hooks
-		for _, newHook := range newHooks {
-			// Copy all fields from the hook definition
-			hookMap := make(map[string]interface{})
-			for k, v := range newHook {
-				hookMap[k] = v
+		// Smart incremental update: check each desired hook individually
+		for _, desiredHook := range desiredHooks {
+			matcher := getHookMatcher(desiredHook)
+			desiredCommand := getHookCommand(desiredHook)
+
+			// Find existing hook with same matcher (or no matcher for global hooks)
+			foundIdx := -1
+			existingCommand := ""
+			for i, h := range existing {
+				if !isTasukuHook(h) {
+					continue
+				}
+				existingMatcher := getHookMatcherFromExisting(h)
+				if existingMatcher == matcher {
+					foundIdx = i
+					existingCommand = getHookCommandFromExisting(h)
+					break
+				}
 			}
-			existing = append(existing, hookMap)
-			installedCount++
+
+			if foundIdx == -1 {
+				// Hook doesn't exist - add it
+				hookMap := copyHookMap(desiredHook)
+				existing = append(existing, hookMap)
+				addedCount++
+				fmt.Printf("  + Added: %s", hookType)
+				if matcher != "" {
+					fmt.Printf("/%s", matcher)
+				}
+				fmt.Println()
+			} else if existingCommand != desiredCommand {
+				// Hook exists but command changed - update it
+				existing[foundIdx] = copyHookMap(desiredHook)
+				updatedCount++
+				fmt.Printf("  ~ Updated: %s", hookType)
+				if matcher != "" {
+					fmt.Printf("/%s", matcher)
+				}
+				fmt.Println()
+			} else {
+				// Hook exists and is unchanged
+				unchangedCount++
+			}
 		}
 
 		hooks[hookType] = existing
 	}
 
-	if installedCount == 0 {
-		fmt.Println("No hooks to install.")
+	totalChanges := addedCount + updatedCount
+	if totalChanges == 0 {
+		fmt.Printf("All %d Tasuku hooks are up to date.\n", unchangedCount)
 		return nil
 	}
 
@@ -259,14 +292,118 @@ func installClaudeHooks(force, local bool) error {
 	if local {
 		location = "project"
 	}
-	fmt.Printf("Installed %d Tasuku hook(s) in Claude Code (%s):\n", installedCount, location)
-	fmt.Println("  - SessionStart: shows project context summary")
-	fmt.Println("  - Stop: reminds about running timers and in-progress tasks")
-	fmt.Println("  - PostToolUse/ExitPlanMode: prompts to sync plan to tasks")
+	fmt.Println()
+	fmt.Printf("Tasuku hooks updated (%s):\n", location)
+	if addedCount > 0 {
+		fmt.Printf("  %d added\n", addedCount)
+	}
+	if updatedCount > 0 {
+		fmt.Printf("  %d updated\n", updatedCount)
+	}
+	if unchangedCount > 0 {
+		fmt.Printf("  %d unchanged\n", unchangedCount)
+	}
 	fmt.Println()
 	fmt.Println("Restart Claude Code for hooks to take effect.")
 
 	return nil
+}
+
+// isTasukuHook checks if a hook entry is a Tasuku hook
+func isTasukuHook(h interface{}) bool {
+	hook, ok := h.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	// Check nested hooks array format
+	if innerHooks, ok := hook["hooks"].([]interface{}); ok {
+		for _, ih := range innerHooks {
+			if innerHook, ok := ih.(map[string]interface{}); ok {
+				if command, ok := innerHook["command"].(string); ok {
+					if containsTasukuMarker(command) {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	// Also check simple command format (backwards compat)
+	if command, ok := hook["command"].(string); ok {
+		if containsTasukuMarker(command) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// getHookMatcher extracts the matcher from a desired hook definition
+func getHookMatcher(hook map[string]interface{}) string {
+	if matcher, ok := hook["matcher"].(string); ok {
+		return matcher
+	}
+	return ""
+}
+
+// getHookCommand extracts the command from a desired hook definition
+func getHookCommand(hook map[string]interface{}) string {
+	if innerHooks, ok := hook["hooks"].([]map[string]string); ok {
+		for _, ih := range innerHooks {
+			if command, ok := ih["command"]; ok {
+				return command
+			}
+		}
+	}
+	return ""
+}
+
+// getHookMatcherFromExisting extracts the matcher from an existing hook entry
+func getHookMatcherFromExisting(h interface{}) string {
+	hook, ok := h.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if matcher, ok := hook["matcher"].(string); ok {
+		return matcher
+	}
+	return ""
+}
+
+// getHookCommandFromExisting extracts the command from an existing hook entry
+func getHookCommandFromExisting(h interface{}) string {
+	hook, ok := h.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	// Check nested hooks array format
+	if innerHooks, ok := hook["hooks"].([]interface{}); ok {
+		for _, ih := range innerHooks {
+			if innerHook, ok := ih.(map[string]interface{}); ok {
+				if command, ok := innerHook["command"].(string); ok {
+					return command
+				}
+			}
+		}
+	}
+
+	// Also check simple command format
+	if command, ok := hook["command"].(string); ok {
+		return command
+	}
+
+	return ""
+}
+
+// copyHookMap creates a deep copy of a hook definition
+func copyHookMap(hook map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range hook {
+		result[k] = v
+	}
+	return result
 }
 
 // uninstallClaudeHooks removes Tasuku hooks from Claude Code settings.

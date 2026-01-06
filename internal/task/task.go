@@ -494,3 +494,70 @@ func ValidTransition(from, to Status) bool {
 		return false
 	}
 }
+
+// =============================================================================
+// Time Display Formatting
+// =============================================================================
+
+// FormatLocalTime formats a time in local timezone for human display.
+// Output: "Jan 2, 2006 3:04 PM"
+func FormatLocalTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Local().Format("Jan 2, 2006 3:04 PM")
+}
+
+// FormatLocalDateTime formats a time with full date and time in local timezone.
+// Output: "2006-01-02 15:04:05"
+func FormatLocalDateTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Local().Format("2006-01-02 15:04:05")
+}
+
+// FormatLocalDateOnly formats just the date portion in local timezone.
+// Output: "Jan 2, 2006"
+func FormatLocalDateOnly(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Local().Format("Jan 2, 2006")
+}
+
+// FormatRelativeTime formats a time as relative to now (e.g., "2 hours ago").
+// Falls back to FormatLocalTime for times older than 7 days.
+func FormatRelativeTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+
+	now := time.Now()
+	diff := now.Sub(t)
+
+	switch {
+	case diff < time.Minute:
+		return "just now"
+	case diff < time.Hour:
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", mins)
+	case diff < 24*time.Hour:
+		hours := int(diff.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	case diff < 7*24*time.Hour:
+		days := int(diff.Hours() / 24)
+		if days == 1 {
+			return "yesterday"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	default:
+		return FormatLocalTime(t)
+	}
+}

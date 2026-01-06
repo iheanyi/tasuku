@@ -1,0 +1,8 @@
+---
+status: done
+created_at: 2026-01-06T00:04:08.342068Z
+updated_at: 2026-01-06T00:09:12.127038Z
+---
+
+# Auto-stop timer on done/pause, add --timer flag to start
+

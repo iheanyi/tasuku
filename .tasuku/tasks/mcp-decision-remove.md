@@ -1,0 +1,8 @@
+---
+status: done
+created_at: 2026-01-06T02:29:49.422095Z
+updated_at: 2026-01-06T02:32:56.41581Z
+---
+
+# Add tk_decision_remove MCP tool for removing decisions
+
