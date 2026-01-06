@@ -1247,10 +1247,16 @@ func (m Model) viewTaskDetail() string {
 		b.WriteString("\n")
 	}
 
-	// Blocked by
-	if len(t.BlockedBy) > 0 {
+	// Blocked by (filter out empty strings)
+	var blockers []string
+	for _, blocker := range t.BlockedBy {
+		if blocker != "" {
+			blockers = append(blockers, blocker)
+		}
+	}
+	if len(blockers) > 0 {
 		b.WriteString(TaskBlockedStyle.Render("Blocked by: "))
-		b.WriteString(strings.Join(t.BlockedBy, ", "))
+		b.WriteString(strings.Join(blockers, ", "))
 		b.WriteString("\n\n")
 	}
 

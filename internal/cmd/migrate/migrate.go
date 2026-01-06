@@ -354,7 +354,10 @@ func migrateFromBeads(dryRun bool) error {
 		var blockedBy []string
 		for _, dep := range issue.Dependencies {
 			if dep.Type == "blocks" || dep.Type == "blocked_by" {
-				blockedBy = append(blockedBy, strings.ToLower(dep.TargetID))
+				targetID := strings.ToLower(strings.TrimSpace(dep.TargetID))
+				if targetID != "" {
+					blockedBy = append(blockedBy, targetID)
+				}
 			}
 		}
 

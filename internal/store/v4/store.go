@@ -651,7 +651,19 @@ func (s *Store) SetPriority(id string, priority int) error {
 
 // BlockTask marks a task as blocked.
 func (s *Store) BlockTask(id string, blockers []string) error {
+	// Filter out empty strings defensively
+	var validBlockers []string
 	for _, blocker := range blockers {
+		if blocker != "" {
+			validBlockers = append(validBlockers, blocker)
+		}
+	}
+
+	if len(validBlockers) == 0 {
+		return fmt.Errorf("store: no valid blockers provided")
+	}
+
+	for _, blocker := range validBlockers {
 		if blocker == id {
 			return fmt.Errorf("store: task %q cannot block itself", id)
 		}
@@ -662,7 +674,7 @@ func (s *Store) BlockTask(id string, blockers []string) error {
 
 	return s.updateTask(id, func(t *task.Task, notes *[]task.Note) error {
 		t.Status = task.StatusBlocked
-		t.BlockedBy = blockers
+		t.BlockedBy = validBlockers
 		t.UpdatedAt = time.Now().UTC()
 		return nil
 	})
