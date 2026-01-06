@@ -392,6 +392,50 @@ Record architectural decisions here as we make them:
     - When a task is an implementation step like "fix type error" → use TodoWrite only
 11. **Constructor pattern over init() for CLI commands** - Commands use `func newCmd() *cobra.Command` constructors instead of `var cmd` + `func init()`. This follows the PlanetScale CLI pattern for explicit initialization, better testability, and avoiding package-level flag variables.
 
+## Adding New Functionality Checklist
+
+When adding new MCP tools, CLI commands, or features, follow this audit checklist:
+
+### 1. MCP/CLI Parity
+- [ ] New CLI command → Add corresponding MCP tool
+- [ ] New MCP tool → Consider CLI equivalent
+- [ ] Same capabilities, same behavior, different interfaces
+
+### 2. Tool Descriptions (Nudges)
+Every MCP tool description should include:
+- **WHAT it does** (basic description)
+- **WHEN to use it** ("Use PROACTIVELY when...")
+- **Examples** of trigger scenarios (numbered list)
+- **Follow-up hints** (what to do after using)
+
+Good nudge example:
+```
+"Use PROACTIVELY when: (1) Debugging reveals undocumented behavior,
+(2) Finding gotchas or edge cases, (3) Discovering patterns that
+work well (or poorly). Use 'Never X' or 'Always Y' prefixes for rules."
+```
+
+### 3. Response Enhancements
+Consider adding smart responses that:
+- **Warn** about potential issues (e.g., multiple in_progress tasks)
+- **Suggest** next actions (e.g., "Consider archiving" after tk_done)
+- **List** affected items (e.g., "These tasks are now unblocked")
+- **Prompt** for follow-up (e.g., "Add a note explaining why paused")
+
+### 4. Hook Integration
+Check if the new feature should trigger or be triggered by:
+- **SessionStart**: Should it be included in session context?
+- **Stop**: Should it be reminded about at session end?
+- **PostToolUse**: Should it prompt for related actions?
+
+### 5. Documentation
+- [ ] Update CLAUDE.md if it affects agent workflow
+- [ ] Update README.md MCP tools table
+- [ ] Add to CLI help text
+
+### 6. Skills (Optional)
+If the feature is frequently used, consider adding a skill (slash command).
+
 ## Agent Task Management
 
 When working on this codebase, follow these guidelines for task tracking:
