@@ -729,6 +729,34 @@ func (s *Store) StopTimer(id string) (time.Duration, error) {
 	return elapsed, err
 }
 
+// StopTimerIfRunning stops a timer only if one is running.
+// Returns elapsed time, whether a timer was actually running, and any error.
+func (s *Store) StopTimerIfRunning(id string) (time.Duration, bool, error) {
+	var elapsed time.Duration
+	var wasRunning bool
+	err := s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		if t.TimerStart == nil {
+			return nil // No timer running, nothing to do
+		}
+
+		wasRunning = true
+		now := time.Now().UTC()
+		elapsed = now.Sub(*t.TimerStart)
+
+		t.Duration = task.Duration(time.Duration(t.Duration) + elapsed)
+		t.TimerStart = nil
+		t.UpdatedAt = now
+		f.Tasks[id] = t
+		return nil
+	})
+	return elapsed, wasRunning, err
+}
+
 // GetActiveTimers returns all tasks with running timers.
 func (s *Store) GetActiveTimers() (map[string]task.Task, error) {
 	f, err := s.Read()

@@ -160,7 +160,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_start",
-			Description: "Mark a task as in_progress. Use this when you begin working on a task.",
+			Description: "Mark a task as in_progress. Use this when you begin working on a task. Optionally starts a timer.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -169,12 +169,16 @@ func (s *Server) Tools() []Tool {
 						"type":        "string",
 						"description": "Task ID to start",
 					},
+					"start_timer": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Also start a timer on the task (default: false)",
+					},
 				},
 			},
 		},
 		{
 			Name:        "tk_done",
-			Description: "Mark a task as completed. Use this when you finish working on a task.",
+			Description: "Mark a task as completed. Automatically stops any running timer on the task.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -472,7 +476,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_pause",
-			Description: "Pause work on a task, reverting it from in_progress to ready status and clearing the owner.",
+			Description: "Pause work on a task, reverting it from in_progress to ready status. Automatically stops any running timer.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -726,18 +730,45 @@ func (s *Server) handleAdd(args map[string]interface{}) (interface{}, error) {
 
 func (s *Server) handleStart(args map[string]interface{}) (interface{}, error) {
 	id, _ := args["id"].(string)
+	startTimer, _ := args["start_timer"].(bool)
+
 	if err := s.store.SetStatus(id, task.StatusInProgress); err != nil {
 		return nil, err
 	}
-	return map[string]string{"id": id, "status": "in_progress"}, nil
+
+	result := map[string]interface{}{"id": id, "status": "in_progress"}
+
+	if startTimer {
+		if err := s.store.StartTimer(id); err != nil {
+			result["timer_warning"] = err.Error()
+		} else {
+			result["timer_started"] = true
+		}
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleDone(args map[string]interface{}) (interface{}, error) {
 	id, _ := args["id"].(string)
+
+	// Auto-stop timer if running
+	elapsed, wasRunning, err := s.store.StopTimerIfRunning(id)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := s.store.SetStatus(id, task.StatusDone); err != nil {
 		return nil, err
 	}
-	return map[string]string{"id": id, "status": "done"}, nil
+
+	result := map[string]interface{}{"id": id, "status": "done"}
+	if wasRunning {
+		result["timer_stopped"] = true
+		result["elapsed"] = elapsed.String()
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleBlock(args map[string]interface{}) (interface{}, error) {
@@ -1063,7 +1094,13 @@ func (s *Server) handleEdit(args map[string]interface{}) (interface{}, error) {
 func (s *Server) handlePause(args map[string]interface{}) (interface{}, error) {
 	id, _ := args["id"].(string)
 
-	err := s.store.Update(func(f *task.File) error {
+	// Auto-stop timer if running
+	elapsed, wasRunning, err := s.store.StopTimerIfRunning(id)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.store.Update(func(f *task.File) error {
 		t, exists := f.Tasks[id]
 		if !exists {
 			return fmt.Errorf("task not found: %s", id)
@@ -1085,7 +1122,13 @@ func (s *Server) handlePause(args map[string]interface{}) (interface{}, error) {
 		return nil, err
 	}
 
-	return map[string]string{"id": id, "status": "ready"}, nil
+	result := map[string]interface{}{"id": id, "status": "ready"}
+	if wasRunning {
+		result["timer_stopped"] = true
+		result["elapsed"] = elapsed.String()
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleUnblock(args map[string]interface{}) (interface{}, error) {

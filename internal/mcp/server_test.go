@@ -113,9 +113,9 @@ func TestHandleToolCall_StartDone(t *testing.T) {
 		t.Fatalf("start error: %v", err)
 	}
 
-	r := result.(map[string]string)
+	r := result.(map[string]interface{})
 	if r["status"] != "in_progress" {
-		t.Errorf("expected status 'in_progress', got %s", r["status"])
+		t.Errorf("expected status 'in_progress', got %v", r["status"])
 	}
 
 	// Complete it
@@ -126,9 +126,9 @@ func TestHandleToolCall_StartDone(t *testing.T) {
 		t.Fatalf("done error: %v", err)
 	}
 
-	r = result.(map[string]string)
+	r = result.(map[string]interface{})
 	if r["status"] != "done" {
-		t.Errorf("expected status 'done', got %s", r["status"])
+		t.Errorf("expected status 'done', got %v", r["status"])
 	}
 }
 
@@ -635,9 +635,9 @@ func TestHandleToolCall_Pause(t *testing.T) {
 		t.Fatalf("pause error: %v", err)
 	}
 
-	r := result.(map[string]string)
+	r := result.(map[string]interface{})
 	if r["status"] != "ready" {
-		t.Errorf("expected status 'ready', got %s", r["status"])
+		t.Errorf("expected status 'ready', got %v", r["status"])
 	}
 
 	// Verify with show

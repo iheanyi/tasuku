@@ -748,6 +748,26 @@ func (s *DirStore) StopTimer(id string) (time.Duration, error) {
 	return elapsed, err
 }
 
+// StopTimerIfRunning stops a timer only if one is running.
+// Returns elapsed time, whether a timer was actually running, and any error.
+func (s *DirStore) StopTimerIfRunning(id string) (time.Duration, bool, error) {
+	var elapsed time.Duration
+	var wasRunning bool
+	err := s.updateTask(id, func(t *task.Task) error {
+		if t.TimerStart == nil {
+			return nil // No timer running, nothing to do
+		}
+		wasRunning = true
+		now := time.Now().UTC()
+		elapsed = now.Sub(*t.TimerStart)
+		t.Duration = task.Duration(time.Duration(t.Duration) + elapsed)
+		t.TimerStart = nil
+		t.UpdatedAt = now
+		return nil
+	})
+	return elapsed, wasRunning, err
+}
+
 // GetActiveTimers returns all tasks with running timers.
 func (s *DirStore) GetActiveTimers() (map[string]task.Task, error) {
 	f, err := s.Read()

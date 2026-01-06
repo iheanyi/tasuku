@@ -59,6 +59,7 @@ type Storage interface {
 	// Timer
 	StartTimer(id string) error
 	StopTimer(id string) (time.Duration, error)
+	StopTimerIfRunning(id string) (time.Duration, bool, error) // Returns elapsed time, whether timer was running, error
 	GetActiveTimers() (map[string]task.Task, error)
 
 	// Context

@@ -15,6 +15,7 @@ var pauseCmd = &cobra.Command{
 	Long: `Move a task from in_progress back to ready status.
 
 Use this when you need to temporarily stop working on a task.
+If a timer is running on the task, it will be automatically stopped.
 
 Examples:
   tk task pause my-task           # Pause work on "my-task"`,
@@ -23,11 +24,20 @@ Examples:
 		taskID := args[0]
 		s := store.DefaultStorageWithWarning()
 
+		// Auto-stop timer if running
+		elapsed, wasRunning, err := s.StopTimerIfRunning(taskID)
+		if err != nil {
+			return err
+		}
+
 		if err := s.SetStatus(taskID, task.StatusReady); err != nil {
 			return err
 		}
 
 		fmt.Printf("Paused: %s\n", taskID)
+		if wasRunning {
+			fmt.Printf("  Timer stopped: +%s\n", formatDuration(elapsed))
+		}
 		return nil
 	},
 }
