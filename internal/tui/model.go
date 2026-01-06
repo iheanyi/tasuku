@@ -693,6 +693,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.view = ViewDashboard
 				return m, nil
 			}
+			// On dashboard, escape does nothing - prevent passing to list
+			// which would clear filter state and cause visual glitches
+			return m, nil
 
 		case key.Matches(msg, keys.Enter):
 			if m.view == ViewDashboard {
