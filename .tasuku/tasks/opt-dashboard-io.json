@@ -1,0 +1,10 @@
+{
+  "id": "opt-dashboard-io",
+  "status": "done",
+  "description": "Parallelize dashboard I/O: 3 sequential store.Read() calls in handleDashboard()",
+  "priority": 1,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-06T04:47:58.553631Z",
+  "updated_at": "2026-01-06T04:50:29.896967Z"
+}

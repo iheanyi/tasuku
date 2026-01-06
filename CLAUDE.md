@@ -540,3 +540,13 @@ tk hooks install --claude  # Adds SessionStart and Stop hooks
 - Detect phrases like "Never do X" or "Always use Y" in agent interactions
 - Auto-suggest promoting these as permanent learnings
 - Hook into agent conversations to capture institutional knowledge
+
+## Learnings
+
+- CLI/MCP Parity Principle: Every CLI command must have a corresponding MCP tool. Agents interact via MCP, humans via CLI - same capabilities, different interfaces. When adding new CLI commands, always add the MCP tool equivalent.
+- Always audit MCP tools, Claude Code hooks, and nudges when adding new functionality (CLI commands, MCP methods, or features). Check: (1) MCP/CLI parity, (2) Tool descriptions include WHEN to use and follow-up hints, (3) Response enhancements with warnings/suggestions, (4) Hook integration for SessionStart/Stop/PostToolUse. See CLAUDE.md 'Adding New Functionality Checklist' for full details.
+- Whenever a tk CLI command fails or feels clunky, reflect on whether this highlights a UX gap. If it does, add the missing functionality. Example: tk task done a b c failing because it only accepts 1 arg → should support multiple task IDs.
+- When adding goroutines or channels, always ensure they don't leak: use buffered channels, close channels when done, use context for cancellation, and verify goroutines exit properly.
+- Never use O(n²) or worse algorithms when O(n log n) or O(n) alternatives exist. Replace bubble/selection/insertion sorts with slices.SortFunc, use maps for lookups instead of nested loops, pre-compute lookup sets. Example: Replace bubble sort with slices.SortFunc (internal/mcp/server.go:1880).
+- Parallelize independent I/O operations using goroutines. When multiple reads/fetches don't depend on each other, run them concurrently with channels or errgroup. Example: Dashboard handler reads tasks + archived in parallel (internal/http/server.go:1068).
+- Leverage Go's type system fully: use generics for reusable data structures, define interfaces for abstraction, use custom types for domain concepts (e.g., type Status string), and prefer compile-time safety over runtime checks. Clarity trumps cleverness.
