@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -72,11 +72,11 @@ type Model struct {
 	confirmMessage string // message to show in the dialog
 
 	// Task creation state
-	createInput textinput.Model // text input for new task description
+	createInput textarea.Model // textarea for new task description
 
 	// Task editing state
-	editInput  textinput.Model // text input for editing task
-	editTaskID string          // ID of task being edited
+	editInput  textarea.Model // textarea for editing task
+	editTaskID string         // ID of task being edited
 }
 
 // TaskItem implements list.Item for the task list
@@ -346,20 +346,24 @@ func (m *Model) initTaskList() {
 }
 
 func (m *Model) initCreateInput() {
-	ti := textinput.New()
-	ti.Placeholder = "Enter task description..."
-	ti.CharLimit = 256
-	ti.Width = 50
-	m.createInput = ti
+	ta := textarea.New()
+	ta.Placeholder = "Enter task description...\n(Shift+Enter for newlines, Enter to submit)"
+	ta.CharLimit = 2000 // Allow much longer descriptions
+	ta.SetWidth(60)
+	ta.SetHeight(5) // Multi-line input
+	ta.ShowLineNumbers = false
+	m.createInput = ta
 }
 
 func (m *Model) initEditInput(taskID string, currentDesc string) {
-	ti := textinput.New()
-	ti.Placeholder = "Edit task description..."
-	ti.CharLimit = 256
-	ti.Width = 50
-	ti.SetValue(currentDesc)
-	m.editInput = ti
+	ta := textarea.New()
+	ta.Placeholder = "Edit task description...\n(Shift+Enter for newlines, Enter to submit)"
+	ta.CharLimit = 2000
+	ta.SetWidth(60)
+	ta.SetHeight(5)
+	ta.ShowLineNumbers = false
+	ta.SetValue(currentDesc)
+	m.editInput = ta
 	m.editTaskID = taskID
 }
 
@@ -556,12 +560,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Handle ViewCreate mode - text input for new task
+		// Handle ViewCreate mode - textarea for new task
 		if m.view == ViewCreate {
-			switch msg.Type {
-			case tea.KeyEnter:
+			// Ctrl+S or Ctrl+Enter to submit
+			if msg.String() == "ctrl+s" || (msg.Type == tea.KeyEnter && msg.Alt) {
 				// Create the task
-				desc := m.createInput.Value()
+				desc := strings.TrimSpace(m.createInput.Value())
 				if desc != "" {
 					id := generateTaskID(desc)
 					if err := m.store.AddTask(id, desc); err != nil {
@@ -572,24 +576,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.createInput.Reset()
 				m.view = ViewDashboard
 				return m.refresh()
-			case tea.KeyEsc:
+			}
+			if msg.Type == tea.KeyEsc {
 				// Cancel creation
 				m.createInput.Reset()
 				m.view = ViewDashboard
 				return m, nil
 			}
-			// Update text input
+			// Update textarea
 			var cmd tea.Cmd
 			m.createInput, cmd = m.createInput.Update(msg)
 			return m, cmd
 		}
 
-		// Handle ViewEdit mode - text input for editing task description
+		// Handle ViewEdit mode - textarea for editing task description
 		if m.view == ViewEdit {
-			switch msg.Type {
-			case tea.KeyEnter:
+			// Ctrl+S or Alt+Enter to submit
+			if msg.String() == "ctrl+s" || (msg.Type == tea.KeyEnter && msg.Alt) {
 				// Update the task description
-				desc := m.editInput.Value()
+				desc := strings.TrimSpace(m.editInput.Value())
 				if desc != "" && m.editTaskID != "" {
 					if err := m.store.SetDescription(m.editTaskID, desc); err != nil {
 						m.err = err
@@ -600,14 +605,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.editTaskID = ""
 				m.view = ViewDashboard
 				return m.refresh()
-			case tea.KeyEsc:
+			}
+			if msg.Type == tea.KeyEsc {
 				// Cancel editing
 				m.editInput.Reset()
 				m.editTaskID = ""
 				m.view = ViewDashboard
 				return m, nil
 			}
-			// Update text input
+			// Update textarea
 			var cmd tea.Cmd
 			m.editInput, cmd = m.editInput.Update(msg)
 			return m, cmd
@@ -1216,7 +1222,7 @@ func (m Model) viewCreate() string {
 		"New Task",
 		ColorAccent,
 		m.createInput.View(),
-		"enter: create  esc: cancel",
+		"ctrl+s: create  esc: cancel  (Enter adds newlines)",
 	)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
@@ -1228,7 +1234,7 @@ func (m Model) viewEdit() string {
 		"Edit Task",
 		ColorPrimary,
 		content,
-		"enter: save  esc: cancel",
+		"ctrl+s: save  esc: cancel  (Enter adds newlines)",
 	)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }

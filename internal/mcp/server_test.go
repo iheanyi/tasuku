@@ -40,6 +40,8 @@ func TestTools(t *testing.T) {
 		"tk_learning_list", "tk_learning_promote", "tk_learning_remove", "tk_learning_rules",
 		"tk_decision_list", "tk_decision_remove",
 		"tk_note_list", "tk_note_remove",
+		// Health check
+		"tk_health",
 	}
 
 	if len(tools) != len(expectedTools) {
@@ -69,16 +71,16 @@ func TestHandleToolCall_Add(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	r, ok := result.(map[string]string)
+	r, ok := result.(map[string]interface{})
 	if !ok {
-		t.Fatalf("expected map[string]string, got %T", result)
+		t.Fatalf("expected map[string]interface{}, got %T", result)
 	}
 
 	if r["status"] != "created" {
-		t.Errorf("expected status 'created', got %s", r["status"])
+		t.Errorf("expected status 'created', got %v", r["status"])
 	}
 
-	if r["id"] == "" {
+	if r["id"] == "" || r["id"] == nil {
 		t.Error("expected non-empty id")
 	}
 }
@@ -95,9 +97,9 @@ func TestHandleToolCall_AddWithID(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	r := result.(map[string]string)
+	r := result.(map[string]interface{})
 	if r["id"] != "custom-id" {
-		t.Errorf("expected id 'custom-id', got %s", r["id"])
+		t.Errorf("expected id 'custom-id', got %v", r["id"])
 	}
 }
 
@@ -359,8 +361,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 42 {
-		t.Errorf("expected 42 tools, got %d", len(tools))
+	if len(tools) != 43 {
+		t.Errorf("expected 43 tools, got %d", len(tools))
 	}
 }
 
@@ -854,12 +856,12 @@ func TestHandleToolCall_ClaimRelease(t *testing.T) {
 		t.Fatalf("claim error: %v", err)
 	}
 
-	r := result.(map[string]string)
+	r := result.(map[string]interface{})
 	if r["status"] != "claimed" {
-		t.Errorf("expected status 'claimed', got %s", r["status"])
+		t.Errorf("expected status 'claimed', got %v", r["status"])
 	}
 	if r["agent"] != "agent-1" {
-		t.Errorf("expected agent 'agent-1', got %s", r["agent"])
+		t.Errorf("expected agent 'agent-1', got %v", r["agent"])
 	}
 
 	// Release the task
@@ -870,9 +872,9 @@ func TestHandleToolCall_ClaimRelease(t *testing.T) {
 		t.Fatalf("release error: %v", err)
 	}
 
-	r2 := result2.(map[string]string)
+	r2 := result2.(map[string]interface{})
 	if r2["status"] != "released" {
-		t.Errorf("expected status 'released', got %s", r2["status"])
+		t.Errorf("expected status 'released', got %v", r2["status"])
 	}
 }
 

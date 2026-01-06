@@ -43,7 +43,8 @@ func TestAddCmd_WithCustomID(t *testing.T) {
 func TestAddCmd_WithPriority(t *testing.T) {
 	h := testutil.New(t)
 
-	err := h.Execute(Cmd, "add", "Critical task", "--priority", "0")
+	// Test with named priority
+	err := h.Execute(Cmd, "add", "Critical task", "--priority", "critical")
 	h.AssertNoError(err)
 	h.AssertOutputContains("critical")
 
@@ -127,26 +128,44 @@ func TestAddCmd_IDCollision(t *testing.T) {
 
 func TestAddCmd_AllPriorityLevels(t *testing.T) {
 	h := testutil.New(t)
+
+	// Test both numeric and named priorities
 	priorities := []struct {
 		level    string
+		id       string
 		expected int
 	}{
-		{"0", itask.PriorityCritical},
-		{"1", itask.PriorityHigh},
-		{"2", itask.PriorityNormal},
-		{"3", itask.PriorityLow},
-		{"4", itask.PriorityBacklog},
+		// Numeric values
+		{"0", "task-num-0", itask.PriorityCritical},
+		{"1", "task-num-1", itask.PriorityHigh},
+		{"2", "task-num-2", itask.PriorityNormal},
+		{"3", "task-num-3", itask.PriorityLow},
+		{"4", "task-num-4", itask.PriorityBacklog},
+		// Named values
+		{"critical", "task-critical", itask.PriorityCritical},
+		{"high", "task-high", itask.PriorityHigh},
+		{"normal", "task-normal", itask.PriorityNormal},
+		{"low", "task-low", itask.PriorityLow},
+		{"backlog", "task-backlog", itask.PriorityBacklog},
 	}
 
 	for _, p := range priorities {
-		err := h.Execute(Cmd, "add", "Task "+p.level, "--id", "task-"+p.level, "--priority", p.level)
+		err := h.Execute(Cmd, "add", "Task "+p.id, "--id", p.id, "--priority", p.level)
 		h.AssertNoError(err)
 
-		tsk := h.MustGetTask("task-" + p.level)
+		tsk := h.MustGetTask(p.id)
 		if tsk.GetPriority() != p.expected {
 			t.Errorf("priority %s: expected %d, got %d", p.level, p.expected, tsk.GetPriority())
 		}
 	}
+}
+
+func TestAddCmd_InvalidPriority(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "add", "Bad priority task", "--priority", "invalid")
+	h.AssertError(err)
+	h.AssertErrorContainsMsg(err, "invalid priority")
 }
 
 func contains(slice []string, item string) bool {

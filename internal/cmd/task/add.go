@@ -36,7 +36,7 @@ New tasks start with "ready" status.
 
 Examples:
   tk task add "Implement user authentication"
-  tk task add "Fix critical bug" -p 0               # Critical priority
+  tk task add "Fix critical bug" -p critical        # Named priority
   tk task add "Refactor database layer" --id db-refactor
   tk task add "Update documentation" --priority low
   tk task add "Add login page" --tag frontend --tag auth  # Multiple tags
@@ -45,9 +45,18 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			description := args[0]
 			id, _ := cmd.Flags().GetString("id")
-			priority, _ := cmd.Flags().GetInt("priority")
+			priorityStr, _ := cmd.Flags().GetString("priority")
 			tags, _ := cmd.Flags().GetStringSlice("tag")
 			parentID, _ := cmd.Flags().GetString("parent")
+
+			// Parse priority (supports both numeric and named values)
+			priority := -1
+			if priorityStr != "" {
+				priority = task.ParsePriority(priorityStr)
+				if priority == -1 {
+					return fmt.Errorf("invalid priority: %s (use 0-4 or critical/high/normal/low/backlog)", priorityStr)
+				}
+			}
 
 			s := store.DefaultStorageWithWarning()
 
@@ -89,9 +98,9 @@ Examples:
 				}
 			}
 
-			priorityStr := ""
+			priorityDisplay := ""
 			if priorityPtr != nil {
-				priorityStr = fmt.Sprintf(" (priority: %s)", task.PriorityName(*priorityPtr))
+				priorityDisplay = fmt.Sprintf(" (priority: %s)", task.PriorityName(*priorityPtr))
 			}
 			tagDisplay := ""
 			if len(tags) > 0 {
@@ -101,13 +110,13 @@ Examples:
 			if parentID != "" {
 				parentStr = fmt.Sprintf(" (subtask of: %s)", parentID)
 			}
-			fmt.Printf("Created task: %s%s%s%s\n", id, priorityStr, tagDisplay, parentStr)
+			fmt.Printf("Created task: %s%s%s%s\n", id, priorityDisplay, tagDisplay, parentStr)
 			return nil
 		},
 	}
 
 	cmd.Flags().String("id", "", "Task ID (auto-generated if not provided)")
-	cmd.Flags().IntP("priority", "p", -1, "Priority: 0=critical, 1=high, 2=normal, 3=low, 4=backlog")
+	cmd.Flags().StringP("priority", "p", "", "Priority: critical/high/normal/low/backlog (or 0-4)")
 	cmd.Flags().StringSliceP("tag", "t", nil, "Tags (repeatable or comma-separated)")
 	cmd.Flags().String("parent", "", "Parent task ID to create a subtask")
 

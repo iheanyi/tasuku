@@ -757,6 +757,15 @@ func (s *Server) Tools() []Tool {
 				},
 			},
 		},
+		// Health check
+		{
+			Name:        "tk_health",
+			Description: "Get a project health check with actionable recommendations. Use at session start to understand project state, or periodically to identify issues. Returns: task distribution, stale items, rule learnings to promote, and specific recommendations.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
 	}
 }
 
@@ -847,6 +856,8 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleNoteList(args)
 	case "tk_note_remove":
 		return s.handleNoteRemove(args)
+	case "tk_health":
+		return s.handleHealth(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -889,22 +900,46 @@ func (s *Server) handleAdd(args map[string]interface{}) (interface{}, error) {
 	desc, _ := args["description"].(string)
 	id, _ := args["id"].(string)
 
+	// Read current state for duplicate detection
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
 	// Generate ID if not provided, checking for collisions
+	existingIDs := make(map[string]struct{})
+	for taskID := range f.Tasks {
+		existingIDs[taskID] = struct{}{}
+	}
+
 	if id == "" {
-		existingIDs := make(map[string]struct{})
-		if f, err := s.store.Read(); err == nil {
-			for taskID := range f.Tasks {
-				existingIDs[taskID] = struct{}{}
+		id = task.GenerateTaskID(desc, existingIDs)
+	}
+
+	// Check for potential duplicates (similar descriptions)
+	descLower := strings.ToLower(desc)
+	var potentialDuplicates []string
+	for taskID, t := range f.Tasks {
+		if t.Status != task.StatusDone {
+			existingLower := strings.ToLower(t.Description)
+			// Check for significant overlap
+			if strings.Contains(existingLower, descLower) || strings.Contains(descLower, existingLower) {
+				potentialDuplicates = append(potentialDuplicates, taskID)
 			}
 		}
-		id = task.GenerateTaskID(desc, existingIDs)
 	}
 
 	if err := s.store.AddTask(id, desc); err != nil {
 		return nil, err
 	}
 
-	return map[string]string{"id": id, "status": "created"}, nil
+	result := map[string]interface{}{"id": id, "status": "created"}
+
+	if len(potentialDuplicates) > 0 {
+		result["warning"] = fmt.Sprintf("Potential duplicate tasks found: %v. Consider checking these before proceeding.", potentialDuplicates)
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleStart(args map[string]interface{}) (interface{}, error) {
@@ -1209,18 +1244,47 @@ func (s *Server) handleTimerStatus(args map[string]interface{}) (interface{}, er
 		Description string `json:"description"`
 		StartedAt   string `json:"started_at"`
 		Elapsed     string `json:"elapsed"`
+		Warning     string `json:"warning,omitempty"`
 	}
 
 	var results []timerInfo
+	var warnings []string
+
 	for id, t := range timers {
-		results = append(results, timerInfo{
+		elapsed := time.Since(*t.TimerStart)
+		info := timerInfo{
 			ID:          id,
 			Description: t.Description,
 			StartedAt:   t.TimerStart.Format(time.RFC3339),
-			Elapsed:     time.Since(*t.TimerStart).Truncate(time.Second).String(),
-		})
+			Elapsed:     elapsed.Truncate(time.Second).String(),
+		}
+
+		// Add warnings for long-running timers
+		if elapsed > 4*time.Hour {
+			info.Warning = "Running for over 4 hours - consider stopping if not actively working"
+			warnings = append(warnings, fmt.Sprintf("%s: running for %s", id, info.Elapsed))
+		} else if elapsed > 2*time.Hour {
+			info.Warning = "Running for over 2 hours"
+		}
+
+		results = append(results, info)
 	}
-	return results, nil
+
+	response := map[string]interface{}{
+		"timers": results,
+		"count":  len(results),
+	}
+
+	if len(warnings) > 0 {
+		response["warnings"] = warnings
+		response["hint"] = "Long-running timers detected. If you're not actively working, stop them with tk_timer_stop."
+	}
+
+	if len(results) == 0 {
+		response["hint"] = "No active timers. Start one with tk_timer_start when beginning focused work."
+	}
+
+	return response, nil
 }
 
 func (s *Server) handleFieldSet(args map[string]interface{}) (interface{}, error) {
@@ -1461,6 +1525,9 @@ func (s *Server) handlePause(args map[string]interface{}) (interface{}, error) {
 		result["elapsed"] = elapsed.String()
 	}
 
+	// Prompt for note about why paused
+	result["hint"] = "Consider adding a note about why this was paused and current progress: tk_note task_id='" + id + "' note='...'"
+
 	return result, nil
 }
 
@@ -1633,21 +1700,65 @@ func (s *Server) handleClaim(args map[string]interface{}) (interface{}, error) {
 	id, _ := args["id"].(string)
 	agent, _ := args["agent"].(string)
 
+	// Check current state for warnings
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	t, exists := f.Tasks[id]
+	if !exists {
+		return nil, fmt.Errorf("task not found: %s", id)
+	}
+
+	result := map[string]interface{}{"id": id, "agent": agent}
+
+	// Warn if already claimed by someone else
+	if t.Owner != nil && *t.Owner != "" && *t.Owner != agent {
+		result["warning"] = fmt.Sprintf("Task was claimed by '%s'. Overriding claim.", *t.Owner)
+	}
+
+	// Check if agent already has other claimed tasks
+	var otherClaimed []string
+	for taskID, task := range f.Tasks {
+		if task.Owner != nil && *task.Owner == agent && taskID != id {
+			otherClaimed = append(otherClaimed, taskID)
+		}
+	}
+	if len(otherClaimed) > 0 {
+		result["note"] = fmt.Sprintf("You already have %d other claimed task(s): %v", len(otherClaimed), otherClaimed)
+	}
+
 	if err := s.store.ClaimTask(id, agent); err != nil {
 		return nil, err
 	}
 
-	return map[string]string{"id": id, "agent": agent, "status": "claimed"}, nil
+	result["status"] = "claimed"
+	return result, nil
 }
 
 func (s *Server) handleRelease(args map[string]interface{}) (interface{}, error) {
 	id, _ := args["id"].(string)
 
+	// Check if task has notes before releasing
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	notes := f.Context.Notes[id]
+
 	if err := s.store.ReleaseTask(id); err != nil {
 		return nil, err
 	}
 
-	return map[string]string{"id": id, "status": "released"}, nil
+	result := map[string]interface{}{"id": id, "status": "released"}
+
+	if len(notes) == 0 {
+		result["hint"] = "Consider adding a note about current progress before releasing: tk_note"
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleSuggest(args map[string]interface{}) (interface{}, error) {
@@ -1738,7 +1849,16 @@ func (s *Server) handleReady(args map[string]interface{}) (interface{}, error) {
 	}
 
 	var results []readyTask
+	inProgressCount := 0
+	blockedCount := 0
+
 	for id, t := range f.Tasks {
+		if t.Status == task.StatusInProgress {
+			inProgressCount++
+		}
+		if t.Status == task.StatusBlocked {
+			blockedCount++
+		}
 		if t.Status != task.StatusReady {
 			continue
 		}
@@ -1769,7 +1889,25 @@ func (s *Server) handleReady(args map[string]interface{}) (interface{}, error) {
 		}
 	}
 
-	return results, nil
+	// Build response with stats
+	response := map[string]interface{}{
+		"tasks": results,
+		"stats": map[string]int{
+			"ready":       len(results),
+			"in_progress": inProgressCount,
+			"blocked":     blockedCount,
+		},
+	}
+
+	if len(results) > 0 {
+		response["recommendation"] = fmt.Sprintf("Highest priority task: %s", results[0].ID)
+	} else if inProgressCount > 0 {
+		response["recommendation"] = "No ready tasks - focus on completing in_progress work"
+	} else if blockedCount > 0 {
+		response["recommendation"] = "All tasks blocked - review blockers with tk_list status=blocked"
+	}
+
+	return response, nil
 }
 
 func (s *Server) handleWho(args map[string]interface{}) (interface{}, error) {
@@ -2132,6 +2270,132 @@ func (s *Server) handleNoteRemove(args map[string]interface{}) (interface{}, err
 	}
 
 	return map[string]string{"task_id": taskID, "note_id": noteID, "removed": removedText}, nil
+}
+
+func (s *Server) handleHealth(args map[string]interface{}) (interface{}, error) {
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+
+	// Collect metrics
+	statusCounts := map[string]int{}
+	priorityCounts := map[string]int{}
+	var staleInProgress []string
+	var staleDone []string
+	var longRunningTimers []string
+	var highPriorityBlocked []string
+
+	for id, t := range f.Tasks {
+		statusCounts[string(t.Status)]++
+
+		switch t.GetPriority() {
+		case task.PriorityCritical:
+			priorityCounts["critical"]++
+		case task.PriorityHigh:
+			priorityCounts["high"]++
+		case task.PriorityNormal:
+			priorityCounts["normal"]++
+		case task.PriorityLow:
+			priorityCounts["low"]++
+		case task.PriorityBacklog:
+			priorityCounts["backlog"]++
+		}
+
+		// Stale in_progress (>24h)
+		if t.Status == task.StatusInProgress && now.Sub(t.UpdatedAt) > 24*time.Hour {
+			staleInProgress = append(staleInProgress, id)
+		}
+
+		// Stale done tasks (>7 days, not archived)
+		if t.Status == task.StatusDone && now.Sub(t.UpdatedAt) > 7*24*time.Hour {
+			staleDone = append(staleDone, id)
+		}
+
+		// High priority blocked
+		if t.Status == task.StatusBlocked && t.GetPriority() <= task.PriorityHigh {
+			highPriorityBlocked = append(highPriorityBlocked, id)
+		}
+
+		// Long-running timers
+		if t.IsTimerRunning() && now.Sub(*t.TimerStart) > 4*time.Hour {
+			longRunningTimers = append(longRunningTimers, id)
+		}
+	}
+
+	// Count rule learnings
+	ruleCount := 0
+	for _, l := range f.Context.Learnings {
+		if l.IsRule {
+			ruleCount++
+		}
+	}
+
+	// Build recommendations
+	var recommendations []string
+
+	if len(staleInProgress) > 0 {
+		recommendations = append(recommendations, fmt.Sprintf("STALE: %d in_progress task(s) not updated in 24h: %v - update or pause them", len(staleInProgress), staleInProgress))
+	}
+
+	if len(highPriorityBlocked) > 0 {
+		recommendations = append(recommendations, fmt.Sprintf("BLOCKED: %d high-priority task(s) blocked: %v - unblock to make progress", len(highPriorityBlocked), highPriorityBlocked))
+	}
+
+	if len(longRunningTimers) > 0 {
+		recommendations = append(recommendations, fmt.Sprintf("TIMERS: %d timer(s) running 4+ hours: %v - stop if not active", len(longRunningTimers), longRunningTimers))
+	}
+
+	if len(staleDone) > 0 {
+		recommendations = append(recommendations, fmt.Sprintf("ARCHIVE: %d done task(s) older than 7 days: consider archiving with tk_archive", len(staleDone)))
+	}
+
+	if ruleCount > 0 {
+		recommendations = append(recommendations, fmt.Sprintf("PROMOTE: %d rule learning(s) ready for promotion to docs - use tk_learning_rules", ruleCount))
+	}
+
+	// Calculate health score (simple heuristic)
+	healthScore := 100
+	healthScore -= len(staleInProgress) * 10
+	healthScore -= len(highPriorityBlocked) * 15
+	healthScore -= len(longRunningTimers) * 5
+	if healthScore < 0 {
+		healthScore = 0
+	}
+
+	var healthStatus string
+	if healthScore >= 80 {
+		healthStatus = "healthy"
+	} else if healthScore >= 50 {
+		healthStatus = "needs attention"
+	} else {
+		healthStatus = "unhealthy"
+	}
+
+	return map[string]interface{}{
+		"health_score":  healthScore,
+		"health_status": healthStatus,
+		"task_counts": map[string]int{
+			"total":       len(f.Tasks),
+			"ready":       statusCounts["ready"],
+			"in_progress": statusCounts["in_progress"],
+			"blocked":     statusCounts["blocked"],
+			"done":        statusCounts["done"],
+		},
+		"priority_counts": priorityCounts,
+		"issues": map[string]interface{}{
+			"stale_in_progress":     staleInProgress,
+			"high_priority_blocked": highPriorityBlocked,
+			"long_running_timers":   longRunningTimers,
+			"stale_done_count":      len(staleDone),
+			"rule_learnings":        ruleCount,
+		},
+		"recommendations": recommendations,
+		"learnings_count": len(f.Context.Learnings),
+		"decisions_count": len(f.Context.Decisions),
+	}, nil
 }
 
 // Helper functions for learning promote
