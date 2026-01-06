@@ -40,19 +40,38 @@ Examples:
 var tagCmd = newTagCmd()
 
 var tagAddCmd = &cobra.Command{
-	Use:   "add <task-id> <tag>",
-	Short: "Add a tag to a task",
-	Args:  cobra.ExactArgs(2),
+	Use:   "add <task-id> <tag> [tag...]",
+	Short: "Add tag(s) to a task",
+	Long: `Add one or more tags to a task.
+
+Tags can be specified as separate arguments or comma-separated.
+
+Examples:
+  tk task tag add my-task backend          # Add single tag
+  tk task tag add my-task backend,api      # Add comma-separated tags
+  tk task tag add my-task backend api db   # Add multiple tags`,
+	Args: cobra.MinimumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		tag := args[1]
 		s := store.DefaultStorageWithWarning()
 
-		if err := s.AddTag(taskID, tag); err != nil {
-			return err
+		// Collect all tags, splitting comma-separated values
+		var tags []string
+		for _, arg := range args[1:] {
+			for _, tag := range strings.Split(arg, ",") {
+				tag = strings.TrimSpace(tag)
+				if tag != "" {
+					tags = append(tags, tag)
+				}
+			}
 		}
 
-		fmt.Printf("Added tag '%s' to task %s\n", tag, taskID)
+		for _, tag := range tags {
+			if err := s.AddTag(taskID, tag); err != nil {
+				return err
+			}
+			fmt.Printf("Added tag '%s' to task %s\n", tag, taskID)
+		}
 		return nil
 	},
 }
