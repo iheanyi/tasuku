@@ -54,5 +54,11 @@
     "id": "97fc75",
     "text": "CLI 'tk task add' priority flag only accepts numeric values (0-4), not named values. MCP tk_priority accepts both. Should add named value support to CLI for consistency.",
     "created_at": "2026-01-06T04:22:51.396988Z"
+  },
+  {
+    "id": "9b349f",
+    "text": "Always audit MCP tools, Claude Code hooks, and nudges when adding new functionality (CLI commands, MCP methods, or features). Check: (1) MCP/CLI parity, (2) Tool descriptions include WHEN to use and follow-up hints, (3) Response enhancements with warnings/suggestions, (4) Hook integration for SessionStart/Stop/PostToolUse. See CLAUDE.md 'Adding New Functionality Checklist' for full details.",
+    "is_rule": true,
+    "created_at": "2026-01-06T04:31:47.189155Z"
   }
 ]
