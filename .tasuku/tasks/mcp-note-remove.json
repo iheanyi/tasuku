@@ -1,0 +1,9 @@
+{
+  "id": "mcp-note-remove",
+  "status": "done",
+  "description": "Add tk_note_remove MCP tool for removing notes",
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-06T02:29:49.645729Z",
+  "updated_at": "2026-01-06T02:32:56.662009Z"
+}

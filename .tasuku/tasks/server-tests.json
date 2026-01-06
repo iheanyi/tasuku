@@ -1,11 +1,9 @@
 {
   "id": "server-tests",
-  "status": "blocked",
+  "status": "done",
   "description": "Add test coverage for server package",
-  "blocked_by": [
-    "test-harness"
-  ],
+  "blocked_by": [],
   "owner": null,
   "created_at": "2026-01-05T20:39:28.834932Z",
-  "updated_at": "2026-01-05T20:39:38.660529Z"
+  "updated_at": "2026-01-06T02:03:49.389643Z"
 }

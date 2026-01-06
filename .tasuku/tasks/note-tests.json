@@ -1,11 +1,9 @@
 {
   "id": "note-tests",
-  "status": "blocked",
+  "status": "done",
   "description": "Add test coverage for note package",
-  "blocked_by": [
-    "test-harness"
-  ],
+  "blocked_by": [],
   "owner": null,
   "created_at": "2026-01-05T20:39:28.791056Z",
-  "updated_at": "2026-01-05T20:39:38.615731Z"
+  "updated_at": "2026-01-06T02:03:49.149228Z"
 }

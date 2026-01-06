@@ -252,7 +252,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_note",
-			Description: "Add a note to a specific task. Notes persist across sessions.",
+			Description: "Add a note to a task to capture context, progress, or insights. PROACTIVELY use this when: (1) Starting a task - note your planned approach, (2) Making progress - note milestones or partial completions, (3) Encountering issues - note blockers, failed approaches, or workarounds, (4) Discovering context - note relevant findings that future agents should know. Notes persist across sessions and help maintain continuity.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"task_id", "note"},
@@ -602,6 +602,161 @@ func (s *Server) Tools() []Tool {
 				},
 			},
 		},
+		// Ready tasks
+		{
+			Name:        "tk_ready",
+			Description: "List tasks that are ready to work on (not blocked, sorted by priority). Use this to find the next task to start.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		// Who (claimed tasks by owner)
+		{
+			Name:        "tk_who",
+			Description: "Show tasks claimed by each owner/agent. Useful for multi-agent coordination.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		// Dependencies
+		{
+			Name:        "tk_deps",
+			Description: "Show the dependency tree for a task - what it's blocked by and what it blocks.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to show dependencies for",
+					},
+				},
+			},
+		},
+		// Stats
+		{
+			Name:        "tk_stats",
+			Description: "Show task statistics: counts by status, priority distribution, completion rate.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		// Learning list
+		{
+			Name:        "tk_learning_list",
+			Description: "List all recorded learnings with their IDs and rule status.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		// Learning promote
+		{
+			Name:        "tk_learning_promote",
+			Description: "Promote a learning to permanent documentation (CLAUDE.md or similar). Use this for valuable insights that should persist beyond the session. Agents should autonomously promote rule learnings (never/always patterns) that prove useful.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Learning ID to promote",
+					},
+					"to": map[string]interface{}{
+						"type":        "string",
+						"description": "Target file (auto-detected if not specified: CLAUDE.md, .cursorrules, etc.)",
+					},
+					"keep": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Keep the learning in Tasuku after promoting (default: false)",
+					},
+				},
+			},
+		},
+		// Learning remove
+		{
+			Name:        "tk_learning_remove",
+			Description: "Remove a learning by ID.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Learning ID to remove",
+					},
+				},
+			},
+		},
+		// Learning rules (suggest candidates for promotion)
+		{
+			Name:        "tk_learning_rules",
+			Description: "List learnings marked as rules (never/always patterns) that are candidates for promotion to permanent docs. Use this to find learnings that should be promoted.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		// Decision list
+		{
+			Name:        "tk_decision_list",
+			Description: "List all recorded architectural decisions.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		// Decision remove
+		{
+			Name:        "tk_decision_remove",
+			Description: "Remove a decision by ID.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Decision ID to remove",
+					},
+				},
+			},
+		},
+		// Note list
+		{
+			Name:        "tk_note_list",
+			Description: "List notes for a specific task or all notes across tasks.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"task_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to list notes for (omit for all notes)",
+					},
+				},
+			},
+		},
+		// Note remove
+		{
+			Name:        "tk_note_remove",
+			Description: "Remove a note from a task.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"task_id", "note_id"},
+				"properties": map[string]interface{}{
+					"task_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID the note belongs to",
+					},
+					"note_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Note ID to remove",
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -668,6 +823,30 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleRelease(args)
 	case "tk_suggest":
 		return s.handleSuggest(args)
+	case "tk_ready":
+		return s.handleReady(args)
+	case "tk_who":
+		return s.handleWho(args)
+	case "tk_deps":
+		return s.handleDeps(args)
+	case "tk_stats":
+		return s.handleStats(args)
+	case "tk_learning_list":
+		return s.handleLearningList(args)
+	case "tk_learning_promote":
+		return s.handleLearningPromote(args)
+	case "tk_learning_remove":
+		return s.handleLearningRemove(args)
+	case "tk_learning_rules":
+		return s.handleLearningRules(args)
+	case "tk_decision_list":
+		return s.handleDecisionList(args)
+	case "tk_decision_remove":
+		return s.handleDecisionRemove(args)
+	case "tk_note_list":
+		return s.handleNoteList(args)
+	case "tk_note_remove":
+		return s.handleNoteRemove(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1389,6 +1568,466 @@ func (s *Server) handleSuggest(args map[string]interface{}) (interface{}, error)
 	}
 
 	return result, nil
+}
+
+func (s *Server) handleReady(args map[string]interface{}) (interface{}, error) {
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	type readyTask struct {
+		ID          string  `json:"id"`
+		Description string  `json:"description"`
+		Priority    int     `json:"priority"`
+		Owner       *string `json:"owner,omitempty"`
+	}
+
+	var results []readyTask
+	for id, t := range f.Tasks {
+		if t.Status != task.StatusReady {
+			continue
+		}
+		// Check if actually blocked
+		blocked := false
+		for _, blockerID := range t.BlockedBy {
+			if blocker, exists := f.Tasks[blockerID]; exists && blocker.Status != task.StatusDone {
+				blocked = true
+				break
+			}
+		}
+		if !blocked {
+			results = append(results, readyTask{
+				ID:          id,
+				Description: t.Description,
+				Priority:    t.GetPriority(),
+				Owner:       t.Owner,
+			})
+		}
+	}
+
+	// Sort by priority (lower number = higher priority)
+	for i := 0; i < len(results)-1; i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[j].Priority < results[i].Priority {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func (s *Server) handleWho(args map[string]interface{}) (interface{}, error) {
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	type ownedTask struct {
+		ID          string `json:"id"`
+		Description string `json:"description"`
+		Status      string `json:"status"`
+	}
+
+	ownerMap := make(map[string][]ownedTask)
+	for id, t := range f.Tasks {
+		if t.Owner != nil && *t.Owner != "" {
+			ownerMap[*t.Owner] = append(ownerMap[*t.Owner], ownedTask{
+				ID:          id,
+				Description: t.Description,
+				Status:      string(t.Status),
+			})
+		}
+	}
+
+	return ownerMap, nil
+}
+
+func (s *Server) handleDeps(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	t, exists := f.Tasks[id]
+	if !exists {
+		return nil, fmt.Errorf("task not found: %s", id)
+	}
+
+	// Find what this task is blocked by
+	type depInfo struct {
+		ID          string `json:"id"`
+		Description string `json:"description"`
+		Status      string `json:"status"`
+	}
+
+	var blockedBy []depInfo
+	for _, blockerID := range t.BlockedBy {
+		if blocker, exists := f.Tasks[blockerID]; exists {
+			blockedBy = append(blockedBy, depInfo{
+				ID:          blockerID,
+				Description: blocker.Description,
+				Status:      string(blocker.Status),
+			})
+		}
+	}
+
+	// Find what this task blocks
+	var blocks []depInfo
+	for otherID, other := range f.Tasks {
+		for _, blockerID := range other.BlockedBy {
+			if blockerID == id {
+				blocks = append(blocks, depInfo{
+					ID:          otherID,
+					Description: other.Description,
+					Status:      string(other.Status),
+				})
+				break
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"id":          id,
+		"description": t.Description,
+		"status":      string(t.Status),
+		"blocked_by":  blockedBy,
+		"blocks":      blocks,
+	}, nil
+}
+
+func (s *Server) handleStats(args map[string]interface{}) (interface{}, error) {
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	statusCounts := map[string]int{
+		"ready":       0,
+		"in_progress": 0,
+		"blocked":     0,
+		"done":        0,
+	}
+
+	priorityCounts := map[string]int{
+		"critical": 0,
+		"high":     0,
+		"normal":   0,
+		"low":      0,
+		"backlog":  0,
+	}
+
+	total := len(f.Tasks)
+	for _, t := range f.Tasks {
+		statusCounts[string(t.Status)]++
+
+		switch t.GetPriority() {
+		case task.PriorityCritical:
+			priorityCounts["critical"]++
+		case task.PriorityHigh:
+			priorityCounts["high"]++
+		case task.PriorityNormal:
+			priorityCounts["normal"]++
+		case task.PriorityLow:
+			priorityCounts["low"]++
+		case task.PriorityBacklog:
+			priorityCounts["backlog"]++
+		}
+	}
+
+	completionRate := 0.0
+	if total > 0 {
+		completionRate = float64(statusCounts["done"]) / float64(total) * 100
+	}
+
+	return map[string]interface{}{
+		"total":           total,
+		"by_status":       statusCounts,
+		"by_priority":     priorityCounts,
+		"completion_rate": fmt.Sprintf("%.1f%%", completionRate),
+		"learnings_count": len(f.Context.Learnings),
+		"decisions_count": len(f.Context.Decisions),
+	}, nil
+}
+
+func (s *Server) handleLearningList(args map[string]interface{}) (interface{}, error) {
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	type learningResult struct {
+		ID        string `json:"id"`
+		Text      string `json:"text"`
+		IsRule    bool   `json:"is_rule"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	var results []learningResult
+	for _, l := range f.Context.Learnings {
+		results = append(results, learningResult{
+			ID:        l.ID,
+			Text:      l.Text,
+			IsRule:    l.IsRule,
+			CreatedAt: l.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return results, nil
+}
+
+func (s *Server) handleLearningPromote(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+	targetFile, _ := args["to"].(string)
+	keep, _ := args["keep"].(bool)
+
+	if targetFile == "" {
+		targetFile = detectContextFile()
+	}
+
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	// Find the learning
+	var foundLearning *task.Learning
+	var foundIdx int
+	for i := range f.Context.Learnings {
+		if f.Context.Learnings[i].ID == id {
+			foundLearning = &f.Context.Learnings[i]
+			foundIdx = i
+			break
+		}
+	}
+
+	if foundLearning == nil {
+		return nil, fmt.Errorf("learning not found: %s", id)
+	}
+
+	// Append to context file
+	if err := appendToContextFile(targetFile, foundLearning.Text); err != nil {
+		return nil, fmt.Errorf("failed to write to %s: %w", targetFile, err)
+	}
+
+	// Remove from learnings if not keeping
+	if !keep {
+		if _, err := s.store.RemoveLearning(id); err != nil {
+			return nil, err
+		}
+	}
+
+	result := map[string]interface{}{
+		"id":          id,
+		"promoted_to": targetFile,
+		"text":        foundLearning.Text,
+		"kept":        keep,
+	}
+
+	_ = foundIdx // Used for potential future optimization
+
+	return result, nil
+}
+
+func (s *Server) handleLearningRemove(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+
+	removedText, err := s.store.RemoveLearning(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"id": id, "removed": removedText}, nil
+}
+
+func (s *Server) handleLearningRules(args map[string]interface{}) (interface{}, error) {
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	type ruleResult struct {
+		ID        string `json:"id"`
+		Text      string `json:"text"`
+		CreatedAt string `json:"created_at"`
+		Hint      string `json:"hint"`
+	}
+
+	var results []ruleResult
+	for _, l := range f.Context.Learnings {
+		if l.IsRule {
+			results = append(results, ruleResult{
+				ID:        l.ID,
+				Text:      l.Text,
+				CreatedAt: l.CreatedAt.Format(time.RFC3339),
+				Hint:      "Consider promoting with tk_learning_promote",
+			})
+		}
+	}
+
+	return map[string]interface{}{
+		"rules":          results,
+		"count":          len(results),
+		"recommendation": "Rule learnings (never/always patterns) should be promoted to permanent docs when they prove useful",
+	}, nil
+}
+
+func (s *Server) handleDecisionList(args map[string]interface{}) (interface{}, error) {
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	type decisionResult struct {
+		ID        string   `json:"id"`
+		Chose     string   `json:"chose"`
+		Over      []string `json:"over"`
+		Because   string   `json:"because"`
+		CreatedAt string   `json:"created_at"`
+	}
+
+	var results []decisionResult
+	for _, d := range f.Context.Decisions {
+		results = append(results, decisionResult{
+			ID:        d.ID,
+			Chose:     d.Chose,
+			Over:      d.Over,
+			Because:   d.Because,
+			CreatedAt: d.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return results, nil
+}
+
+func (s *Server) handleDecisionRemove(args map[string]interface{}) (interface{}, error) {
+	id, _ := args["id"].(string)
+
+	err := s.store.Update(func(f *task.File) error {
+		for i, d := range f.Context.Decisions {
+			if d.ID == id {
+				f.Context.Decisions = append(f.Context.Decisions[:i], f.Context.Decisions[i+1:]...)
+				return nil
+			}
+		}
+		return fmt.Errorf("decision not found: %s", id)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"id": id, "status": "removed"}, nil
+}
+
+func (s *Server) handleNoteList(args map[string]interface{}) (interface{}, error) {
+	taskID, hasTaskID := args["task_id"].(string)
+
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	type noteResult struct {
+		TaskID    string `json:"task_id"`
+		NoteID    string `json:"note_id"`
+		Text      string `json:"text"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	var results []noteResult
+
+	if hasTaskID && taskID != "" {
+		// List notes for specific task
+		notes := f.Context.Notes[taskID]
+		for _, n := range notes {
+			results = append(results, noteResult{
+				TaskID:    taskID,
+				NoteID:    n.ID,
+				Text:      n.Text,
+				CreatedAt: n.CreatedAt.Format(time.RFC3339),
+			})
+		}
+	} else {
+		// List all notes
+		for tid, notes := range f.Context.Notes {
+			for _, n := range notes {
+				results = append(results, noteResult{
+					TaskID:    tid,
+					NoteID:    n.ID,
+					Text:      n.Text,
+					CreatedAt: n.CreatedAt.Format(time.RFC3339),
+				})
+			}
+		}
+	}
+
+	return results, nil
+}
+
+func (s *Server) handleNoteRemove(args map[string]interface{}) (interface{}, error) {
+	taskID, _ := args["task_id"].(string)
+	noteID, _ := args["note_id"].(string)
+
+	removedText, err := s.store.RemoveNote(taskID, noteID)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"task_id": taskID, "note_id": noteID, "removed": removedText}, nil
+}
+
+// Helper functions for learning promote
+
+func detectContextFile() string {
+	contextFiles := []string{
+		"CLAUDE.md",
+		".cursorrules",
+		".github/copilot-instructions.md",
+		"AGENTS.md",
+		"AI.md",
+	}
+
+	for _, cf := range contextFiles {
+		if _, err := os.Stat(cf); err == nil {
+			return cf
+		}
+	}
+
+	return "CLAUDE.md"
+}
+
+func appendToContextFile(filePath, learning string) error {
+	existing, err := os.ReadFile(filePath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	text := string(existing)
+	entry := fmt.Sprintf("- %s\n", learning)
+
+	if strings.Contains(text, "## Learnings") {
+		idx := strings.Index(text, "## Learnings")
+		endOfLine := strings.Index(text[idx:], "\n") + idx + 1
+
+		nextSection := strings.Index(text[endOfLine:], "\n## ")
+		if nextSection == -1 {
+			text = text + entry
+		} else {
+			insertAt := endOfLine + nextSection
+			text = text[:insertAt] + entry + text[insertAt:]
+		}
+	} else {
+		if len(text) > 0 && !strings.HasSuffix(text, "\n") {
+			text += "\n"
+		}
+		text += "\n## Learnings\n\n" + entry
+	}
+
+	return os.WriteFile(filePath, []byte(text), 0644)
 }
 
 // generateID creates a kebab-case ID from description (without collision check).

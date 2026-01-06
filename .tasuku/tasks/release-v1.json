@@ -1,0 +1,10 @@
+{
+  "id": "release-v1",
+  "status": "done",
+  "description": "GitHub Release Checklist",
+  "priority": 0,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-05T23:47:40.681965Z",
+  "updated_at": "2026-01-05T23:51:18.579669Z"
+}

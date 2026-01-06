@@ -1,11 +1,9 @@
 {
   "id": "learning-tests",
-  "status": "blocked",
+  "status": "done",
   "description": "Add test coverage for learning package",
-  "blocked_by": [
-    "test-harness"
-  ],
+  "blocked_by": [],
   "owner": null,
   "created_at": "2026-01-05T20:39:28.773166Z",
-  "updated_at": "2026-01-05T20:39:38.598412Z"
+  "updated_at": "2026-01-06T02:03:48.801621Z"
 }

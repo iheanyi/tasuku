@@ -1,0 +1,11 @@
+{
+  "id": "release-tag",
+  "status": "done",
+  "description": "Create GitHub release with version tag",
+  "priority": 1,
+  "parent_id": "release-v1",
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-05T23:47:42.977443Z",
+  "updated_at": "2026-01-05T23:50:42.856513Z"
+}

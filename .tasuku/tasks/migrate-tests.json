@@ -1,11 +1,9 @@
 {
   "id": "migrate-tests",
-  "status": "blocked",
+  "status": "done",
   "description": "Add test coverage for migrate package",
-  "blocked_by": [
-    "test-harness"
-  ],
+  "blocked_by": [],
   "owner": null,
   "created_at": "2026-01-05T20:39:28.826716Z",
-  "updated_at": "2026-01-05T20:39:38.651727Z"
+  "updated_at": "2026-01-06T02:03:49.033692Z"
 }
