@@ -213,6 +213,72 @@ func TestEmptyFiles(t *testing.T) {
 	}
 }
 
+func TestRFC3339Timestamps(t *testing.T) {
+	// Test that RFC3339 format parses correctly (new format)
+	learningsContent := `# Learnings
+
+## abc123 - 2024-01-05T10:30:00Z
+Learning with full timestamp.
+
+## def456 - 2024-01-05T14:45:30Z
+Another learning later the same day.
+`
+
+	learnings, err := ParseLearningsFile([]byte(learningsContent))
+	if err != nil {
+		t.Fatalf("ParseLearningsFile() error = %v", err)
+	}
+
+	if len(learnings.Learnings) != 2 {
+		t.Fatalf("Learnings count = %d, want 2", len(learnings.Learnings))
+	}
+
+	// Check first learning timestamp
+	expected1 := time.Date(2024, 1, 5, 10, 30, 0, 0, time.UTC)
+	if !learnings.Learnings[0].CreatedAt.Equal(expected1) {
+		t.Errorf("First learning timestamp = %v, want %v", learnings.Learnings[0].CreatedAt, expected1)
+	}
+
+	// Check second learning timestamp
+	expected2 := time.Date(2024, 1, 5, 14, 45, 30, 0, time.UTC)
+	if !learnings.Learnings[1].CreatedAt.Equal(expected2) {
+		t.Errorf("Second learning timestamp = %v, want %v", learnings.Learnings[1].CreatedAt, expected2)
+	}
+
+	// Test decisions with RFC3339
+	decisionsContent := `# Decisions
+
+## auth-v1 - 2024-01-05T09:00:00Z
+**Chose**: JWT
+**Over**: Sessions
+**Because**: Stateless.
+
+## auth-v2 - 2024-01-05T16:30:00Z
+**Chose**: Sessions
+**Over**: JWT
+**Because**: Changed our mind after performance testing.
+`
+
+	decisions, err := ParseDecisionsFile([]byte(decisionsContent))
+	if err != nil {
+		t.Fatalf("ParseDecisionsFile() error = %v", err)
+	}
+
+	if len(decisions.Decisions) != 2 {
+		t.Fatalf("Decisions count = %d, want 2", len(decisions.Decisions))
+	}
+
+	// Verify timestamps show ordering
+	if !decisions.Decisions[0].CreatedAt.Before(decisions.Decisions[1].CreatedAt) {
+		t.Error("Expected auth-v1 to be before auth-v2 based on timestamps")
+	}
+
+	// Verify the decision was overridden later the same day
+	if decisions.Decisions[0].CreatedAt.Day() != decisions.Decisions[1].CreatedAt.Day() {
+		t.Error("Both decisions should be on the same day")
+	}
+}
+
 func TestMultiLineBecause(t *testing.T) {
 	content := `# Decisions
 

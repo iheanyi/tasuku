@@ -141,7 +141,7 @@ Note content goes here with full Markdown support.
 ```markdown
 # Learnings
 
-## 2024-01-04 10:00 [learning-id]
+## learning-id - 2024-01-04T10:30:00Z
 Things discovered while working.
 ```
 
@@ -149,10 +149,10 @@ Things discovered while working.
 ```markdown
 # Decisions
 
-## decision-id (2024-01-04)
-**Chose:** Option A
-**Over:** Option B, Option C
-**Because:** Reasoning for the decision.
+## decision-id - 2024-01-04T10:30:00Z
+**Chose**: Option A
+**Over**: Option B, Option C
+**Because**: Reasoning for the decision.
 ```
 
 ### V3 Directory Structure (Legacy JSON)
@@ -481,6 +481,11 @@ Record architectural decisions here as we make them:
     - When a task is a feature, bug, or project milestone → add to tk
     - When a task is an implementation step like "fix type error" → use TodoWrite only
 11. **Constructor pattern over init() for CLI commands** - Commands use `func newCmd() *cobra.Command` constructors instead of `var cmd` + `func init()`. This follows the PlanetScale CLI pattern for explicit initialization, better testability, and avoiding package-level flag variables.
+12. **UTC storage, local display for timestamps** - All timestamps (tasks, notes, learnings, decisions) are:
+    - **Stored**: UTC in RFC3339 format (`2024-01-04T10:30:00Z`) for sorting, cross-timezone consistency
+    - **Displayed**: Local timezone for human readability (`Jan 4, 2024 2:30 AM` in PST)
+    - **JSON/MCP output**: UTC for machine parsing
+    - Uses `task.FormatLocalTime()` helper for consistent display formatting
 
 ## Adding New Functionality Checklist
 

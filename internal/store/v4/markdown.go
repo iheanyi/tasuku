@@ -51,8 +51,8 @@ type ParsedNote struct {
 var (
 	// frontmatterDelim matches the YAML frontmatter delimiters
 	frontmatterDelim = []byte("---")
-	// noteHeaderRegex matches "### YYYY-MM-DD HH:MM [id]" format
-	noteHeaderRegex = regexp.MustCompile(`^###\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})(?:\s+\[([a-z0-9]+)\])?$`)
+	// noteHeaderRegex matches "### <timestamp> [id]" where timestamp is RFC3339 or legacy "YYYY-MM-DD HH:MM"
+	noteHeaderRegex = regexp.MustCompile(`^###\s+(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}Z|\s+\d{2}:\d{2}))(?:\s+\[([a-z0-9]+)\])?$`)
 )
 
 // ParseTaskFile parses a Markdown task file with YAML frontmatter.
@@ -165,13 +165,15 @@ func parseBody(body []byte) (title, description string, notes []ParsedNote) {
 					notes = append(notes, *currentNote)
 				}
 
-				// Parse timestamp
-				dateStr := match[1]
-				timeStr := match[2]
-				ts, _ := time.Parse("2006-01-02 15:04", dateStr+" "+timeStr)
+				// Parse timestamp - try RFC3339 first, fall back to legacy format
+				tsStr := match[1]
+				ts, err := time.Parse(time.RFC3339, tsStr)
+				if err != nil {
+					ts, _ = time.Parse("2006-01-02 15:04", tsStr)
+				}
 
 				// Use ID from markdown if present, otherwise generate one
-				noteID := match[3]
+				noteID := match[2]
 				if noteID == "" {
 					noteID = task.GenerateShortID()
 				}
@@ -332,8 +334,8 @@ func WriteTaskFile(id string, t task.Task, notes []task.Note) ([]byte, error) {
 			if ts.IsZero() {
 				ts = time.Now()
 			}
-			// Include note ID in header for persistence: ### YYYY-MM-DD HH:MM [id]
-			buf.WriteString(fmt.Sprintf("### %s [%s]\n", ts.Format("2006-01-02 15:04"), n.ID))
+			// Include note ID in header for persistence: ### RFC3339 [id]
+			buf.WriteString(fmt.Sprintf("### %s [%s]\n", ts.UTC().Format(time.RFC3339), n.ID))
 			buf.WriteString(n.Text)
 			buf.WriteString("\n\n")
 		}

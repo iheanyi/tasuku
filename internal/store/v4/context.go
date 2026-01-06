@@ -22,10 +22,10 @@ type DecisionsFile struct {
 }
 
 var (
-	// learningHeaderRegex matches "## <id> - YYYY-MM-DD"
-	learningHeaderRegex = regexp.MustCompile(`^##\s+(\S+)\s+-\s+(\d{4}-\d{2}-\d{2})$`)
-	// decisionHeaderRegex matches "## <id> - YYYY-MM-DD"
-	decisionHeaderRegex = regexp.MustCompile(`^##\s+(\S+)\s+-\s+(\d{4}-\d{2}-\d{2})$`)
+	// learningHeaderRegex matches "## <id> - YYYY-MM-DDTHH:MM:SSZ" or "## <id> - YYYY-MM-DD" (legacy)
+	learningHeaderRegex = regexp.MustCompile(`^##\s+(\S+)\s+-\s+(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}Z)?)$`)
+	// decisionHeaderRegex matches "## <id> - YYYY-MM-DDTHH:MM:SSZ" or "## <id> - YYYY-MM-DD" (legacy)
+	decisionHeaderRegex = regexp.MustCompile(`^##\s+(\S+)\s+-\s+(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}Z)?)$`)
 	// decisionFieldRegex matches "**Label**: Value"
 	decisionFieldRegex = regexp.MustCompile(`^\*\*(\w+)\*\*:\s*(.+)$`)
 )
@@ -35,11 +35,13 @@ var (
 //
 //	# Learnings
 //
-//	## <id> - YYYY-MM-DD
+//	## <id> - 2024-01-04T10:30:00Z
 //	Learning text with optional code blocks.
 //
-//	## <id2> - YYYY-MM-DD
+//	## <id2> - 2024-01-04T11:00:00Z
 //	Another learning.
+//
+// Also supports legacy date-only format (YYYY-MM-DD) for backwards compatibility.
 func ParseLearningsFile(content []byte) (*LearningsFile, error) {
 	result := &LearningsFile{
 		Learnings: []task.Learning{},
@@ -69,7 +71,11 @@ func ParseLearningsFile(content []byte) (*LearningsFile, error) {
 			// Start new learning
 			id := match[1]
 			dateStr := match[2]
-			date, _ := time.Parse("2006-01-02", dateStr)
+			// Try RFC3339 first, fall back to date-only for legacy files
+			date, err := time.Parse(time.RFC3339, dateStr)
+			if err != nil {
+				date, _ = time.Parse("2006-01-02", dateStr)
+			}
 
 			currentLearning = &task.Learning{
 				ID:        id,
@@ -102,11 +108,12 @@ func WriteLearningsFile(learnings []task.Learning) []byte {
 	buf.WriteString("# Learnings\n\n")
 
 	for _, l := range learnings {
-		// Format: ## <id> - YYYY-MM-DD
-		dateStr := l.CreatedAt.Format("2006-01-02")
-		if l.CreatedAt.IsZero() {
-			dateStr = time.Now().Format("2006-01-02")
+		// Format: ## <id> - RFC3339 timestamp
+		ts := l.CreatedAt
+		if ts.IsZero() {
+			ts = time.Now().UTC()
 		}
+		dateStr := ts.UTC().Format(time.RFC3339)
 
 		buf.WriteString(fmt.Sprintf("## %s - %s\n", l.ID, dateStr))
 		buf.WriteString(l.Text)
@@ -121,10 +128,12 @@ func WriteLearningsFile(learnings []task.Learning) []byte {
 //
 //	# Decisions
 //
-//	## <id> - YYYY-MM-DD
+//	## <id> - 2024-01-04T10:30:00Z
 //	**Chose**: Option A
 //	**Over**: Option B, Option C
 //	**Because**: Reasoning text that can span multiple lines.
+//
+// Also supports legacy date-only format (YYYY-MM-DD) for backwards compatibility.
 func ParseDecisionsFile(content []byte) (*DecisionsFile, error) {
 	result := &DecisionsFile{
 		Decisions: []task.Decision{},
@@ -156,7 +165,11 @@ func ParseDecisionsFile(content []byte) (*DecisionsFile, error) {
 			// Start new decision
 			id := match[1]
 			dateStr := match[2]
-			date, _ := time.Parse("2006-01-02", dateStr)
+			// Try RFC3339 first, fall back to date-only for legacy files
+			date, err := time.Parse(time.RFC3339, dateStr)
+			if err != nil {
+				date, _ = time.Parse("2006-01-02", dateStr)
+			}
 
 			currentDecision = &task.Decision{
 				ID:        id,
@@ -221,11 +234,12 @@ func WriteDecisionsFile(decisions []task.Decision) []byte {
 	buf.WriteString("# Decisions\n\n")
 
 	for _, d := range decisions {
-		// Format: ## <id> - YYYY-MM-DD
-		dateStr := d.CreatedAt.Format("2006-01-02")
-		if d.CreatedAt.IsZero() {
-			dateStr = time.Now().Format("2006-01-02")
+		// Format: ## <id> - RFC3339 timestamp
+		ts := d.CreatedAt
+		if ts.IsZero() {
+			ts = time.Now().UTC()
 		}
+		dateStr := ts.UTC().Format(time.RFC3339)
 
 		buf.WriteString(fmt.Sprintf("## %s - %s\n", d.ID, dateStr))
 		buf.WriteString(fmt.Sprintf("**Chose**: %s\n", d.Chose))

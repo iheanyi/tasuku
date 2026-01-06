@@ -1272,7 +1272,8 @@ func (m Model) renderEmptyState(message string, cliCommand string) string {
 }
 
 // renderModal creates a consistent modal dialog with title, content, and help text.
-func (m Model) renderModal(title string, borderColor lipgloss.Color, content string, helpText string) string {
+// Set useBorder to false for textarea content to avoid double-border artifacts.
+func (m Model) renderModal(title string, borderColor lipgloss.Color, content string, helpText string, useBorder bool) string {
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
@@ -1282,16 +1283,24 @@ func (m Model) renderModal(title string, borderColor lipgloss.Color, content str
 		Foreground(borderColor).
 		Bold(true)
 
-	inputStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(ColorSlate).
-		Padding(0, 1).
-		Width(50)
+	// Apply inner border only when requested (not for textareas which have their own styling)
+	var styledContent string
+	if useBorder {
+		inputStyle := lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(ColorSlate).
+			Padding(0, 1).
+			Width(50)
+		styledContent = inputStyle.Render(content)
+	} else {
+		// No border, just minimal padding for textareas
+		styledContent = lipgloss.NewStyle().Padding(0, 1).Render(content)
+	}
 
 	modalContent := lipgloss.JoinVertical(lipgloss.Left,
 		titleStyle.Render(title),
 		"",
-		inputStyle.Render(content),
+		styledContent,
 		"",
 		HelpStyle.Render(helpText),
 	)
@@ -1354,6 +1363,7 @@ func (m Model) viewCreate() string {
 		ColorAccent,
 		m.createInput.View(),
 		"ctrl+s: create  esc: cancel  (Enter adds newlines)",
+		false, // no inner border for textarea
 	)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
@@ -1366,6 +1376,7 @@ func (m Model) viewEdit() string {
 		ColorPrimary,
 		content,
 		"ctrl+s: save  esc: cancel  (Enter adds newlines)",
+		false, // no inner border for textarea
 	)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
@@ -1397,7 +1408,7 @@ func (m Model) viewNotes() string {
 				}
 			}
 			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, noteText))
-			b.WriteString(fmt.Sprintf("     %s\n", HelpStyle.Render(n.CreatedAt.Format("2006-01-02 15:04"))))
+			b.WriteString(fmt.Sprintf("     %s\n", HelpStyle.Render(task.FormatLocalTime(n.CreatedAt))))
 		}
 	}
 
@@ -1454,7 +1465,7 @@ func (m Model) viewLearnings() string {
 			b.WriteString("\n")
 			for _, l := range regular {
 				b.WriteString(fmt.Sprintf("  - %s\n", l.Text))
-				b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(l.CreatedAt.Format("2006-01-02 15:04"))))
+				b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(task.FormatLocalTime(l.CreatedAt))))
 			}
 		}
 	}
@@ -1502,7 +1513,7 @@ func (m Model) viewDecisions() string {
 			if d.Because != "" {
 				b.WriteString(fmt.Sprintf("    %s\n", reasonStyle.Render("\""+d.Because+"\"")))
 			}
-			b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(d.CreatedAt.Format("2006-01-02 15:04"))))
+			b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(task.FormatLocalTime(d.CreatedAt))))
 			b.WriteString("\n")
 		}
 	}

@@ -253,8 +253,8 @@ func outputTaskDetail(id string, t task.Task, notes []task.Note, allTasks map[st
 		} else if t.TimerStart != nil {
 			fmt.Printf("Timer:       running (started %s)\n", formatRelativeTime(*t.TimerStart))
 		}
-		fmt.Printf("Created:     %s\n", t.CreatedAt.Format(time.RFC3339))
-		fmt.Printf("Updated:     %s\n", t.UpdatedAt.Format(time.RFC3339))
+		fmt.Printf("Created:     %s\n", task.FormatLocalTime(t.CreatedAt))
+		fmt.Printf("Updated:     %s\n", task.FormatLocalTime(t.UpdatedAt))
 
 		// Show subtasks if any
 		var subtasks []string

@@ -1,9 +1,0 @@
-{
-  "status": "done",
-  "description": "Add priority levels (0-4) to tasks: 0=critical, 1=high, 2=normal, 3=low, 4=backlog",
-  "blocked_by": [],
-  "owner": null,
-  "created_at": "2026-01-04T20:24:48.402516Z",
-  "updated_at": "2026-01-04T20:29:23.324518Z",
-  "archived_at": "2026-01-05T05:34:43.858688Z"
-}

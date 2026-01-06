@@ -1,0 +1,8 @@
+---
+status: done
+created_at: 2026-01-06T02:29:48.701496Z
+updated_at: 2026-01-06T02:32:55.704859Z
+---
+
+# Add tk_stats MCP tool for task statistics
+

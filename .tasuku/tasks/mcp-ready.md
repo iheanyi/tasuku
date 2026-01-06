@@ -1,0 +1,8 @@
+---
+status: done
+created_at: 2026-01-06T02:29:48.352586Z
+updated_at: 2026-01-06T02:32:55.148509Z
+---
+
+# Add tk_ready MCP tool for listing ready tasks
+

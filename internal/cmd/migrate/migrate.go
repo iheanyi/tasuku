@@ -533,10 +533,10 @@ func migrateToV4(dryRun bool) error {
 			return nil
 		})
 
-		// Migrate notes for this task
+		// Migrate notes for this task (preserving timestamps)
 		if notes, ok := f.Context.Notes[id]; ok {
 			for _, note := range notes {
-				newStore.AddNote(id, note.Text)
+				newStore.AddNoteFull(id, note)
 			}
 		}
 
@@ -546,7 +546,7 @@ func migrateToV4(dryRun bool) error {
 	// Migrate learnings
 	fmt.Println("\nMigrating learnings...")
 	for _, l := range f.Context.Learnings {
-		newStore.AddLearningWithRule(l.Text, &l.IsRule)
+		newStore.AddLearningFull(l)
 	}
 	if len(f.Context.Learnings) > 0 {
 		fmt.Printf("  ✓ Learnings: %d\n", len(f.Context.Learnings))

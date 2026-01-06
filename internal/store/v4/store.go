@@ -951,6 +951,55 @@ func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool,
 	return id, isRule, nil
 }
 
+// AddLearningFull adds a learning with all fields preserved (for migration).
+// Unlike AddLearningWithRule, this preserves the original ID, timestamp, and rule status.
+func (s *Store) AddLearningFull(l task.Learning) error {
+	learningsPath := filepath.Join(s.root, ContextDir, "learnings.md")
+
+	f, err := os.OpenFile(learningsPath, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return fmt.Errorf("store: failed to open learnings: %w", err)
+	}
+	defer f.Close()
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("store: failed to acquire lock: %w", err)
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+
+	data, _ := os.ReadFile(learningsPath)
+	var lf *LearningsFile
+	if len(data) > 0 {
+		lf, _ = ParseLearningsFile(data)
+	}
+	if lf == nil {
+		lf = &LearningsFile{Learnings: []task.Learning{}}
+	}
+
+	// Use the learning as-is, preserving all fields
+	// If ID is empty, generate one
+	if l.ID == "" {
+		l.ID = task.GenerateShortID()
+	}
+	// If CreatedAt is zero, use now
+	if l.CreatedAt.IsZero() {
+		l.CreatedAt = time.Now().UTC()
+	}
+
+	lf.Learnings = append(lf.Learnings, l)
+
+	if err := os.WriteFile(learningsPath, WriteLearningsFile(lf.Learnings), 0644); err != nil {
+		return fmt.Errorf("store: failed to write learnings: %w", err)
+	}
+
+	// Update index
+	s.updateIndex(func(idx *Index) {
+		idx.LearningsCount = len(lf.Learnings)
+	})
+
+	return nil
+}
+
 // RemoveLearning removes a learning by ID.
 func (s *Store) RemoveLearning(id string) (string, error) {
 	learningsPath := filepath.Join(s.root, ContextDir, "learnings.md")
@@ -1073,6 +1122,28 @@ func (s *Store) AddNote(taskID, noteText string) (string, error) {
 	})
 
 	return noteID, err
+}
+
+// AddNoteFull adds a note to a task with all fields preserved (for migration).
+// Unlike AddNote, this preserves the original ID and timestamp.
+func (s *Store) AddNoteFull(taskID string, note task.Note) error {
+	if _, err := os.Stat(s.taskPath(taskID)); os.IsNotExist(err) {
+		return fmt.Errorf("store: task %q not found", taskID)
+	}
+
+	// Ensure ID and timestamp are set
+	if note.ID == "" {
+		note.ID = task.GenerateShortID()
+	}
+	if note.CreatedAt.IsZero() {
+		note.CreatedAt = time.Now().UTC()
+	}
+
+	return s.updateTask(taskID, func(t *task.Task, notes *[]task.Note) error {
+		*notes = append(*notes, note)
+		// Don't update task's UpdatedAt to preserve original timeline during migration
+		return nil
+	})
 }
 
 // RemoveNote removes a note from a task.

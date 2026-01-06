@@ -377,6 +377,58 @@ First note.
 	}
 }
 
+func TestNotesRFC3339Parsing(t *testing.T) {
+	// Test notes with RFC3339 timestamps and IDs
+	content := `---
+status: ready
+created_at: 2024-01-05T10:00:00Z
+updated_at: 2024-01-05T11:00:00Z
+---
+
+# Task with RFC3339 notes
+
+## Notes
+
+### 2024-01-05T14:30:45Z [abc123]
+Afternoon note with precise timestamp.
+
+### 2024-01-05T09:15:30Z [def456]
+Morning note.
+`
+
+	parsed, err := ParseTaskFile("test", []byte(content))
+	if err != nil {
+		t.Fatalf("ParseTaskFile() error = %v", err)
+	}
+
+	if len(parsed.Notes) != 2 {
+		t.Fatalf("Notes count = %d, want 2", len(parsed.Notes))
+	}
+
+	// Check first note (14:30:45)
+	expected1 := time.Date(2024, 1, 5, 14, 30, 45, 0, time.UTC)
+	if !parsed.Notes[0].Timestamp.Equal(expected1) {
+		t.Errorf("First note timestamp = %v, want %v", parsed.Notes[0].Timestamp, expected1)
+	}
+	if parsed.Notes[0].ID != "abc123" {
+		t.Errorf("First note ID = %q, want abc123", parsed.Notes[0].ID)
+	}
+
+	// Check second note (09:15:30)
+	expected2 := time.Date(2024, 1, 5, 9, 15, 30, 0, time.UTC)
+	if !parsed.Notes[1].Timestamp.Equal(expected2) {
+		t.Errorf("Second note timestamp = %v, want %v", parsed.Notes[1].Timestamp, expected2)
+	}
+	if parsed.Notes[1].ID != "def456" {
+		t.Errorf("Second note ID = %q, want def456", parsed.Notes[1].ID)
+	}
+
+	// Verify ordering shows first note came later in the day
+	if !parsed.Notes[1].Timestamp.Before(parsed.Notes[0].Timestamp) {
+		t.Error("Expected morning note (09:15) to be before afternoon note (14:30)")
+	}
+}
+
 func intPtr(i int) *int {
 	return &i
 }

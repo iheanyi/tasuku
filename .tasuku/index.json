@@ -1,0 +1,615 @@
+{
+  "version": "v4",
+  "tasks": {
+    "archive-done-tasks": {
+      "status": "done",
+      "file": "tasks/archive-done-tasks.md",
+      "updated_at": "2026-01-05T04:47:28.803603Z"
+    },
+    "audit-mcp-schemas": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "mcp",
+        "ux",
+        "audit"
+      ],
+      "file": "tasks/audit-mcp-schemas.md",
+      "updated_at": "2026-01-06T17:54:00.450921Z"
+    },
+    "auto-timer": {
+      "status": "done",
+      "file": "tasks/auto-timer.md",
+      "updated_at": "2026-01-06T00:09:12.127038Z"
+    },
+    "bug-auto-unblock": {
+      "status": "done",
+      "priority": 0,
+      "file": "tasks/bug-auto-unblock.md",
+      "updated_at": "2026-01-06T05:27:04.589869Z"
+    },
+    "bug-self-block": {
+      "status": "done",
+      "priority": 1,
+      "file": "tasks/bug-self-block.md",
+      "updated_at": "2026-01-06T05:27:56.984288Z"
+    },
+    "bug-tag-split": {
+      "status": "done",
+      "priority": 1,
+      "file": "tasks/bug-tag-split.md",
+      "updated_at": "2026-01-06T05:28:35.074203Z"
+    },
+    "claudemd-session-nudges": {
+      "status": "done",
+      "priority": 1,
+      "file": "tasks/claudemd-session-nudges.md",
+      "updated_at": "2026-01-06T04:27:52.828414Z"
+    },
+    "cli-batch-ops": {
+      "status": "done",
+      "file": "tasks/cli-batch-ops.md",
+      "updated_at": "2026-01-06T04:55:51.170381Z"
+    },
+    "cli-priority-names": {
+      "status": "done",
+      "priority": 3,
+      "file": "tasks/cli-priority-names.md",
+      "updated_at": "2026-01-06T04:47:43.851621Z"
+    },
+    "cli-refactor-structure": {
+      "status": "done",
+      "file": "tasks/cli-refactor-structure.md",
+      "updated_at": "2026-01-05T20:39:51.319373Z"
+    },
+    "context-tests": {
+      "status": "done",
+      "file": "tasks/context-tests.md",
+      "updated_at": "2026-01-06T02:03:48.461099Z"
+    },
+    "decision-tests": {
+      "status": "done",
+      "file": "tasks/decision-tests.md",
+      "updated_at": "2026-01-06T02:03:48.570819Z"
+    },
+    "doctor-parity-check": {
+      "status": "done",
+      "file": "tasks/doctor-parity-check.md",
+      "updated_at": "2026-01-05T04:51:42.256221Z"
+    },
+    "fix-ci": {
+      "status": "done",
+      "file": "tasks/fix-ci.md",
+      "updated_at": "2026-01-05T04:46:28.278787Z"
+    },
+    "github-actions-ci": {
+      "status": "done",
+      "file": "tasks/github-actions-ci.md",
+      "updated_at": "2026-01-05T04:47:28.84616Z"
+    },
+    "hook-session-start": {
+      "status": "done",
+      "priority": 1,
+      "file": "tasks/hook-session-start.md",
+      "updated_at": "2026-01-06T04:27:52.809509Z"
+    },
+    "hook-stop-reminder": {
+      "status": "done",
+      "priority": 1,
+      "file": "tasks/hook-stop-reminder.md",
+      "updated_at": "2026-01-06T04:27:52.818928Z"
+    },
+    "hooks-tests": {
+      "status": "done",
+      "file": "tasks/hooks-tests.md",
+      "updated_at": "2026-01-06T02:03:48.688906Z"
+    },
+    "learning-tests": {
+      "status": "done",
+      "file": "tasks/learning-tests.md",
+      "updated_at": "2026-01-06T02:03:48.801621Z"
+    },
+    "mcp-add-enhance": {
+      "status": "done",
+      "priority": 2,
+      "file": "tasks/mcp-add-enhance.md",
+      "updated_at": "2026-01-06T04:47:43.842892Z"
+    },
+    "mcp-claim-enhance": {
+      "status": "done",
+      "priority": 3,
+      "file": "tasks/mcp-claim-enhance.md",
+      "updated_at": "2026-01-06T04:47:43.860458Z"
+    },
+    "mcp-claim-release": {
+      "status": "done",
+      "file": "tasks/mcp-claim-release.md",
+      "updated_at": "2026-01-05T04:32:32.689399Z"
+    },
+    "mcp-context-enhance": {
+      "status": "done",
+      "priority": 2,
+      "file": "tasks/mcp-context-enhance.md",
+      "updated_at": "2026-01-06T04:30:11.193198Z"
+    },
+    "mcp-decision-list": {
+      "status": "done",
+      "file": "tasks/mcp-decision-list.md",
+      "updated_at": "2026-01-06T02:32:56.293179Z"
+    },
+    "mcp-decision-remove": {
+      "status": "done",
+      "file": "tasks/mcp-decision-remove.md",
+      "updated_at": "2026-01-06T02:32:56.41581Z"
+    },
+    "mcp-delete": {
+      "status": "done",
+      "file": "tasks/mcp-delete.md",
+      "updated_at": "2026-01-05T04:32:32.303171Z"
+    },
+    "mcp-deps": {
+      "status": "done",
+      "file": "tasks/mcp-deps.md",
+      "updated_at": "2026-01-06T02:32:55.592594Z"
+    },
+    "mcp-done-enhance": {
+      "status": "done",
+      "priority": 2,
+      "file": "tasks/mcp-done-enhance.md",
+      "updated_at": "2026-01-06T04:30:11.184621Z"
+    },
+    "mcp-edit": {
+      "status": "done",
+      "file": "tasks/mcp-edit.md",
+      "updated_at": "2026-01-05T04:32:32.442402Z"
+    },
+    "mcp-find": {
+      "status": "done",
+      "file": "tasks/mcp-find.md",
+      "updated_at": "2026-01-05T04:32:32.765354Z"
+    },
+    "mcp-health-tool": {
+      "status": "done",
+      "priority": 3,
+      "file": "tasks/mcp-health-tool.md",
+      "updated_at": "2026-01-06T04:47:43.86899Z"
+    },
+    "mcp-learning-list": {
+      "status": "done",
+      "file": "tasks/mcp-learning-list.md",
+      "updated_at": "2026-01-06T02:32:55.819148Z"
+    },
+    "mcp-learning-promote": {
+      "status": "done",
+      "file": "tasks/mcp-learning-promote.md",
+      "updated_at": "2026-01-06T02:32:55.934712Z"
+    },
+    "mcp-learning-remove": {
+      "status": "done",
+      "file": "tasks/mcp-learning-remove.md",
+      "updated_at": "2026-01-06T02:32:56.051144Z"
+    },
+    "mcp-learning-rules": {
+      "status": "done",
+      "file": "tasks/mcp-learning-rules.md",
+      "updated_at": "2026-01-06T02:32:56.171993Z"
+    },
+    "mcp-note-list": {
+      "status": "done",
+      "file": "tasks/mcp-note-list.md",
+      "updated_at": "2026-01-06T02:32:56.538996Z"
+    },
+    "mcp-note-remove": {
+      "status": "done",
+      "file": "tasks/mcp-note-remove.md",
+      "updated_at": "2026-01-06T02:32:56.662009Z"
+    },
+    "mcp-owner": {
+      "status": "done",
+      "file": "tasks/mcp-owner.md",
+      "updated_at": "2026-01-05T04:32:33.069336Z"
+    },
+    "mcp-pause": {
+      "status": "done",
+      "file": "tasks/mcp-pause.md",
+      "updated_at": "2026-01-05T04:32:32.541432Z"
+    },
+    "mcp-pause-enhance": {
+      "status": "done",
+      "priority": 3,
+      "file": "tasks/mcp-pause-enhance.md",
+      "updated_at": "2026-01-06T04:47:43.877258Z"
+    },
+    "mcp-priority": {
+      "status": "done",
+      "file": "tasks/mcp-priority.md",
+      "updated_at": "2026-01-05T04:32:32.919091Z"
+    },
+    "mcp-ready": {
+      "status": "done",
+      "file": "tasks/mcp-ready.md",
+      "updated_at": "2026-01-06T02:32:55.148509Z"
+    },
+    "mcp-ready-enhance": {
+      "status": "done",
+      "priority": 3,
+      "file": "tasks/mcp-ready-enhance.md",
+      "updated_at": "2026-01-06T04:47:43.885085Z"
+    },
+    "mcp-show": {
+      "status": "done",
+      "file": "tasks/mcp-show.md",
+      "updated_at": "2026-01-05T04:32:32.23876Z"
+    },
+    "mcp-start-enhance": {
+      "status": "done",
+      "priority": 2,
+      "file": "tasks/mcp-start-enhance.md",
+      "updated_at": "2026-01-06T04:30:11.175162Z"
+    },
+    "mcp-stats": {
+      "status": "done",
+      "file": "tasks/mcp-stats.md",
+      "updated_at": "2026-01-06T02:32:55.704859Z"
+    },
+    "mcp-timer-warnings": {
+      "status": "done",
+      "priority": 3,
+      "file": "tasks/mcp-timer-warnings.md",
+      "updated_at": "2026-01-06T04:47:43.89383Z"
+    },
+    "mcp-tool-tests": {
+      "status": "done",
+      "file": "tasks/mcp-tool-tests.md",
+      "updated_at": "2026-01-05T04:50:02.245466Z"
+    },
+    "mcp-unblock": {
+      "status": "done",
+      "file": "tasks/mcp-unblock.md",
+      "updated_at": "2026-01-05T04:32:32.610515Z"
+    },
+    "mcp-who": {
+      "status": "done",
+      "file": "tasks/mcp-who.md",
+      "updated_at": "2026-01-06T02:32:55.481991Z"
+    },
+    "mcpcmd-tests": {
+      "status": "done",
+      "file": "tasks/mcpcmd-tests.md",
+      "updated_at": "2026-01-06T02:03:48.915479Z"
+    },
+    "migrate-tests": {
+      "status": "done",
+      "file": "tasks/migrate-tests.md",
+      "updated_at": "2026-01-06T02:03:49.033692Z"
+    },
+    "note-tests": {
+      "status": "done",
+      "file": "tasks/note-tests.md",
+      "updated_at": "2026-01-06T02:03:49.149228Z"
+    },
+    "opt-dashboard-io": {
+      "status": "done",
+      "priority": 1,
+      "file": "tasks/opt-dashboard-io.md",
+      "updated_at": "2026-01-06T04:50:29.896967Z"
+    },
+    "opt-done-redundant": {
+      "status": "done",
+      "priority": 2,
+      "file": "tasks/opt-done-redundant.md",
+      "updated_at": "2026-01-06T04:52:40.417702Z"
+    },
+    "opt-ready-blocker": {
+      "status": "done",
+      "priority": 2,
+      "file": "tasks/opt-ready-blocker.md",
+      "updated_at": "2026-01-06T04:53:57.198036Z"
+    },
+    "optimizedistinctunitsofwork": {
+      "status": "done",
+      "file": "tasks/optimizedistinctunitsofwork.md",
+      "updated_at": "2026-01-06T04:46:52.619674Z"
+    },
+    "plan-sync": {
+      "status": "done",
+      "priority": 1,
+      "file": "tasks/plan-sync.md",
+      "updated_at": "2026-01-05T22:18:44.04428Z"
+    },
+    "plan-sync-cli": {
+      "status": "done",
+      "parent_id": "plan-sync",
+      "file": "tasks/plan-sync-cli.md",
+      "updated_at": "2026-01-05T22:16:48.892909Z"
+    },
+    "plan-sync-docs": {
+      "status": "done",
+      "parent_id": "plan-sync",
+      "file": "tasks/plan-sync-docs.md",
+      "updated_at": "2026-01-05T22:18:44.036114Z"
+    },
+    "plan-sync-nudge": {
+      "status": "done",
+      "parent_id": "plan-sync",
+      "file": "tasks/plan-sync-nudge.md",
+      "updated_at": "2026-01-05T22:16:48.910417Z"
+    },
+    "plan-sync-parser": {
+      "status": "done",
+      "parent_id": "plan-sync",
+      "file": "tasks/plan-sync-parser.md",
+      "updated_at": "2026-01-05T22:16:43.143607Z"
+    },
+    "plugin-distribution": {
+      "status": "done",
+      "file": "tasks/plugin-distribution.md",
+      "updated_at": "2026-01-05T04:55:14.08998Z"
+    },
+    "pr-tests": {
+      "status": "done",
+      "file": "tasks/pr-tests.md",
+      "updated_at": "2026-01-06T02:03:49.269492Z"
+    },
+    "release-completions": {
+      "status": "done",
+      "priority": 2,
+      "parent_id": "release-v1",
+      "file": "tasks/release-completions.md",
+      "updated_at": "2026-01-05T23:48:28.429701Z"
+    },
+    "release-go-install": {
+      "status": "done",
+      "priority": 1,
+      "parent_id": "release-v1",
+      "file": "tasks/release-go-install.md",
+      "updated_at": "2026-01-05T23:48:28.319751Z"
+    },
+    "release-mcp-test": {
+      "status": "done",
+      "priority": 1,
+      "parent_id": "release-v1",
+      "file": "tasks/release-mcp-test.md",
+      "updated_at": "2026-01-05T23:51:00.256791Z"
+    },
+    "release-tag": {
+      "status": "done",
+      "priority": 1,
+      "parent_id": "release-v1",
+      "file": "tasks/release-tag.md",
+      "updated_at": "2026-01-05T23:50:42.856513Z"
+    },
+    "release-tasaku": {
+      "status": "done",
+      "file": "tasks/release-tasaku.md",
+      "updated_at": "2026-01-06T02:06:24.927624Z"
+    },
+    "release-tui-test": {
+      "status": "done",
+      "priority": 2,
+      "parent_id": "release-v1",
+      "file": "tasks/release-tui-test.md",
+      "updated_at": "2026-01-05T23:51:18.570317Z"
+    },
+    "release-v1": {
+      "status": "done",
+      "priority": 0,
+      "file": "tasks/release-v1.md",
+      "updated_at": "2026-01-05T23:51:18.579669Z"
+    },
+    "server-tests": {
+      "status": "done",
+      "file": "tasks/server-tests.md",
+      "updated_at": "2026-01-06T02:03:49.389643Z"
+    },
+    "slash-commands": {
+      "status": "done",
+      "file": "tasks/slash-commands.md",
+      "updated_at": "2026-01-06T00:17:33.82671Z"
+    },
+    "task-split-coordination": {
+      "status": "done",
+      "file": "tasks/task-split-coordination.md",
+      "updated_at": "2026-01-05T20:44:27.808825Z"
+    },
+    "task-split-files": {
+      "status": "done",
+      "file": "tasks/task-split-files.md",
+      "updated_at": "2026-01-05T20:44:27.799144Z"
+    },
+    "task-tests": {
+      "status": "done",
+      "file": "tasks/task-tests.md",
+      "updated_at": "2026-01-06T02:03:48.342599Z"
+    },
+    "test-harness": {
+      "status": "done",
+      "file": "tasks/test-harness.md",
+      "updated_at": "2026-01-05T20:41:49.175799Z"
+    },
+    "third-test-task": {
+      "status": "done",
+      "parent_id": "audit-test-1",
+      "file": "tasks/third-test-task.md",
+      "updated_at": "2026-01-06T05:19:27.315294Z"
+    },
+    "ux-list-owner-filter": {
+      "status": "done",
+      "file": "tasks/ux-list-owner-filter.md",
+      "updated_at": "2026-01-06T05:30:39.257768Z"
+    },
+    "ux-shortcut-commands": {
+      "status": "done",
+      "file": "tasks/ux-shortcut-commands.md",
+      "updated_at": "2026-01-06T05:34:19.842162Z"
+    },
+    "ux-show-duration": {
+      "status": "done",
+      "file": "tasks/ux-show-duration.md",
+      "updated_at": "2026-01-06T05:29:38.786532Z"
+    },
+    "v3-archive-move": {
+      "status": "done",
+      "file": "tasks/v3-archive-move.md",
+      "updated_at": "2026-01-05T05:11:12.988358Z"
+    },
+    "v3-auto-detect": {
+      "status": "done",
+      "file": "tasks/v3-auto-detect.md",
+      "updated_at": "2026-01-05T05:29:54.958217Z"
+    },
+    "v3-context-jsonl": {
+      "status": "done",
+      "file": "tasks/v3-context-jsonl.md",
+      "updated_at": "2026-01-05T05:11:20.968421Z"
+    },
+    "v3-directory-storage": {
+      "status": "done",
+      "file": "tasks/v3-directory-storage.md",
+      "updated_at": "2026-01-05T05:11:20.958835Z"
+    },
+    "v3-migration-cmd": {
+      "status": "done",
+      "file": "tasks/v3-migration-cmd.md",
+      "updated_at": "2026-01-05T05:11:12.977443Z"
+    },
+    "v3-store-refactor": {
+      "status": "done",
+      "file": "tasks/v3-store-refactor.md",
+      "updated_at": "2026-01-05T05:07:56.052706Z"
+    },
+    "v3-subtasks": {
+      "status": "done",
+      "file": "tasks/v3-subtasks.md",
+      "updated_at": "2026-01-05T05:09:47.159437Z"
+    },
+    "v3-tree-view": {
+      "status": "done",
+      "file": "tasks/v3-tree-view.md",
+      "updated_at": "2026-01-05T05:32:52.536114Z"
+    },
+    "v4-context-format": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "v4",
+        "context",
+        "core"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-context-format.md",
+      "updated_at": "2026-01-06T17:08:22.474839Z"
+    },
+    "v4-docs-polish": {
+      "status": "done",
+      "priority": 3,
+      "tags": [
+        "v4",
+        "docs",
+        "polish"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-docs-polish.md",
+      "updated_at": "2026-01-06T17:28:01.402927Z"
+    },
+    "v4-index-generator": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "v4",
+        "index",
+        "core"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-index-generator.md",
+      "updated_at": "2026-01-06T17:09:37.648999Z"
+    },
+    "v4-init-default": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "v4",
+        "cli",
+        "init"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-init-default.md",
+      "updated_at": "2026-01-06T17:23:18.4921Z"
+    },
+    "v4-markdown-epic": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "epic",
+        "storage",
+        "v4"
+      ],
+      "file": "tasks/v4-markdown-epic.md",
+      "updated_at": "2026-01-06T17:28:14.657011Z"
+    },
+    "v4-migration": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "v4",
+        "migration",
+        "cli"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-migration.md",
+      "updated_at": "2026-01-06T17:19:12.93147Z"
+    },
+    "v4-storage-backend": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "v4",
+        "storage",
+        "core"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-storage-backend.md",
+      "updated_at": "2026-01-06T17:17:37.751088Z"
+    },
+    "v4-task-parser": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "v4",
+        "parser",
+        "core"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-task-parser.md",
+      "updated_at": "2026-01-06T17:07:08.865414Z"
+    },
+    "v4-tui-glamour": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "v4",
+        "tui",
+        "glamour"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-tui-glamour.md",
+      "updated_at": "2026-01-06T17:25:55.597832Z"
+    },
+    "v4-validation": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "v4",
+        "validation",
+        "cli"
+      ],
+      "parent_id": "v4-markdown-epic",
+      "file": "tasks/v4-validation.md",
+      "updated_at": "2026-01-06T17:21:22.178059Z"
+    }
+  },
+  "archived_count": 68,
+  "learnings_count": 9,
+  "decisions_count": 7,
+  "updated_at": "2026-01-06T17:54:00.451244Z"
+}

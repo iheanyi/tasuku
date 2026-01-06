@@ -236,7 +236,7 @@ Examples:
 					summaryStr = fmt.Sprintf("\n      Summary: %s", item.Summary)
 				}
 				fmt.Printf("  %s: %s%s%s\n", item.ID, item.Description, timeStr, summaryStr)
-				fmt.Printf("      Archived: %s\n", item.ArchivedAt.Format("2006-01-02 15:04"))
+				fmt.Printf("      Archived: %s\n", task.FormatLocalTime(item.ArchivedAt))
 			}
 		}
 		return nil
@@ -288,8 +288,8 @@ Examples:
 			if item.TotalTime != "" {
 				fmt.Printf("  Time Spent: %s\n", item.TotalTime)
 			}
-			fmt.Printf("  Completed: %s\n", archived.UpdatedAt.Format("2006-01-02 15:04"))
-			fmt.Printf("  Archived: %s\n", archived.ArchivedAt.Format("2006-01-02 15:04"))
+			fmt.Printf("  Completed: %s\n", task.FormatLocalTime(archived.UpdatedAt))
+			fmt.Printf("  Archived: %s\n", task.FormatLocalTime(archived.ArchivedAt))
 			if archived.Priority != nil {
 				fmt.Printf("  Priority: %s\n", task.PriorityName(*archived.Priority))
 			}
