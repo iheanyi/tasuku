@@ -30,7 +30,12 @@ Use specific skills for detailed guidance:
 - **/tasuku-ready** - Show tasks ready to work on
 - **/tasuku-start** - Start working on a task
 - **/tasuku-done** - Mark a task complete
+- **/tasuku-block** - Mark task as blocked
+- **/tasuku-show** - Show task details
 - **/tasuku-learn** - Record learnings and insights
+- **/tasuku-decide** - Record architectural decisions
+- **/tasuku-note** - Add notes to tasks
+- **/tasuku-promote** - Promote learnings to docs
 - **/tasuku-context** - Get full project context
 - **/tasuku-stats** - Show task statistics
 
