@@ -134,6 +134,16 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 				},
 			},
 		},
+		"PreCompact": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks pre-compact %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -261,7 +271,8 @@ func installClaudeHooks(force, local bool) error {
 	}
 	fmt.Printf("Installed %d Tasuku hook(s) in Claude Code (%s):\n", installedCount, location)
 	fmt.Println("  - SessionStart: shows project context summary")
-	fmt.Println("  - Stop: reminds about running timers and in-progress tasks")
+	fmt.Println("  - Stop: reminds about timers, tasks, and prompts for reflection")
+	fmt.Println("  - PreCompact: captures decisions/learnings before context loss")
 	fmt.Println("  - PostToolUse/ExitPlanMode: prompts to sync plan to tasks")
 	fmt.Println()
 	fmt.Println("Restart Claude Code for hooks to take effect.")

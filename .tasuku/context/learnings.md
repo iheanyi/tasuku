@@ -27,3 +27,6 @@ HTTP server has no handling for stale processes or port conflicts. Consider PID 
 ## aebb8c - 2026-01-05
 When updating storage formats, check ALL user-facing strings: ErrNotInitialized, help text, error messages, hook scripts. Shared errors can leak format-specific messages.
 
+## 37aa8f - 2026-01-06
+Always force UTC timezone in golden tests (os.Setenv("TZ", "UTC") in init()) when testing time-dependent output. Local timezone varies between CI and developer machines, causing spurious test failures.
+

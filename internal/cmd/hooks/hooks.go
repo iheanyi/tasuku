@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,6 +51,7 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 	cmd.AddCommand(newUninstallCmd())
 	cmd.AddCommand(sessionCmd)
 	cmd.AddCommand(stopReminderCmd)
+	cmd.AddCommand(preCompactCmd)
 	cmd.AddCommand(syncCmd)
 	cmd.AddCommand(planSyncCmd)
 
@@ -214,12 +216,30 @@ var stopReminderCmd = &cobra.Command{
 This is called by the Claude Code Stop hook to remind the agent about:
   - Running timers that should be stopped
   - Tasks marked as in_progress that may need status updates
-  - Any uncommitted learnings from the session
+  - Decisions or learnings that should be recorded
 
 Examples:
   tk hooks stop-reminder   # Check for reminders`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return hookStopReminder()
+	},
+}
+
+var preCompactCmd = &cobra.Command{
+	Use:   "pre-compact",
+	Short: "Capture decisions and learnings before context compaction",
+	Long: `Called by Claude Code PreCompact hook before context window is summarized.
+
+This is a critical checkpoint to capture insights before they're lost:
+  - Prompts for architectural decisions made during the session
+  - Prompts for learnings or gotchas discovered
+  - Lists any in-progress tasks that need status updates
+  - Shows recent git activity that might warrant documentation
+
+Examples:
+  tk hooks pre-compact   # Run pre-compaction checklist`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookPreCompact()
 	},
 }
 
@@ -281,11 +301,114 @@ func hookStopReminder() error {
 		fmt.Println("   Consider: tk task done <id> or tk task pause <id>")
 	}
 
+	// Always prompt for reflection at session end
+	if !hasReminders {
+		fmt.Println("=== Tasuku Session Reminder ===")
+		hasReminders = true
+	}
+	fmt.Println("\n💡 Before ending this session, reflect:")
+	fmt.Println("   - Did you make any architectural decisions? → tk decide")
+	fmt.Println("   - Did you discover any gotchas or insights? → tk learn")
+	fmt.Println("   - Any 'never do X' or 'always do Y' patterns? → tk learn (auto-flagged as rule)")
+
 	if hasReminders {
 		fmt.Println("\n================================")
 	}
 
 	return nil
+}
+
+func hookPreCompact() error {
+	fmt.Println("=== Pre-Compaction Checkpoint ===")
+	fmt.Println("Context is about to be summarized. Capture important insights NOW!")
+	fmt.Println()
+
+	s := store.DefaultStorageWithWarning()
+
+	// Check for recent git activity
+	hasGitActivity := false
+	if out, err := execCommand("git", "log", "--oneline", "-5", "--since=1 hour ago"); err == nil && len(out) > 0 {
+		hasGitActivity = true
+		fmt.Println("📝 Recent commits (last hour):")
+		lines := strings.Split(strings.TrimSpace(out), "\n")
+		for _, line := range lines {
+			if line != "" {
+				fmt.Printf("   %s\n", line)
+			}
+		}
+		fmt.Println()
+	}
+
+	// Check for uncommitted changes
+	if out, err := execCommand("git", "status", "--porcelain"); err == nil && len(out) > 0 {
+		lineCount := len(strings.Split(strings.TrimSpace(out), "\n"))
+		fmt.Printf("📁 Uncommitted changes: %d file(s) modified\n\n", lineCount)
+	}
+
+	// Check Tasuku state
+	if s.Exists() {
+		f, err := s.Read()
+		if err == nil {
+			// In-progress tasks
+			var inProgress []string
+			for id, t := range f.Tasks {
+				if t.Status == task.StatusInProgress {
+					inProgress = append(inProgress, id)
+				}
+			}
+			if len(inProgress) > 0 {
+				fmt.Printf("🔄 Tasks in progress (%d):\n", len(inProgress))
+				for _, id := range inProgress {
+					t := f.Tasks[id]
+					desc := t.Description
+					if len(desc) > 50 {
+						desc = desc[:47] + "..."
+					}
+					fmt.Printf("   - %s: %s\n", id, desc)
+				}
+				fmt.Println()
+			}
+
+			// Running timers
+			var timers []string
+			for id, t := range f.Tasks {
+				if t.IsTimerRunning() {
+					timers = append(timers, id)
+				}
+			}
+			if len(timers) > 0 {
+				fmt.Printf("⏱️  Running timers: %v\n\n", timers)
+			}
+		}
+	}
+
+	// The key reflection prompts
+	fmt.Println("🧠 CAPTURE BEFORE CONTEXT IS LOST:")
+	fmt.Println()
+	fmt.Println("   DECISIONS - Did you choose between approaches?")
+	fmt.Println("   → tk decide --id <name> --chose \"X\" --over \"Y,Z\" --because \"reason\"")
+	fmt.Println()
+	fmt.Println("   LEARNINGS - Did you discover gotchas, patterns, or behaviors?")
+	fmt.Println("   → tk learn \"insight here\"")
+	fmt.Println()
+
+	if hasGitActivity {
+		fmt.Println("   💡 Your recent commits suggest significant work was done.")
+		fmt.Println("      Consider what decisions/learnings should persist!")
+		fmt.Println()
+	}
+
+	fmt.Println("These persist across sessions and help future agents!")
+	fmt.Println("==================================")
+
+	return nil
+}
+
+// execCommand runs a command and returns its output
+func execCommand(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	out, err := cmd.Output()
+	return string(out), err
 }
 
 // formatDuration formats a duration in a human-readable way
@@ -583,7 +706,7 @@ if [ -d .tasuku ] || [ -f .tasuku.json ]; then
     fi
 fi`
 	case "post-commit":
-		return `# Tasuku post-commit hook: suggest task status updates
+		return `# Tasuku post-commit hook: suggest task status updates and reflection
 COMMIT_MSG=$(git log -1 --pretty=%B)
 
 if [[ $COMMIT_MSG =~ \(#([a-zA-Z0-9-]+)\) ]]; then
@@ -591,7 +714,13 @@ if [[ $COMMIT_MSG =~ \(#([a-zA-Z0-9-]+)\) ]]; then
     echo ""
     echo "Detected task reference: #$TASK_ID"
     echo "Consider: tk done $TASK_ID"
-fi`
+fi
+
+# Prompt for reflection after significant commits
+echo ""
+echo "💡 Post-commit reflection:"
+echo "   - Made an architectural decision? → tk decide"
+echo "   - Discovered a gotcha or insight? → tk learn"`
 	default:
 		return ""
 	}

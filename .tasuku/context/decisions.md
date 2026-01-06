@@ -35,3 +35,13 @@
 **Over**: Auto-sync between tools, Always use tk only, Always use TodoWrite only
 **Because**: TodoWrite is session-scoped (ephemeral implementation steps), Tasuku is project-scoped (persistent features/bugs). Avoids infinite loops while ensuring important tasks are tracked.
 
+## timestamp-storage - 2026-01-06
+**Chose**: RFC3339 UTC for all timestamps
+**Over**: Date-only strings (YYYY-MM-DD), Unix timestamps, Local timezone storage
+**Because**: RFC3339 is human-readable, unambiguous, sortable, and timezone-aware. UTC storage ensures consistency across systems while local display provides good UX. Date-only was insufficient for same-day decision ordering.
+
+## timezone-display - 2026-01-06
+**Chose**: Local timezone for display, UTC for storage
+**Over**: Configurable timezone setting, Always UTC display, Store in local timezone
+**Because**: Sensible defaults without configuration. Humans see familiar times, machines get unambiguous UTC. Go's time.Local handles detection automatically. JSON/YAML output stays UTC for machine readability.
+
