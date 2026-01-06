@@ -23,6 +23,36 @@ const (
 	ContextDir     = "context"
 )
 
+// Validation errors
+var (
+	ErrEmptyID          = errors.New("store: id cannot be empty")
+	ErrEmptyDescription = errors.New("store: description cannot be empty")
+	ErrEmptyTag         = errors.New("store: tag cannot be empty")
+	ErrEmptyKey         = errors.New("store: field key cannot be empty")
+	ErrEmptyOwner       = errors.New("store: owner cannot be empty")
+	ErrEmptyNoteText    = errors.New("store: note text cannot be empty")
+	ErrEmptyLearning    = errors.New("store: learning text cannot be empty")
+	ErrEmptyDecisionID  = errors.New("store: decision id cannot be empty")
+	ErrEmptyChose       = errors.New("store: decision 'chose' cannot be empty")
+	ErrEmptyBecause     = errors.New("store: decision 'because' cannot be empty")
+)
+
+// isEmptyString checks if a string is empty or whitespace-only.
+func isEmptyString(s string) bool {
+	return strings.TrimSpace(s) == ""
+}
+
+// filterEmptyStrings removes empty/whitespace-only strings from a slice.
+func filterEmptyStrings(slice []string) []string {
+	var result []string
+	for _, s := range slice {
+		if !isEmptyString(s) {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
 // Config holds the V4 configuration.
 type Config struct {
 	Version int `json:"version"`
@@ -493,6 +523,13 @@ func (s *Store) AddTask(id, description string) error {
 
 // AddTaskWithPriority adds a new task with optional priority.
 func (s *Store) AddTaskWithPriority(id, description string, priority *int) error {
+	if isEmptyString(id) {
+		return ErrEmptyID
+	}
+	if isEmptyString(description) {
+		return ErrEmptyDescription
+	}
+
 	path := s.taskPath(id)
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("store: task %q already exists", id)
@@ -505,6 +542,13 @@ func (s *Store) AddTaskWithPriority(id, description string, priority *int) error
 
 // AddTaskWithTags adds a new task with tags and optional priority.
 func (s *Store) AddTaskWithTags(id, description string, priority *int, tags []string) error {
+	if isEmptyString(id) {
+		return ErrEmptyID
+	}
+	if isEmptyString(description) {
+		return ErrEmptyDescription
+	}
+
 	path := s.taskPath(id)
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("store: task %q already exists", id)
@@ -512,12 +556,22 @@ func (s *Store) AddTaskWithTags(id, description string, priority *int, tags []st
 
 	t := task.NewTask(description)
 	t.Priority = priority
-	t.Tags = tags
+	t.Tags = filterEmptyStrings(tags)
 	return s.writeTask(id, t, nil)
 }
 
 // AddSubtask adds a new task as a subtask of an existing task.
 func (s *Store) AddSubtask(id, description, parentID string) error {
+	if isEmptyString(id) {
+		return ErrEmptyID
+	}
+	if isEmptyString(description) {
+		return ErrEmptyDescription
+	}
+	if isEmptyString(parentID) {
+		return fmt.Errorf("store: parent id cannot be empty")
+	}
+
 	if _, err := os.Stat(s.taskPath(id)); err == nil {
 		return fmt.Errorf("store: task %q already exists", id)
 	}
@@ -633,6 +687,9 @@ func (s *Store) MarkDoneAndUnblock(id string) ([]string, error) {
 
 // SetDescription updates a task's description.
 func (s *Store) SetDescription(id string, description string) error {
+	if isEmptyString(description) {
+		return ErrEmptyDescription
+	}
 	return s.updateTask(id, func(t *task.Task, notes *[]task.Note) error {
 		t.Description = description
 		t.UpdatedAt = time.Now().UTC()
@@ -652,12 +709,7 @@ func (s *Store) SetPriority(id string, priority int) error {
 // BlockTask marks a task as blocked.
 func (s *Store) BlockTask(id string, blockers []string) error {
 	// Filter out empty strings defensively
-	var validBlockers []string
-	for _, blocker := range blockers {
-		if blocker != "" {
-			validBlockers = append(validBlockers, blocker)
-		}
-	}
+	validBlockers := filterEmptyStrings(blockers)
 
 	if len(validBlockers) == 0 {
 		return fmt.Errorf("store: no valid blockers provided")
@@ -721,8 +773,11 @@ func (s *Store) EditTask(id string, description string) error {
 	return s.SetDescription(id, description)
 }
 
-// SetOwner sets the owner of a task.
+// SetOwner sets the owner of a task. If owner is empty, clears the owner.
 func (s *Store) SetOwner(id string, owner string) error {
+	if isEmptyString(owner) {
+		return s.ClearOwner(id)
+	}
 	return s.updateTask(id, func(t *task.Task, notes *[]task.Note) error {
 		t.Owner = &owner
 		t.UpdatedAt = time.Now().UTC()
@@ -741,6 +796,9 @@ func (s *Store) ClearOwner(id string) error {
 
 // ClaimTask claims a task for an agent.
 func (s *Store) ClaimTask(id string, owner string) error {
+	if isEmptyString(owner) {
+		return ErrEmptyOwner
+	}
 	return s.updateTask(id, func(t *task.Task, notes *[]task.Note) error {
 		if t.Owner != nil && *t.Owner != owner {
 			if !t.IsClaimStale(task.DefaultClaimTimeout) {
@@ -767,6 +825,9 @@ func (s *Store) ReleaseTask(id string) error {
 
 // AddTag adds a tag to a task.
 func (s *Store) AddTag(id string, tag string) error {
+	if isEmptyString(tag) {
+		return ErrEmptyTag
+	}
 	return s.updateTask(id, func(t *task.Task, notes *[]task.Note) error {
 		for _, existing := range t.Tags {
 			if existing == tag {
@@ -802,6 +863,9 @@ func (s *Store) RemoveTag(id string, tag string) error {
 
 // SetField sets a custom field on a task.
 func (s *Store) SetField(id string, key, value string) error {
+	if isEmptyString(key) {
+		return ErrEmptyKey
+	}
 	return s.updateTask(id, func(t *task.Task, notes *[]task.Note) error {
 		if t.Fields == nil {
 			t.Fields = make(map[string]string)
@@ -913,6 +977,10 @@ func (s *Store) AddLearning(text string) (string, error) {
 
 // AddLearningWithRule adds a learning with explicit rule flag.
 func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool, error) {
+	if isEmptyString(text) {
+		return "", false, ErrEmptyLearning
+	}
+
 	learningsPath := filepath.Join(s.root, ContextDir, "learnings.md")
 
 	f, err := os.OpenFile(learningsPath, os.O_RDWR|os.O_CREATE, 0644)
@@ -1080,6 +1148,18 @@ func (s *Store) FindLearningByText(query string) (*task.Learning, error) {
 
 // AddDecision adds a decision to context.
 func (s *Store) AddDecision(d task.Decision) error {
+	if isEmptyString(d.ID) {
+		return ErrEmptyDecisionID
+	}
+	if isEmptyString(d.Chose) {
+		return ErrEmptyChose
+	}
+	if isEmptyString(d.Because) {
+		return ErrEmptyBecause
+	}
+	// Filter empty strings from Over
+	d.Over = filterEmptyStrings(d.Over)
+
 	decisionsPath := filepath.Join(s.root, ContextDir, "decisions.md")
 
 	f, err := os.OpenFile(decisionsPath, os.O_RDWR|os.O_CREATE, 0644)
@@ -1118,6 +1198,9 @@ func (s *Store) AddDecision(d task.Decision) error {
 
 // AddNote adds a note to a task (stored within the task's .md file).
 func (s *Store) AddNote(taskID, noteText string) (string, error) {
+	if isEmptyString(noteText) {
+		return "", ErrEmptyNoteText
+	}
 	if _, err := os.Stat(s.taskPath(taskID)); os.IsNotExist(err) {
 		return "", fmt.Errorf("store: task %q not found", taskID)
 	}
