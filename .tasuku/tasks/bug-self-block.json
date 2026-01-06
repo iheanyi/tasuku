@@ -1,0 +1,10 @@
+{
+  "id": "bug-self-block",
+  "status": "done",
+  "description": "BUG: Prevent self-blocking - task should not be able to block itself",
+  "priority": 1,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-06T05:23:15.632945Z",
+  "updated_at": "2026-01-06T05:27:56.984288Z"
+}
