@@ -228,16 +228,32 @@ go tool cover -html=coverage.out
 
 ## MCP Server
 
-### CLI/MCP Parity Principle
+### TUI/CLI/MCP/Skills Parity Principle
 
-**Every CLI command must have a corresponding MCP tool.** This is critical for agent-first design:
+**Every capability should be accessible through all interfaces.** This is critical for agent-first design:
 
-- Agents interact via MCP tools, humans via CLI
-- Same capabilities, same behavior, different interfaces
-- When adding a new CLI command, always add the MCP tool
-- When adding a new MCP tool, consider if CLI equivalent is needed
+| Interface | Users | Description |
+|-----------|-------|-------------|
+| **CLI** | Humans in terminal | `tk task list`, `tk learn "insight"` |
+| **MCP** | AI agents (Claude Code, etc.) | `tk_list`, `tk_learn` tools |
+| **TUI** | Humans who prefer visual interfaces | Interactive terminal UI (`tk ui`) |
+| **Skills** | AI agents (slash commands) | `/tasuku-list`, `/tasuku-learn` |
 
-This ensures agents can do everything humans can do, which is the whole point of Tasuku.
+**Parity Rules:**
+1. **New CLI command → Add MCP tool** - Agents need the same capabilities as humans
+2. **New MCP tool → Consider CLI equivalent** - Humans may want to use it manually
+3. **Core operations → Add to TUI** - Visual interface for task management
+4. **Frequent operations → Consider Skills** - Slash commands for quick agent access
+5. **Same behavior across all interfaces** - Identical semantics, different UX
+
+**Shortcut Commands via Cobra:**
+Use Cobra's aliasing and root-level commands for ergonomic shortcuts:
+- `tk learn "insight"` is a shortcut for `tk learning add "insight"`
+- `tk decide --id X --chose Y --because Z` is a shortcut for `tk decision add ...`
+
+This pattern leverages Cobra's command structure to provide ergonomic shortcuts without duplicating logic.
+
+This ensures agents can do everything humans can do (and vice versa), which is the whole point of Tasuku.
 
 ### MCP Tools Reference
 
@@ -396,10 +412,12 @@ Record architectural decisions here as we make them:
 
 When adding new MCP tools, CLI commands, or features, follow this audit checklist:
 
-### 1. MCP/CLI Parity
+### 1. TUI/CLI/MCP/Skills Parity
 - [ ] New CLI command → Add corresponding MCP tool
 - [ ] New MCP tool → Consider CLI equivalent
-- [ ] Same capabilities, same behavior, different interfaces
+- [ ] Core operation → Add to TUI if visual interaction helps
+- [ ] Frequent operation → Consider adding a Skill (slash command)
+- [ ] Same capabilities, same behavior across all interfaces
 
 ### 2. Tool Descriptions (Nudges)
 Every MCP tool description should include:
@@ -543,7 +561,8 @@ tk hooks install --claude  # Adds SessionStart and Stop hooks
 
 ## Learnings
 
-- CLI/MCP Parity Principle: Every CLI command must have a corresponding MCP tool. Agents interact via MCP, humans via CLI - same capabilities, different interfaces. When adding new CLI commands, always add the MCP tool equivalent.
+- TUI/CLI/MCP/Skills Parity Principle: Every capability should be accessible through all interfaces (TUI, CLI, MCP tools, Skills). Agents interact via MCP/Skills, humans via CLI/TUI - same capabilities, different UX. When adding new functionality, consider all four interfaces.
+- Leverage Cobra's command structure for ergonomic shortcuts: Add root-level commands like `tk learn` as shortcuts for nested commands like `tk learning add`. This provides a better UX without duplicating logic. Example: `newLearnShortcutCmd()` in root.go provides `tk learn "insight"` as a direct shortcut.
 - Always audit MCP tools, Claude Code hooks, and nudges when adding new functionality (CLI commands, MCP methods, or features). Check: (1) MCP/CLI parity, (2) Tool descriptions include WHEN to use and follow-up hints, (3) Response enhancements with warnings/suggestions, (4) Hook integration for SessionStart/Stop/PostToolUse. See CLAUDE.md 'Adding New Functionality Checklist' for full details.
 - Whenever a tk CLI command fails or feels clunky, reflect on whether this highlights a UX gap. If it does, add the missing functionality. Example: tk task done a b c failing because it only accepts 1 arg → should support multiple task IDs.
 - When adding goroutines or channels, always ensure they don't leak: use buffered channels, close channels when done, use context for cancellation, and verify goroutines exit properly.
