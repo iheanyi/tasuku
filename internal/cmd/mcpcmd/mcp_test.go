@@ -55,7 +55,8 @@ func TestConfigCmd(t *testing.T) {
 }
 
 func TestGetSupportedAITools(t *testing.T) {
-	tools := getSupportedAITools()
+	// Test global tools
+	tools := getSupportedAITools(false)
 
 	if len(tools) == 0 {
 		t.Error("expected at least one supported AI tool")
@@ -74,6 +75,18 @@ func TestGetSupportedAITools(t *testing.T) {
 	}
 	if !foundClaude {
 		t.Error("expected Claude Code in supported tools")
+	}
+
+	// Test local tools
+	localTools := getSupportedAITools(true)
+	if len(localTools) != 1 {
+		t.Errorf("expected 1 local tool, got %d", len(localTools))
+	}
+	if localTools[0].Name != "Claude Code (project)" {
+		t.Errorf("expected 'Claude Code (project)', got %s", localTools[0].Name)
+	}
+	if localTools[0].SettingsPath != ".claude.json" {
+		t.Errorf("expected '.claude.json', got %s", localTools[0].SettingsPath)
 	}
 }
 

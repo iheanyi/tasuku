@@ -72,17 +72,19 @@ func newInstallCmd() *cobra.Command {
 		Long: `Automatically configure the Tasuku MCP server in supported AI tools.
 
 Supported tools:
-  - Claude Code (~/.claude.json)
+  - Claude Code (~/.claude.json or ./.claude.json with --local)
   - Cursor (~/.cursor/mcp.json)
 
 The configuration will be added to existing settings without
 overwriting other MCP servers or configurations.
 
+Use --local to install to project-level .claude.json instead of global.
 Use --force to reinstall even if already configured.`,
 		RunE: runInstall,
 	}
 
 	cmd.Flags().Bool("force", false, "Force reinstall even if already configured")
+	cmd.Flags().Bool("local", false, "Install to project-level .claude.json")
 
 	return cmd
 }
@@ -93,8 +95,14 @@ var uninstallCmd = &cobra.Command{
 	Long: `Remove the Tasuku MCP server configuration from AI tools.
 
 This removes only the Tasuku configuration; other MCP servers
-will be preserved.`,
+will be preserved.
+
+Use --local to remove from project-level .claude.json.`,
 	RunE: runUninstall,
+}
+
+func init() {
+	uninstallCmd.Flags().Bool("local", false, "Remove from project-level .claude.json")
 }
 
 var configCmd = &cobra.Command{
@@ -115,13 +123,14 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 func runInstall(cmd *cobra.Command, args []string) error {
 	force, _ := cmd.Flags().GetBool("force")
+	local, _ := cmd.Flags().GetBool("local")
 
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	tools := getSupportedAITools()
+	tools := getSupportedAITools(local)
 	installedTo := []string{}
 	alreadyInstalled := []string{}
 	reinstalled := []string{}
@@ -211,7 +220,8 @@ func runInstall(cmd *cobra.Command, args []string) error {
 }
 
 func runUninstall(cmd *cobra.Command, args []string) error {
-	tools := getSupportedAITools()
+	local, _ := cmd.Flags().GetBool("local")
+	tools := getSupportedAITools(local)
 	removedFrom := []string{}
 
 	for _, tool := range tools {
@@ -295,7 +305,15 @@ type AITool struct {
 	MCPKey       string
 }
 
-func getSupportedAITools() []AITool {
+func getSupportedAITools(local bool) []AITool {
+	if local {
+		// Local installation only targets project-level .claude.json
+		return []AITool{
+			{"Claude Code (project)", ".claude.json", "mcpServers"},
+		}
+	}
+
+	// Global installation targets user-level config files
 	home, _ := os.UserHomeDir()
 	return []AITool{
 		{"Claude Code", home + "/.claude.json", "mcpServers"},

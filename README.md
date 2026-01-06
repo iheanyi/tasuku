@@ -147,7 +147,8 @@ tk task list --format json    # Output as JSON
 | `tk serve mcp` | Start MCP server (stdio mode for AI tools) |
 | `tk serve http` | Start HTTP REST API server on :3000 |
 | `tk serve http --port 8080` | Start HTTP server on custom port |
-| `tk mcp install` | Install MCP server in Claude Code |
+| `tk mcp install` | Install MCP server in Claude Code (global) |
+| `tk mcp install --local` | Install MCP to project .claude.json |
 | `tk mcp uninstall` | Remove MCP server from Claude Code |
 | `tk migrate v3` | Migrate from V2 (.tasuku.json) to V3 (.tasuku/) |
 | `tk migrate beads` | Migrate from Beads format |
