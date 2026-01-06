@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/iheanyi/tasuku/internal/store"
-	"github.com/iheanyi/tasuku/internal/task"
 )
 
 var doneCmd = &cobra.Command{
@@ -15,6 +14,7 @@ var doneCmd = &cobra.Command{
 	Long: `Mark one or more tasks as completed.
 
 If a timer is running on any task, it will be automatically stopped.
+Any tasks blocked solely by the completed task(s) will be automatically unblocked.
 
 Examples:
   tk task done my-task                    # Mark "my-task" as complete
@@ -30,13 +30,18 @@ Examples:
 				return fmt.Errorf("%s: %w", taskID, err)
 			}
 
-			if err := s.SetStatus(taskID, task.StatusDone); err != nil {
+			// Mark done and auto-unblock dependent tasks
+			unblocked, err := s.MarkDoneAndUnblock(taskID)
+			if err != nil {
 				return fmt.Errorf("%s: %w", taskID, err)
 			}
 
 			fmt.Printf("Completed: %s\n", taskID)
 			if wasRunning {
 				fmt.Printf("  Timer stopped: +%s\n", formatDuration(elapsed))
+			}
+			if len(unblocked) > 0 {
+				fmt.Printf("  Unblocked: %v\n", unblocked)
 			}
 		}
 		return nil

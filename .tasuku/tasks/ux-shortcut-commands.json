@@ -1,0 +1,9 @@
+{
+  "id": "ux-shortcut-commands",
+  "status": "done",
+  "description": "UX: Add top-level shortcuts 'tk learn' and 'tk decide' as documented in CLAUDE.md",
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-06T05:19:15.439088Z",
+  "updated_at": "2026-01-06T05:34:19.842162Z"
+}

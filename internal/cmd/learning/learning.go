@@ -21,7 +21,8 @@ func newLearningCmd() *cobra.Command {
 		Use:     "learning",
 		Short:   "Manage learnings",
 		Long:    `Manage project learnings - insights and knowledge discovered during work.`,
-		Aliases: []string{"learnings", "learn"},
+		Aliases: []string{"learnings"},
+		// Note: "learn" is a root-level shortcut command for "tk learn 'insight'" directly
 	}
 
 	cmd.AddCommand(listCmd)

@@ -73,6 +73,10 @@ tk hooks uninstall         # Remove Tasuku git hooks
 tk hooks plan-sync plan.md # Extract tasks from plan file (uses nudge rule)
 tk hooks session           # Display context summary
 
+# Health & Diagnostics
+tk health                  # Project health check with recommendations
+tk doctor                  # Diagnose MCP and CLI setup
+
 # Migration
 tk migrate v3              # Migrate from .tasuku.json to .tasuku/
 tk migrate beads           # Migrate from Beads format
@@ -228,16 +232,32 @@ go tool cover -html=coverage.out
 
 ## MCP Server
 
-### CLI/MCP Parity Principle
+### TUI/CLI/MCP/Skills Parity Principle
 
-**Every CLI command must have a corresponding MCP tool.** This is critical for agent-first design:
+**Every capability should be accessible through all interfaces.** This is critical for agent-first design:
 
-- Agents interact via MCP tools, humans via CLI
-- Same capabilities, same behavior, different interfaces
-- When adding a new CLI command, always add the MCP tool
-- When adding a new MCP tool, consider if CLI equivalent is needed
+| Interface | Users | Description |
+|-----------|-------|-------------|
+| **CLI** | Humans in terminal | `tk task list`, `tk learn "insight"` |
+| **MCP** | AI agents (Claude Code, etc.) | `tk_list`, `tk_learn` tools |
+| **TUI** | Humans who prefer visual interfaces | Interactive terminal UI (`tk ui`) |
+| **Skills** | AI agents (slash commands) | `/tasuku-list`, `/tasuku-learn` |
 
-This ensures agents can do everything humans can do, which is the whole point of Tasuku.
+**Parity Rules:**
+1. **New CLI command → Add MCP tool** - Agents need the same capabilities as humans
+2. **New MCP tool → Consider CLI equivalent** - Humans may want to use it manually
+3. **Core operations → Add to TUI** - Visual interface for task management
+4. **Frequent operations → Consider Skills** - Slash commands for quick agent access
+5. **Same behavior across all interfaces** - Identical semantics, different UX
+
+**Shortcut Commands via Cobra:**
+Use Cobra's aliasing and root-level commands for ergonomic shortcuts:
+- `tk learn "insight"` is a shortcut for `tk learning add "insight"`
+- `tk decide --id X --chose Y --because Z` is a shortcut for `tk decision add ...`
+
+This pattern leverages Cobra's command structure to provide ergonomic shortcuts without duplicating logic.
+
+This ensures agents can do everything humans can do (and vice versa), which is the whole point of Tasuku.
 
 ### MCP Tools Reference
 
@@ -281,6 +301,43 @@ This ensures agents can do everything humans can do, which is the whole point of
 | `tk_archive_list` | `tk task archive list` | List archived tasks |
 | **Agent Workflow** |||
 | `tk_suggest` | `tk suggest` | Analyze if a task should persist to tk or stay session-only |
+| **Health & Diagnostics** |||
+| `tk_health` | `tk health` | Project health check with recommendations |
+
+### TUI Keybindings Reference
+
+Launch the TUI with `tk ui`. The following keybindings are available:
+
+| Key | Action | Notes |
+|-----|--------|-------|
+| **Task Operations** |||
+| `n` | New task | Opens task creation dialog |
+| `e` | Edit task | Edit selected task description |
+| `s` | Start task | Mark ready task as in_progress |
+| `d` | Mark done | Complete in_progress task |
+| `P` | Pause task | Revert in_progress to ready |
+| `b` | Block task | Mark task as blocked |
+| `u` | Unblock task | Remove blockers and set to ready |
+| `x` | Delete task | Delete with confirmation |
+| `t` | Toggle timer | Start/stop time tracking |
+| `a` | Archive task | Archive done task |
+| `A` | Archive all done | Bulk archive with confirmation |
+| `enter` | View details | Show full task information |
+| **Navigation** |||
+| `/` | Filter tasks | Text search through tasks |
+| `0` | All tasks | Show all statuses |
+| `1` | Ready only | Filter to ready tasks |
+| `2` | In progress only | Filter to in_progress |
+| `3` | Blocked only | Filter to blocked tasks |
+| `4` | Done only | Filter to done tasks |
+| `p` | Toggle priority sort | Switch between status/priority sort |
+| `N` | View notes | Show notes for selected task |
+| `L` | View learnings | Show project learnings |
+| `D` | View decisions | Show architectural decisions |
+| **General** |||
+| `r` | Refresh | Reload data from storage |
+| `?` | Help | Show keybinding help |
+| `q` | Quit | Exit TUI |
 
 ### Running the server
 
@@ -396,10 +453,12 @@ Record architectural decisions here as we make them:
 
 When adding new MCP tools, CLI commands, or features, follow this audit checklist:
 
-### 1. MCP/CLI Parity
+### 1. TUI/CLI/MCP/Skills Parity
 - [ ] New CLI command → Add corresponding MCP tool
 - [ ] New MCP tool → Consider CLI equivalent
-- [ ] Same capabilities, same behavior, different interfaces
+- [ ] Core operation → Add to TUI if visual interaction helps
+- [ ] Frequent operation → Consider adding a Skill (slash command)
+- [ ] Same capabilities, same behavior across all interfaces
 
 ### 2. Tool Descriptions (Nudges)
 Every MCP tool description should include:
@@ -543,10 +602,12 @@ tk hooks install --claude  # Adds SessionStart and Stop hooks
 
 ## Learnings
 
-- CLI/MCP Parity Principle: Every CLI command must have a corresponding MCP tool. Agents interact via MCP, humans via CLI - same capabilities, different interfaces. When adding new CLI commands, always add the MCP tool equivalent.
+- TUI/CLI/MCP/Skills Parity Principle: Every capability should be accessible through all interfaces (TUI, CLI, MCP tools, Skills). Agents interact via MCP/Skills, humans via CLI/TUI - same capabilities, different UX. When adding new functionality, consider all four interfaces.
+- Leverage Cobra's command structure for ergonomic shortcuts: Add root-level commands like `tk learn` as shortcuts for nested commands like `tk learning add`. This provides a better UX without duplicating logic. Example: `newLearnShortcutCmd()` in root.go provides `tk learn "insight"` as a direct shortcut.
 - Always audit MCP tools, Claude Code hooks, and nudges when adding new functionality (CLI commands, MCP methods, or features). Check: (1) MCP/CLI parity, (2) Tool descriptions include WHEN to use and follow-up hints, (3) Response enhancements with warnings/suggestions, (4) Hook integration for SessionStart/Stop/PostToolUse. See CLAUDE.md 'Adding New Functionality Checklist' for full details.
 - Whenever a tk CLI command fails or feels clunky, reflect on whether this highlights a UX gap. If it does, add the missing functionality. Example: tk task done a b c failing because it only accepts 1 arg → should support multiple task IDs.
 - When adding goroutines or channels, always ensure they don't leak: use buffered channels, close channels when done, use context for cancellation, and verify goroutines exit properly.
 - Never use O(n²) or worse algorithms when O(n log n) or O(n) alternatives exist. Replace bubble/selection/insertion sorts with slices.SortFunc, use maps for lookups instead of nested loops, pre-compute lookup sets. Example: Replace bubble sort with slices.SortFunc (internal/mcp/server.go:1880).
 - Parallelize independent I/O operations using goroutines. When multiple reads/fetches don't depend on each other, run them concurrently with channels or errgroup. Example: Dashboard handler reads tasks + archived in parallel (internal/http/server.go:1068).
 - Leverage Go's type system fully: use generics for reusable data structures, define interfaces for abstraction, use custom types for domain concepts (e.g., type Status string), and prefer compile-time safety over runtime checks. Clarity trumps cleverness.
+- Always ensure switch cases that should handle a key return early to prevent fall-through to default key handlers. In TUI apps with bubbles/bubbletea, unhandled keys can pass to child components and cause unexpected state changes.

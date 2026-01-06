@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -129,7 +130,7 @@ func (s *Server) Tools() []Tool {
 	return []Tool{
 		{
 			Name:        "tk_list",
-			Description: "List all tasks, optionally filtered by status. Use at session start to understand project state, after completing work to see remaining tasks, or when planning to identify what needs attention. Returns task IDs, statuses, descriptions, and blockers.",
+			Description: "List all tasks, optionally filtered by status, tag, or owner. Use at session start to understand project state, after completing work to see remaining tasks, or when planning to identify what needs attention. Returns task IDs, statuses, descriptions, and blockers.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -137,6 +138,18 @@ func (s *Server) Tools() []Tool {
 						"type":        "string",
 						"enum":        []string{"ready", "in_progress", "blocked", "done"},
 						"description": "Filter by status",
+					},
+					"tag": map[string]interface{}{
+						"type":        "string",
+						"description": "Filter by tag (e.g., 'bug', 'feature', 'urgent')",
+					},
+					"owner": map[string]interface{}{
+						"type":        "string",
+						"description": "Filter by owner name",
+					},
+					"tree": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Show tasks in hierarchical tree view with subtasks nested under parents (default: false)",
 					},
 				},
 			},
@@ -156,6 +169,19 @@ func (s *Server) Tools() []Tool {
 						"type":        "string",
 						"description": "Optional task ID (auto-generated from description if not provided)",
 					},
+					"priority": map[string]interface{}{
+						"type":        "string",
+						"description": "Priority level: critical (0), high (1), normal (2), low (3), backlog (4). Accepts both names and numbers.",
+					},
+					"tags": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "Tags for categorization (e.g., ['bug', 'backend'])",
+					},
+					"parent_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Parent task ID to create this as a subtask",
+					},
 				},
 			},
 		},
@@ -173,6 +199,10 @@ func (s *Server) Tools() []Tool {
 					"start_timer": map[string]interface{}{
 						"type":        "boolean",
 						"description": "Also start a timer on the task (default: false)",
+					},
+					"unblock": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Clear blockers before starting (for blocked tasks). Allows starting blocked tasks in one command.",
 					},
 				},
 			},
@@ -427,6 +457,20 @@ func (s *Server) Tools() []Tool {
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
+			},
+		},
+		{
+			Name:        "tk_archive_all",
+			Description: "Archive all done tasks older than a specified duration. Use for bulk cleanup to reduce clutter. Duration format: 1h (hours), 1d (days), 1w (weeks). Example: '7d' archives tasks done more than 7 days ago.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"older_than"},
+				"properties": map[string]interface{}{
+					"older_than": map[string]interface{}{
+						"type":        "string",
+						"description": "Duration threshold (e.g., '7d', '24h', '2w'). Tasks done before this are archived.",
+					},
+				},
 			},
 		},
 		{
@@ -811,6 +855,8 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleArchiveRestore(args)
 	case "tk_archive_list":
 		return s.handleArchiveList(args)
+	case "tk_archive_all":
+		return s.handleArchiveAll(args)
 	case "tk_show":
 		return s.handleShow(args)
 	case "tk_delete":
@@ -870,20 +916,41 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 		return nil, err
 	}
 
+	// Parse filter arguments
 	status, _ := args["status"].(string)
+	tagFilter, _ := args["tag"].(string)
+	ownerFilter, _ := args["owner"].(string)
+	treeView, _ := args["tree"].(bool)
 
 	type taskResult struct {
-		ID          string   `json:"id"`
-		Status      string   `json:"status"`
-		Description string   `json:"description"`
-		BlockedBy   []string `json:"blocked_by,omitempty"`
-		Owner       *string  `json:"owner,omitempty"`
+		ID          string         `json:"id"`
+		Status      string         `json:"status"`
+		Description string         `json:"description"`
+		BlockedBy   []string       `json:"blocked_by,omitempty"`
+		Owner       *string        `json:"owner,omitempty"`
+		ParentID    string         `json:"parent_id,omitempty"`
+		Priority    int            `json:"priority,omitempty"`
+		Tags        []string       `json:"tags,omitempty"`
+		Children    []taskResult   `json:"children,omitempty"`
 	}
 
+	// Filter tasks
 	var results []taskResult
 	for id, t := range f.Tasks {
 		if status != "" && string(t.Status) != status {
 			continue
+		}
+		if tagFilter != "" && !t.HasTag(tagFilter) {
+			continue
+		}
+		if ownerFilter != "" {
+			if t.Owner == nil || *t.Owner != ownerFilter {
+				continue
+			}
+		}
+		parentID := ""
+		if t.ParentID != nil {
+			parentID = *t.ParentID
 		}
 		results = append(results, taskResult{
 			ID:          id,
@@ -891,7 +958,62 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 			Description: t.Description,
 			BlockedBy:   t.BlockedBy,
 			Owner:       t.Owner,
+			ParentID:    parentID,
+			Priority:    t.GetPriority(),
+			Tags:        t.Tags,
 		})
+	}
+
+	// Sort by status priority, then by task priority, then by ID
+	statusOrder := map[task.Status]int{
+		task.StatusInProgress: 0,
+		task.StatusReady:      1,
+		task.StatusBlocked:    2,
+		task.StatusDone:       3,
+	}
+	slices.SortFunc(results, func(a, b taskResult) int {
+		// Status order first
+		aStatus := statusOrder[task.Status(a.Status)]
+		bStatus := statusOrder[task.Status(b.Status)]
+		if aStatus != bStatus {
+			return aStatus - bStatus
+		}
+		// Priority second
+		if a.Priority != b.Priority {
+			return a.Priority - b.Priority
+		}
+		// ID alphabetically last
+		if a.ID < b.ID {
+			return -1
+		}
+		if a.ID > b.ID {
+			return 1
+		}
+		return 0
+	})
+
+	// If tree view requested, nest children under parents
+	if treeView {
+		// Build lookup map
+		taskMap := make(map[string]*taskResult)
+		for i := range results {
+			taskMap[results[i].ID] = &results[i]
+		}
+
+		// Build tree
+		var rootTasks []taskResult
+		for i := range results {
+			t := &results[i]
+			if t.ParentID == "" {
+				rootTasks = append(rootTasks, *t)
+			} else if parent, ok := taskMap[t.ParentID]; ok {
+				parent.Children = append(parent.Children, *t)
+			} else {
+				// Parent not in filtered results, treat as root
+				rootTasks = append(rootTasks, *t)
+			}
+		}
+		return rootTasks, nil
 	}
 
 	return results, nil
@@ -900,6 +1022,22 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 func (s *Server) handleAdd(args map[string]interface{}) (interface{}, error) {
 	desc, _ := args["description"].(string)
 	id, _ := args["id"].(string)
+	priorityStr, _ := args["priority"].(string)
+	parentID, _ := args["parent_id"].(string)
+
+	// Parse tags - handle both []interface{} from JSON and []string
+	var tags []string
+	if tagsRaw, ok := args["tags"].([]interface{}); ok {
+		for _, t := range tagsRaw {
+			if s, ok := t.(string); ok {
+				tags = append(tags, strings.TrimSpace(s))
+			}
+		}
+	} else if tagsStr, ok := args["tags"].([]string); ok {
+		for _, t := range tagsStr {
+			tags = append(tags, strings.TrimSpace(t))
+		}
+	}
 
 	// Read current state for duplicate detection
 	f, err := s.store.Read()
@@ -930,12 +1068,45 @@ func (s *Server) handleAdd(args map[string]interface{}) (interface{}, error) {
 		}
 	}
 
-	if err := s.store.AddTask(id, desc); err != nil {
-		return nil, err
+	// Parse priority (supports both numeric and named values)
+	var priorityPtr *int
+	if priorityStr != "" {
+		priority := task.ParsePriority(priorityStr)
+		if priority == -1 {
+			return nil, fmt.Errorf("invalid priority: %s (use 0-4 or critical/high/normal/low/backlog)", priorityStr)
+		}
+		priorityPtr = &priority
+	}
+
+	// Create task - either as subtask or regular task
+	if parentID != "" {
+		if err := s.store.AddSubtask(id, desc, parentID); err != nil {
+			return nil, err
+		}
+		// Apply priority and tags after creation
+		if priorityPtr != nil {
+			s.store.SetPriority(id, *priorityPtr)
+		}
+		for _, tag := range tags {
+			s.store.AddTag(id, tag)
+		}
+	} else {
+		if err := s.store.AddTaskWithTags(id, desc, priorityPtr, tags); err != nil {
+			return nil, err
+		}
 	}
 
 	result := map[string]interface{}{"id": id, "status": "created"}
 
+	if priorityPtr != nil {
+		result["priority"] = task.PriorityName(*priorityPtr)
+	}
+	if len(tags) > 0 {
+		result["tags"] = tags
+	}
+	if parentID != "" {
+		result["parent_id"] = parentID
+	}
 	if len(potentialDuplicates) > 0 {
 		result["warning"] = fmt.Sprintf("Potential duplicate tasks found: %v. Consider checking these before proceeding.", potentialDuplicates)
 	}
@@ -946,6 +1117,7 @@ func (s *Server) handleAdd(args map[string]interface{}) (interface{}, error) {
 func (s *Server) handleStart(args map[string]interface{}) (interface{}, error) {
 	id, _ := args["id"].(string)
 	startTimer, _ := args["start_timer"].(bool)
+	unblock, _ := args["unblock"].(bool)
 
 	// Read current state for context
 	f, err := s.store.Read()
@@ -964,11 +1136,22 @@ func (s *Server) handleStart(args map[string]interface{}) (interface{}, error) {
 	// Get notes for this task (context from previous sessions)
 	notes := f.Context.Notes[id]
 
+	// Unblock if requested (for blocked tasks)
+	if unblock {
+		if err := s.store.UnblockTask(id); err != nil {
+			return nil, fmt.Errorf("failed to unblock task: %w", err)
+		}
+	}
+
 	if err := s.store.SetStatus(id, task.StatusInProgress); err != nil {
 		return nil, err
 	}
 
 	result := map[string]interface{}{"id": id, "status": "in_progress"}
+
+	if unblock {
+		result["unblocked"] = true
+	}
 
 	if startTimer {
 		if err := s.store.StartTimer(id); err != nil {
@@ -1368,6 +1551,56 @@ func (s *Server) handleArchiveList(args map[string]interface{}) (interface{}, er
 	}
 
 	return results, nil
+}
+
+func (s *Server) handleArchiveAll(args map[string]interface{}) (interface{}, error) {
+	olderThan, _ := args["older_than"].(string)
+	if olderThan == "" {
+		return nil, fmt.Errorf("older_than is required")
+	}
+
+	// Parse duration string (e.g., "7d", "24h", "2w")
+	duration, err := parseDurationString(olderThan)
+	if err != nil {
+		return nil, fmt.Errorf("invalid duration format '%s': %w", olderThan, err)
+	}
+
+	archived, err := s.store.ArchiveDoneTasks(duration)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"archived_count": len(archived),
+		"archived_tasks": archived,
+		"message":        fmt.Sprintf("Archived %d task(s) older than %s", len(archived), olderThan),
+	}, nil
+}
+
+// parseDurationString parses a human-friendly duration string like "7d", "24h", "2w"
+func parseDurationString(s string) (time.Duration, error) {
+	if len(s) < 2 {
+		return 0, fmt.Errorf("duration too short")
+	}
+
+	unit := s[len(s)-1]
+	valueStr := s[:len(s)-1]
+
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number: %s", valueStr)
+	}
+
+	switch unit {
+	case 'h':
+		return time.Duration(value) * time.Hour, nil
+	case 'd':
+		return time.Duration(value) * 24 * time.Hour, nil
+	case 'w':
+		return time.Duration(value) * 7 * 24 * time.Hour, nil
+	default:
+		return 0, fmt.Errorf("unknown unit: %c (use h, d, or w)", unit)
+	}
 }
 
 func (s *Server) handleShow(args map[string]interface{}) (interface{}, error) {

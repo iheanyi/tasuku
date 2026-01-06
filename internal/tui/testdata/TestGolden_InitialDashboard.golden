@@ -17,5 +17,5 @@ Progress: 1/5 ███████████████░░░░░░░
   •••                                                                           
                                                                                 
   ↑/k up • ↓/j down • / filter • q quit • ? more                                
-n:new  e:edit  s:start  d:done  t:timer  a:archive  A:archive all  enter:details
-0-4:status  p:priority  N:notes  L:learnings  D:decisions  ?:help               [2K[?2004l[?25h[?1002l[?1003l[?1006l
+n:new  e:edit  s:start  d:done  P:pause  b:block  u:unblock  x:delete  t:timer  
+0-4:status  p:priority  N:notes  L:learnings  D:decisions  /:filter  r:refresh  [2K[?2004l[?25h[?1002l[?1003l[?1006l

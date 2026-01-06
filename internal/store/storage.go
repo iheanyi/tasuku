@@ -29,6 +29,7 @@ type Storage interface {
 	AddSubtask(id, description, parentID string) error
 	SetStatus(id string, status task.Status) error
 	SetStatusAndRead(id string, status task.Status) (*task.File, error) // Sets status and returns updated file (avoids redundant read)
+	MarkDoneAndUnblock(id string) ([]string, error)                     // Marks task done and auto-unblocks dependent tasks
 	SetDescription(id string, description string) error
 	SetPriority(id string, priority int) error
 	SetParent(id string, parentID *string) error

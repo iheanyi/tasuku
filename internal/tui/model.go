@@ -415,6 +415,10 @@ type KeyMap struct {
 	Notes       key.Binding
 	Learnings   key.Binding
 	Decisions   key.Binding
+	Delete      key.Binding
+	Block       key.Binding
+	Unblock     key.Binding
+	Pause       key.Binding
 }
 
 var keys = KeyMap{
@@ -510,6 +514,22 @@ var keys = KeyMap{
 		key.WithKeys("D"),
 		key.WithHelp("D", "view decisions"),
 	),
+	Delete: key.NewBinding(
+		key.WithKeys("x"),
+		key.WithHelp("x", "delete task"),
+	),
+	Block: key.NewBinding(
+		key.WithKeys("b"),
+		key.WithHelp("b", "block task"),
+	),
+	Unblock: key.NewBinding(
+		key.WithKeys("u"),
+		key.WithHelp("u", "unblock task"),
+	),
+	Pause: key.NewBinding(
+		key.WithKeys("P"),
+		key.WithHelp("P", "pause task"),
+	),
 }
 
 // countDoneTasks returns the number of tasks with done status
@@ -542,6 +562,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							_ = m.store.ArchiveTask(id, "")
 						}
 					}
+				case "delete":
+					_ = m.store.DeleteTask(m.confirmTaskID)
 				}
 				m.view = ViewDashboard
 				m.confirmAction = ""
@@ -671,6 +693,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.view = ViewDashboard
 				return m, nil
 			}
+			// On dashboard, escape does nothing - prevent passing to list
+			// which would clear filter state and cause visual glitches
+			return m, nil
 
 		case key.Matches(msg, keys.Enter):
 			if m.view == ViewDashboard {
@@ -828,6 +853,58 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.view = ViewDecisions
 				return m, nil
 			}
+
+		// Delete task
+		case key.Matches(msg, keys.Delete):
+			if m.view == ViewDashboard {
+				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
+					// Show confirmation dialog
+					m.confirmAction = "delete"
+					m.confirmTaskID = item.ID
+					m.confirmMessage = fmt.Sprintf("Delete task '%s'? (y/n)", item.ID)
+					m.view = ViewConfirm
+					return m, nil
+				}
+			}
+
+		// Block task
+		case key.Matches(msg, keys.Block):
+			if m.view == ViewDashboard {
+				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
+					if item.Task.Status == task.StatusReady || item.Task.Status == task.StatusInProgress {
+						_ = m.store.SetStatus(item.ID, task.StatusBlocked)
+						return m.refresh()
+					}
+				}
+			}
+
+		// Unblock task
+		case key.Matches(msg, keys.Unblock):
+			if m.view == ViewDashboard {
+				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
+					if item.Task.Status == task.StatusBlocked {
+						// Unblock by setting to ready
+						_ = m.store.UnblockTask(item.ID)
+						_ = m.store.SetStatus(item.ID, task.StatusReady)
+						return m.refresh()
+					}
+				}
+			}
+
+		// Pause task
+		case key.Matches(msg, keys.Pause):
+			if m.view == ViewDashboard {
+				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
+					if item.Task.Status == task.StatusInProgress {
+						// Stop timer if running
+						if item.Task.IsTimerRunning() {
+							_, _ = m.store.StopTimer(item.ID)
+						}
+						_ = m.store.SetStatus(item.ID, task.StatusReady)
+						return m.refresh()
+					}
+				}
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -925,8 +1002,8 @@ func (m Model) viewDashboard() string {
 	progressBar := m.progress.ViewAs(progressPercent)
 	progressLine := lipgloss.NewStyle().MarginBottom(1).Render(progressLabel + progressBar)
 
-	help1 := HelpStyle.Render("n:new  e:edit  s:start  d:done  t:timer  a:archive  A:archive all  enter:details  /:filter  r:refresh  q:quit")
-	help2 := HelpStyle.Render("0-4:status  p:priority  N:notes  L:learnings  D:decisions  ?:help")
+	help1 := HelpStyle.Render("n:new  e:edit  s:start  d:done  P:pause  b:block  u:unblock  x:delete  t:timer  a:archive")
+	help2 := HelpStyle.Render("0-4:status  p:priority  N:notes  L:learnings  D:decisions  /:filter  r:refresh  ?:help  q:quit")
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		stats,
@@ -994,6 +1071,10 @@ func (m Model) viewHelpOverlay() string {
 		"  "+KeyStyle.Render("e")+"      Edit task description",
 		"  "+KeyStyle.Render("s")+"      Start ready task",
 		"  "+KeyStyle.Render("d")+"      Mark done",
+		"  "+KeyStyle.Render("P")+"      Pause in-progress task",
+		"  "+KeyStyle.Render("b")+"      Block task",
+		"  "+KeyStyle.Render("u")+"      Unblock task",
+		"  "+KeyStyle.Render("x")+"      Delete task",
 		"  "+KeyStyle.Render("t")+"      Toggle timer",
 		"  "+KeyStyle.Render("a")+"      Archive done task",
 		"  "+KeyStyle.Render("A")+"      Archive all done",

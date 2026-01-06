@@ -227,6 +227,69 @@ func (s *Store) SetStatusAndRead(id string, status task.Status) (*task.File, err
 	return s.Read()
 }
 
+// MarkDoneAndUnblock marks a task as done and automatically unblocks any tasks
+// that were blocked by it. Returns the list of task IDs that were unblocked.
+func (s *Store) MarkDoneAndUnblock(id string) ([]string, error) {
+	var unblocked []string
+
+	err := s.Update(func(f *task.File) error {
+		t, exists := f.Tasks[id]
+		if !exists {
+			return fmt.Errorf("store: task %q not found", id)
+		}
+
+		if !task.ValidTransition(t.Status, task.StatusDone) {
+			return fmt.Errorf("store: invalid transition from %s to %s", t.Status, task.StatusDone)
+		}
+
+		// Mark the task as done
+		t.Status = task.StatusDone
+		t.UpdatedAt = time.Now().UTC()
+		f.Tasks[id] = t
+
+		// Find and unblock tasks that were blocked by this task
+		for taskID, blockedTask := range f.Tasks {
+			if blockedTask.Status != task.StatusBlocked {
+				continue
+			}
+
+			// Check if blocked by the completed task
+			wasBlockedByUs := false
+			for _, blockerID := range blockedTask.BlockedBy {
+				if blockerID == id {
+					wasBlockedByUs = true
+					break
+				}
+			}
+
+			if !wasBlockedByUs {
+				continue
+			}
+
+			// Check if all blockers are now done
+			allBlockersDone := true
+			for _, blockerID := range blockedTask.BlockedBy {
+				if blocker, exists := f.Tasks[blockerID]; exists && blocker.Status != task.StatusDone {
+					allBlockersDone = false
+					break
+				}
+			}
+
+			if allBlockersDone {
+				blockedTask.Status = task.StatusReady
+				blockedTask.BlockedBy = []string{}
+				blockedTask.UpdatedAt = time.Now().UTC()
+				f.Tasks[taskID] = blockedTask
+				unblocked = append(unblocked, taskID)
+			}
+		}
+
+		return nil
+	})
+
+	return unblocked, err
+}
+
 // SetDescription updates a task's description.
 func (s *Store) SetDescription(id string, description string) error {
 	return s.Update(func(f *task.File) error {
@@ -371,8 +434,11 @@ func (s *Store) BlockTask(id string, blockers []string) error {
 			return fmt.Errorf("store: task %q not found", id)
 		}
 
-		// Verify blockers exist
+		// Verify blockers exist and prevent self-blocking
 		for _, blocker := range blockers {
+			if blocker == id {
+				return fmt.Errorf("store: task %q cannot block itself", id)
+			}
 			if _, exists := f.Tasks[blocker]; !exists {
 				return fmt.Errorf("store: blocker task %q not found", blocker)
 			}

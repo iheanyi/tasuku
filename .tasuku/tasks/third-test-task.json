@@ -1,0 +1,11 @@
+{
+  "id": "third-test-task",
+  "status": "done",
+  "description": "Third test task",
+  "parent_id": "audit-test-1",
+  "blocked_by": [],
+  "owner": null,
+  "duration": "7.470835s",
+  "created_at": "2026-01-06T05:16:41.574859Z",
+  "updated_at": "2026-01-06T05:19:27.315294Z"
+}
