@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -25,15 +26,18 @@ Install/Uninstall:
   uninstall  Remove hooks (git and/or Claude Code)
 
 Utility Commands:
-  session    Display Tasuku context summary at session start
-  sync       Sync tasks from TodoWrite JSON input (uses nudge rule)
-  plan-sync  Extract tasks from plan files (uses nudge rule)
+  session       Display Tasuku context summary at session start
+  stop-reminder Remind about running timers and in-progress tasks
+  sync          Sync tasks from TodoWrite JSON input (uses nudge rule)
+  plan-sync     Extract tasks from plan files (uses nudge rule)
 
 Git hooks provide:
   - pre-commit: Validates Tasuku storage before commits
   - post-commit: Suggests task status updates based on commit messages
 
 Claude Code hooks provide:
+  - SessionStart: Shows project context summary when session begins
+  - Stop: Reminds about running timers and in-progress tasks
   - ExitPlanMode: Prompts to sync plan to Tasuku tasks
 
 The sync/plan-sync commands apply the nudge rule: only project-level tasks
@@ -45,6 +49,7 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 	cmd.AddCommand(newInstallCmd())
 	cmd.AddCommand(newUninstallCmd())
 	cmd.AddCommand(sessionCmd)
+	cmd.AddCommand(stopReminderCmd)
 	cmd.AddCommand(syncCmd)
 	cmd.AddCommand(planSyncCmd)
 
@@ -67,6 +72,8 @@ Git hooks (always local to .git/hooks/):
   - post-commit: Suggests task status updates based on commit messages
 
 Claude Code hooks (global ~/.claude/ by default, or local ./.claude/ with --local):
+  - SessionStart: Shows project context summary when session begins
+  - Stop: Reminds about running timers and in-progress tasks
   - ExitPlanMode: Prompts to sync plan to Tasuku tasks
 
 Examples:
@@ -197,6 +204,103 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return hookSession()
 	},
+}
+
+var stopReminderCmd = &cobra.Command{
+	Use:   "stop-reminder",
+	Short: "Remind about running timers and in-progress tasks",
+	Long: `Display reminders about running timers and in-progress tasks when session ends.
+
+This is called by the Claude Code Stop hook to remind the agent about:
+  - Running timers that should be stopped
+  - Tasks marked as in_progress that may need status updates
+  - Any uncommitted learnings from the session
+
+Examples:
+  tk hooks stop-reminder   # Check for reminders`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookStopReminder()
+	},
+}
+
+func hookStopReminder() error {
+	s := store.DefaultStorageWithWarning()
+	if !s.Exists() {
+		return nil
+	}
+
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	hasReminders := false
+
+	// Check for running timers
+	var runningTimers []string
+	for id, t := range f.Tasks {
+		if t.IsTimerRunning() {
+			runningTimers = append(runningTimers, id)
+		}
+	}
+	if len(runningTimers) > 0 {
+		if !hasReminders {
+			fmt.Println("=== Tasuku Session Reminder ===")
+			hasReminders = true
+		}
+		fmt.Printf("\n⏱️  Running timers (%d):\n", len(runningTimers))
+		for _, id := range runningTimers {
+			t := f.Tasks[id]
+			elapsed := t.CurrentDuration()
+			fmt.Printf("   - %s (running for %s)\n", id, formatDuration(elapsed))
+		}
+		fmt.Println("   Consider: tk timer stop <id>")
+	}
+
+	// Check for in-progress tasks
+	var inProgressTasks []string
+	for id, t := range f.Tasks {
+		if t.Status == task.StatusInProgress {
+			inProgressTasks = append(inProgressTasks, id)
+		}
+	}
+	if len(inProgressTasks) > 0 {
+		if !hasReminders {
+			fmt.Println("=== Tasuku Session Reminder ===")
+			hasReminders = true
+		}
+		fmt.Printf("\n🔄 Tasks still in progress (%d):\n", len(inProgressTasks))
+		for _, id := range inProgressTasks {
+			t := f.Tasks[id]
+			desc := t.Description
+			if len(desc) > 50 {
+				desc = desc[:47] + "..."
+			}
+			fmt.Printf("   - %s: %s\n", id, desc)
+		}
+		fmt.Println("   Consider: tk task done <id> or tk task pause <id>")
+	}
+
+	if hasReminders {
+		fmt.Println("\n================================")
+	}
+
+	return nil
+}
+
+// formatDuration formats a duration in a human-readable way
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		mins := int(d.Minutes())
+		secs := int(d.Seconds()) % 60
+		return fmt.Sprintf("%dm%ds", mins, secs)
+	}
+	hours := int(d.Hours())
+	mins := int(d.Minutes()) % 60
+	return fmt.Sprintf("%dh%dm", hours, mins)
 }
 
 var syncCmd = &cobra.Command{

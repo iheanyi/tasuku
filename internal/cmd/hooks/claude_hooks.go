@@ -114,6 +114,26 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 				},
 			},
 		},
+		"SessionStart": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks session %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
+		"Stop": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks stop-reminder %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -240,6 +260,8 @@ func installClaudeHooks(force, local bool) error {
 		location = "project"
 	}
 	fmt.Printf("Installed %d Tasuku hook(s) in Claude Code (%s):\n", installedCount, location)
+	fmt.Println("  - SessionStart: shows project context summary")
+	fmt.Println("  - Stop: reminds about running timers and in-progress tasks")
 	fmt.Println("  - PostToolUse/ExitPlanMode: prompts to sync plan to tasks")
 	fmt.Println()
 	fmt.Println("Restart Claude Code for hooks to take effect.")

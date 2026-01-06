@@ -1,0 +1,10 @@
+{
+  "id": "mcp-done-enhance",
+  "status": "ready",
+  "description": "Enhance tk_done response with unblocked tasks and prompts",
+  "priority": 2,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-06T04:22:13.283049Z",
+  "updated_at": "2026-01-06T04:22:13.283049Z"
+}

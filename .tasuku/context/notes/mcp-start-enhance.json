@@ -1,0 +1,7 @@
+[
+  {
+    "id": "8fa2a9",
+    "text": "Should return: (1) Warning if \u003e1 task already in_progress, (2) Previous notes on this task, (3) Auto-claim if agent name provided, (4) Suggestion to add note about approach. Consider adding 'warn_multiple' field to response.",
+    "created_at": "2026-01-06T04:22:37.26498Z"
+  }
+]

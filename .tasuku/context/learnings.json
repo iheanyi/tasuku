@@ -49,5 +49,10 @@
     "id": "aebb8c",
     "text": "When updating storage formats, check ALL user-facing strings: ErrNotInitialized, help text, error messages, hook scripts. Shared errors can leak format-specific messages.",
     "created_at": "2026-01-05T17:44:02.5076Z"
+  },
+  {
+    "id": "97fc75",
+    "text": "CLI 'tk task add' priority flag only accepts numeric values (0-4), not named values. MCP tk_priority accepts both. Should add named value support to CLI for consistency.",
+    "created_at": "2026-01-06T04:22:51.396988Z"
   }
 ]

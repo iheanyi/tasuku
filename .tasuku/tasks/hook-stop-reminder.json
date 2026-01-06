@@ -1,0 +1,10 @@
+{
+  "id": "hook-stop-reminder",
+  "status": "done",
+  "description": "Add Stop hook to remind about running timers and in-progress tasks",
+  "priority": 1,
+  "blocked_by": [],
+  "owner": null,
+  "created_at": "2026-01-06T04:22:13.256412Z",
+  "updated_at": "2026-01-06T04:27:52.818928Z"
+}

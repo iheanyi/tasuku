@@ -435,6 +435,46 @@ If the suggestion says **PERSIST TO TK**, add it to both:
 
 This ensures important work is tracked persistently and visible to future sessions.
 
+## Session Start/End Behaviors
+
+Claude Code hooks automatically integrate Tasuku into your workflow:
+
+### At Session Start (SessionStart hook)
+The `tk hooks session` command runs automatically and displays:
+- Task counts by status (ready, in_progress, blocked, done)
+- Number of learnings and decisions recorded
+- Suggested next task based on priority
+
+**What to do at session start:**
+1. Review the context summary to orient yourself
+2. Check if any in_progress tasks need attention
+3. Use `tk_context` if you need full task details
+4. Start a timer if picking up work: `tk timer start <task-id>`
+
+### At Session End (Stop hook)
+The `tk hooks stop-reminder` command runs when you exit and reminds about:
+- **Running timers**: Any timers still active that should be stopped
+- **In-progress tasks**: Tasks still marked in_progress that may need status updates
+
+**What to do before ending a session:**
+1. Stop any running timers: `tk timer stop <task-id>`
+2. Update task status: either `tk task done <id>` or `tk task pause <id>`
+3. Record any learnings discovered: `tk learn "insight"`
+4. Note any blockers for future sessions: `tk note add <task-id> "blocker info"`
+
+### Manual Session Commands
+
+If hooks aren't installed, use these commands manually:
+```bash
+tk hooks session        # Show context summary
+tk hooks stop-reminder  # Check for reminders before exiting
+```
+
+Install hooks with:
+```bash
+tk hooks install --claude  # Adds SessionStart and Stop hooks
+```
+
 ## Future Enhancements (Planned)
 
 ### Git/GitHub Integration
