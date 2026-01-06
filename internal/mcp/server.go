@@ -200,6 +200,10 @@ func (s *Server) Tools() []Tool {
 						"type":        "boolean",
 						"description": "Also start a timer on the task (default: false)",
 					},
+					"unblock": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Clear blockers before starting (for blocked tasks). Allows starting blocked tasks in one command.",
+					},
 				},
 			},
 		},
@@ -1113,6 +1117,7 @@ func (s *Server) handleAdd(args map[string]interface{}) (interface{}, error) {
 func (s *Server) handleStart(args map[string]interface{}) (interface{}, error) {
 	id, _ := args["id"].(string)
 	startTimer, _ := args["start_timer"].(bool)
+	unblock, _ := args["unblock"].(bool)
 
 	// Read current state for context
 	f, err := s.store.Read()
@@ -1131,11 +1136,22 @@ func (s *Server) handleStart(args map[string]interface{}) (interface{}, error) {
 	// Get notes for this task (context from previous sessions)
 	notes := f.Context.Notes[id]
 
+	// Unblock if requested (for blocked tasks)
+	if unblock {
+		if err := s.store.UnblockTask(id); err != nil {
+			return nil, fmt.Errorf("failed to unblock task: %w", err)
+		}
+	}
+
 	if err := s.store.SetStatus(id, task.StatusInProgress); err != nil {
 		return nil, err
 	}
 
 	result := map[string]interface{}{"id": id, "status": "in_progress"}
+
+	if unblock {
+		result["unblocked"] = true
+	}
 
 	if startTimer {
 		if err := s.store.StartTimer(id); err != nil {
