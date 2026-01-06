@@ -113,6 +113,15 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 					},
 				},
 			},
+			{
+				"matcher": "TodoWrite",
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks todo-check %s", executable, tasukuHookMarker),
+					},
+				},
+			},
 		},
 		"SessionStart": {
 			{
@@ -140,6 +149,26 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 					{
 						"type":    "command",
 						"command": fmt.Sprintf("%s hooks pre-compact %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
+		"SubagentStop": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks subagent-done %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
+		"UserPromptSubmit": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks prompt-check %s", executable, tasukuHookMarker),
 					},
 				},
 			},
@@ -274,6 +303,9 @@ func installClaudeHooks(force, local bool) error {
 	fmt.Println("  - Stop: reminds about timers, tasks, and prompts for reflection")
 	fmt.Println("  - PreCompact: captures decisions/learnings before context loss")
 	fmt.Println("  - PostToolUse/ExitPlanMode: prompts to sync plan to tasks")
+	fmt.Println("  - PostToolUse/TodoWrite: suggests persisting project-level todos")
+	fmt.Println("  - SubagentStop: prompts for insights after exploration")
+	fmt.Println("  - UserPromptSubmit: detects task intent and shows context")
 	fmt.Println()
 	fmt.Println("Restart Claude Code for hooks to take effect.")
 

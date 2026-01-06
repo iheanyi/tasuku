@@ -512,18 +512,48 @@ Git hooks are always installed locally to `.git/hooks/`:
 
 Claude hooks can be global (`~/.claude/settings.json`) or local (`./.claude/settings.json`):
 
-- **ExitPlanMode**: Syncs tasks when Claude exits plan mode, extracting tasks from plan files
+| Hook | Event | Description |
+|------|-------|-------------|
+| **SessionStart** | Session begins | Shows project context summary and suggested next task |
+| **Stop** | Claude stops | Reminds about running timers, in-progress tasks, and prompts for reflection |
+| **PreCompact** | Before context compaction | Critical checkpoint to capture decisions/learnings before context loss |
+| **PostToolUse/ExitPlanMode** | After plan mode exits | Prompts to sync plan tasks to Tasuku |
+| **PostToolUse/TodoWrite** | After TodoWrite used | Suggests persisting project-level todos to Tasuku |
+| **SubagentStop** | After subagent completes | Prompts for insights after exploration work |
+| **UserPromptSubmit** | User sends message | Detects task-related intent and shows context |
 
 Use `--local` to install to project `.claude/` for project-specific configuration.
+
+### Automatic Nudges
+
+Tasuku's hooks automatically prompt for knowledge capture at key moments:
+
+1. **Session Start**: Shows context summary and active tasks
+2. **During Work**: TodoWrite hook suggests persisting important todos
+3. **After Exploration**: SubagentStop prompts for learnings from deep dives
+4. **Task Completion**: MCP tool responses include reflection hints
+5. **Before Context Loss**: PreCompact urgently prompts for decisions/learnings
+6. **Session End**: Stop hook reminds about timers and prompts reflection
+
+This ensures decisions and learnings are captured without manual prompting.
 
 ### Additional Commands
 
 ```bash
-# Extract tasks from a plan file
-tk hooks plan-sync
-
 # Display session context summary
 tk hooks session
+
+# Check for end-of-session reminders
+tk hooks stop-reminder
+
+# Pre-compaction checkpoint (capture before context loss)
+tk hooks pre-compact
+
+# Analyze TodoWrite output for project-level tasks
+tk hooks todo-check
+
+# Extract tasks from a plan file
+tk hooks plan-sync
 
 # Remove all hooks
 tk hooks uninstall
