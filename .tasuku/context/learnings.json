@@ -60,5 +60,20 @@
     "text": "Always audit MCP tools, Claude Code hooks, and nudges when adding new functionality (CLI commands, MCP methods, or features). Check: (1) MCP/CLI parity, (2) Tool descriptions include WHEN to use and follow-up hints, (3) Response enhancements with warnings/suggestions, (4) Hook integration for SessionStart/Stop/PostToolUse. See CLAUDE.md 'Adding New Functionality Checklist' for full details.",
     "is_rule": true,
     "created_at": "2026-01-06T04:31:47.189155Z"
+  },
+  {
+    "id": "13780d",
+    "text": "[RULE] Parallelize independent I/O: internal/http/server.go:1068-1080 has 3 sequential store.Read() calls (calculateStats, getTaskViews, getArchivedViews) that could run concurrently - would reduce dashboard load by ~66%",
+    "created_at": "2026-01-06T04:46:00.174329Z"
+  },
+  {
+    "id": "a5d19b",
+    "text": "[RULE] Eliminate redundant reads after writes: internal/mcp/server.go:1016 in handleDone() calls store.Read() after store.Update() - use state from the write operation instead",
+    "created_at": "2026-01-06T04:46:02.27473Z"
+  },
+  {
+    "id": "ad218b",
+    "text": "[RULE] Pre-compute lookup sets for nested loops: internal/mcp/server.go:1867-1875 handleReady() has O(n*m) blocker checking - pre-compute doneTasks set for O(1) membership checks",
+    "created_at": "2026-01-06T04:46:04.082778Z"
   }
 ]

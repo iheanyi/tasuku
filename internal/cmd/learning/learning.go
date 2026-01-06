@@ -21,7 +21,7 @@ func newLearningCmd() *cobra.Command {
 		Use:     "learning",
 		Short:   "Manage learnings",
 		Long:    `Manage project learnings - insights and knowledge discovered during work.`,
-		Aliases: []string{"learnings"},
+		Aliases: []string{"learnings", "learn"},
 	}
 
 	cmd.AddCommand(listCmd)
