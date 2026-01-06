@@ -128,7 +128,7 @@ func (s *Server) Tools() []Tool {
 	return []Tool{
 		{
 			Name:        "tk_list",
-			Description: "List all tasks, optionally filtered by status. Returns task IDs, statuses, descriptions, and blockers.",
+			Description: "List all tasks, optionally filtered by status. Use at session start to understand project state, after completing work to see remaining tasks, or when planning to identify what needs attention. Returns task IDs, statuses, descriptions, and blockers.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -142,7 +142,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_add",
-			Description: "Create a new task with the given description. Returns the generated task ID.",
+			Description: "Create a new task with the given description. Use PROACTIVELY when: (1) Breaking down features into subtasks, (2) Discovering follow-up work during implementation, (3) Finding bugs that should be tracked, (4) User requests work that spans multiple steps. Returns the generated task ID.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"description"},
@@ -178,7 +178,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_done",
-			Description: "Mark a task as completed. Automatically stops any running timer on the task.",
+			Description: "Mark a task as completed. Use IMMEDIATELY when finishing work - don't batch completions. Automatically stops any running timer. After marking done, consider: recording learnings, checking if this unblocks other tasks, archiving if no longer needed.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -192,7 +192,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_block",
-			Description: "Mark a task as blocked by other tasks.",
+			Description: "Mark a task as blocked by other tasks. Use when: (1) Work cannot proceed until another task completes, (2) External dependencies are discovered, (3) Prerequisites are identified during implementation. Blocked tasks won't appear in tk_ready. Auto-unblocks when blocking tasks are done.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "blocked_by"},
@@ -211,7 +211,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_learn",
-			Description: "Record a learning or insight discovered while working. These persist across sessions.",
+			Description: "Record a learning or insight discovered while working. Use PROACTIVELY when: (1) Debugging reveals undocumented behavior, (2) Finding gotchas or edge cases, (3) Discovering patterns that work well (or poorly), (4) API behaviors differ from expectations, (5) Performance insights. Use 'Never X' or 'Always Y' prefixes for rules. These persist across sessions and can be promoted to permanent docs.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"insight"},
@@ -225,7 +225,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_decide",
-			Description: "Record an architectural decision with the choice made, alternatives considered, and reasoning.",
+			Description: "Record an architectural decision with the choice made, alternatives considered, and reasoning. Use PROACTIVELY when: (1) Selecting technologies or libraries, (2) Choosing between implementation approaches, (3) Making trade-offs (performance vs simplicity, etc.), (4) Deciding on patterns or conventions. Decisions help future agents understand WHY things were built a certain way.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "chose", "over", "because"},
@@ -278,7 +278,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_timer_start",
-			Description: "Start a timer on a task to track time spent working on it.",
+			Description: "Start a timer on a task to track time spent working on it. Use when beginning focused work on a task. Helps with effort estimation and identifying tasks that take longer than expected. Timer auto-stops on tk_done or tk_pause.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -292,7 +292,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_timer_stop",
-			Description: "Stop the timer on a task, recording the elapsed time.",
+			Description: "Stop the timer on a task, recording the elapsed time. Use when pausing work temporarily without completing. Elapsed time accumulates across multiple timer sessions.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -306,7 +306,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_timer_status",
-			Description: "Get the status of all running timers.",
+			Description: "Get the status of all running timers. Use to check if you forgot to stop a timer or to see total time spent on tasks.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -354,7 +354,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_tag_add",
-			Description: "Add a tag to a task for categorization and filtering.",
+			Description: "Add a tag to a task for categorization and filtering. Use PROACTIVELY with tags like: 'bug', 'feature', 'refactor', 'docs', 'test', 'security', 'performance', 'tech-debt', 'urgent'. Tags enable filtering with tk_list and help identify patterns across tasks.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "tag"},
@@ -372,7 +372,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_tag_remove",
-			Description: "Remove a tag from a task.",
+			Description: "Remove a tag from a task. Use when a tag no longer applies (e.g., 'urgent' after addressing, 'bug' if reclassified as feature).",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "tag"},
@@ -390,7 +390,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_archive",
-			Description: "Archive a done task. The task must be in 'done' status to be archived.",
+			Description: "Archive a done task to keep the active task list lean. Use after tasks are verified complete and no longer need visibility. Archived tasks are preserved in .tasuku/archive/ for history. The task must be in 'done' status.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"task_id"},
@@ -408,7 +408,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_archive_restore",
-			Description: "Restore an archived task back to active tasks with 'ready' status.",
+			Description: "Restore an archived task back to active tasks with 'ready' status. Use when archived work needs to be revisited or was archived prematurely.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"task_id"},
@@ -422,7 +422,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_archive_list",
-			Description: "List all archived tasks.",
+			Description: "List all archived tasks. Use to find historical tasks, reference past work, or locate tasks to restore.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -430,7 +430,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_show",
-			Description: "Get detailed information about a specific task including notes, priority, and timestamps.",
+			Description: "Get detailed information about a specific task including notes, priority, timestamps, and custom fields. Use before starting work to understand full context, check notes from previous sessions, or review task metadata.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -444,7 +444,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_delete",
-			Description: "Permanently delete a task. Also removes associated notes and clears references from other tasks' blocked_by lists.",
+			Description: "Permanently delete a task. Use for duplicate tasks, tasks created in error, or work that's no longer relevant. Prefer tk_archive for completed work you might reference later. Also removes associated notes and clears references from other tasks' blocked_by lists.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -458,7 +458,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_edit",
-			Description: "Update a task's description.",
+			Description: "Update a task's description. Use when the scope changes, requirements are clarified, or the original description was unclear. Keep descriptions actionable and specific.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "description"},
@@ -476,7 +476,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_pause",
-			Description: "Pause work on a task, reverting it from in_progress to ready status. Automatically stops any running timer.",
+			Description: "Pause work on a task, reverting it from in_progress to ready status. Use when switching to higher-priority work, blocked by external factors, or ending a session with incomplete work. Add a note explaining why paused. Automatically stops any running timer.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -490,7 +490,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_unblock",
-			Description: "Remove blockers from a task. By default removes all blockers; use 'from' to remove a specific one.",
+			Description: "Remove blockers from a task. Use when blocking tasks are completed, blockers are resolved externally, or blocking relationship was incorrect. By default removes all blockers; use 'from' to remove a specific one.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -508,7 +508,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_find",
-			Description: "Search across tasks, notes, learnings, and decisions. Case-insensitive text search.",
+			Description: "Search across tasks, notes, learnings, and decisions. Use to find related work, check if similar tasks exist before creating new ones, or locate past decisions/learnings on a topic. Case-insensitive text search.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"query"},
@@ -522,7 +522,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_priority",
-			Description: "Set task priority level. Levels: 0/critical, 1/high, 2/normal, 3/low, 4/backlog.",
+			Description: "Set task priority level. Use PROACTIVELY to organize work: critical (0) for blocking/urgent issues, high (1) for important near-term work, normal (2) for standard tasks, low (3) for can-wait items, backlog (4) for future ideas. Priority affects tk_ready ordering.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "priority"},
@@ -540,7 +540,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_owner",
-			Description: "Set or clear task owner.",
+			Description: "Set or clear task owner for assignment tracking. Use to indicate who's responsible for a task, track workload distribution, or filter tasks by assignee. Different from tk_claim which is for active exclusive work.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -558,7 +558,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_claim",
-			Description: "Claim a task for exclusive work by an agent. Records claim timestamp for coordination.",
+			Description: "Claim a task for exclusive work by an agent. Use in multi-agent scenarios to prevent duplicate work. Check tk_who before claiming to see what's already claimed. Records claim timestamp for coordination. Release with tk_release when done or pausing.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "agent"},
@@ -576,7 +576,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_release",
-			Description: "Release a claimed task, making it available for other agents.",
+			Description: "Release a claimed task, making it available for other agents. Use when: (1) Completing work (after tk_done), (2) Pausing for extended time, (3) Realizing another agent should handle it, (4) Ending a session with incomplete work.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -605,7 +605,7 @@ func (s *Server) Tools() []Tool {
 		// Ready tasks
 		{
 			Name:        "tk_ready",
-			Description: "List tasks that are ready to work on (not blocked, sorted by priority). Use this to find the next task to start.",
+			Description: "List tasks that are ready to work on (not blocked, sorted by priority). Use at session start to pick up work, after completing a task to find the next one, or when deciding what to focus on. Shows highest-priority actionable tasks first.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -614,7 +614,7 @@ func (s *Server) Tools() []Tool {
 		// Who (claimed tasks by owner)
 		{
 			Name:        "tk_who",
-			Description: "Show tasks claimed by each owner/agent. Useful for multi-agent coordination.",
+			Description: "Show tasks claimed by each owner/agent. Use before claiming to avoid conflicts, to understand workload distribution, or to find who's working on related tasks. Essential for multi-agent coordination.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -623,7 +623,7 @@ func (s *Server) Tools() []Tool {
 		// Dependencies
 		{
 			Name:        "tk_deps",
-			Description: "Show the dependency tree for a task - what it's blocked by and what it blocks.",
+			Description: "Show the dependency tree for a task - what it's blocked by and what it blocks. Use to understand task relationships, identify critical path, or find tasks that will be unblocked when completing work.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -638,7 +638,7 @@ func (s *Server) Tools() []Tool {
 		// Stats
 		{
 			Name:        "tk_stats",
-			Description: "Show task statistics: counts by status, priority distribution, completion rate.",
+			Description: "Show task statistics: counts by status, priority distribution, completion rate. Use for project health checks, identifying bottlenecks (high blocked count), or reporting progress. Helps understand overall project state.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -647,7 +647,7 @@ func (s *Server) Tools() []Tool {
 		// Learning list
 		{
 			Name:        "tk_learning_list",
-			Description: "List all recorded learnings with their IDs and rule status.",
+			Description: "List all recorded learnings with their IDs and rule status. Use to review accumulated knowledge, find learnings to promote, or refresh memory on project-specific insights before starting work.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -679,7 +679,7 @@ func (s *Server) Tools() []Tool {
 		// Learning remove
 		{
 			Name:        "tk_learning_remove",
-			Description: "Remove a learning by ID.",
+			Description: "Remove a learning by ID. Use when a learning is outdated, incorrect, or has been promoted to permanent docs and is no longer needed in Tasuku.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -703,7 +703,7 @@ func (s *Server) Tools() []Tool {
 		// Decision list
 		{
 			Name:        "tk_decision_list",
-			Description: "List all recorded architectural decisions.",
+			Description: "List all recorded architectural decisions. Use to understand why things were built a certain way, before making similar decisions, or to document project architecture for new contributors.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -712,7 +712,7 @@ func (s *Server) Tools() []Tool {
 		// Decision remove
 		{
 			Name:        "tk_decision_remove",
-			Description: "Remove a decision by ID.",
+			Description: "Remove a decision by ID. Use when a decision is reversed, superseded by a new decision, or was recorded in error.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -727,7 +727,7 @@ func (s *Server) Tools() []Tool {
 		// Note list
 		{
 			Name:        "tk_note_list",
-			Description: "List notes for a specific task or all notes across tasks.",
+			Description: "List notes for a specific task or all notes across tasks. Use to review progress history, understand context from previous sessions, or find specific information captured during work.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -741,7 +741,7 @@ func (s *Server) Tools() []Tool {
 		// Note remove
 		{
 			Name:        "tk_note_remove",
-			Description: "Remove a note from a task.",
+			Description: "Remove a note from a task. Use when a note is outdated, contains incorrect information, or is no longer relevant after task completion.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"task_id", "note_id"},
