@@ -88,6 +88,8 @@ tk task list --format json    # Output as JSON
 | `tk task stats` | Show task statistics and progress |
 | `tk validate` | Check task files for errors |
 | `tk doctor` | Diagnose Tasuku setup and MCP configuration |
+| `tk health` | Project health check with actionable recommendations |
+| `tk suggest "task"` | Check if task should persist to Tasuku or stay session-only |
 | `tk ui` | Launch the terminal user interface |
 
 ### Agent Coordination
@@ -355,6 +357,7 @@ Once installed, Claude has access to these tools:
 - `tk_ready` - List tasks ready to work on
 - `tk_deps` - Show task dependency tree
 - `tk_stats` - Project statistics and progress
+- `tk_health` - Project health check with recommendations
 
 **Agent Coordination:**
 - `tk_claim`, `tk_release`, `tk_owner` - Task ownership for multi-agent work
@@ -388,6 +391,7 @@ Once installed, Claude has access to these tools:
 
 **Archiving:**
 - `tk_archive`, `tk_archive_list`, `tk_archive_restore` - Archive management
+- `tk_archive_all` - Archive all done tasks older than a duration
 
 ### Slash Command Skills
 
@@ -452,12 +456,17 @@ tk ui
 | `e` | Edit task description |
 | `s` | Start task |
 | `d` | Mark done |
+| `P` | Pause task |
+| `x` | Delete task |
+| `b` | Block task |
+| `u` | Unblock task |
 | `t` | Toggle timer |
 | `a` | Archive done task |
 | `A` | Archive all done tasks |
 | `/` | Filter/search tasks |
 | `0-4` | Filter by status |
 | `p` | Sort by priority |
+| `r` | Refresh |
 | `N` | View notes |
 | `L` | View learnings |
 | `D` | View decisions |
