@@ -73,6 +73,10 @@ tk hooks uninstall         # Remove Tasuku git hooks
 tk hooks plan-sync plan.md # Extract tasks from plan file (uses nudge rule)
 tk hooks session           # Display context summary
 
+# Health & Diagnostics
+tk health                  # Project health check with recommendations
+tk doctor                  # Diagnose MCP and CLI setup
+
 # Migration
 tk migrate v3              # Migrate from .tasuku.json to .tasuku/
 tk migrate beads           # Migrate from Beads format
@@ -297,6 +301,43 @@ This ensures agents can do everything humans can do (and vice versa), which is t
 | `tk_archive_list` | `tk task archive list` | List archived tasks |
 | **Agent Workflow** |||
 | `tk_suggest` | `tk suggest` | Analyze if a task should persist to tk or stay session-only |
+| **Health & Diagnostics** |||
+| `tk_health` | `tk health` | Project health check with recommendations |
+
+### TUI Keybindings Reference
+
+Launch the TUI with `tk ui`. The following keybindings are available:
+
+| Key | Action | Notes |
+|-----|--------|-------|
+| **Task Operations** |||
+| `n` | New task | Opens task creation dialog |
+| `e` | Edit task | Edit selected task description |
+| `s` | Start task | Mark ready task as in_progress |
+| `d` | Mark done | Complete in_progress task |
+| `P` | Pause task | Revert in_progress to ready |
+| `b` | Block task | Mark task as blocked |
+| `u` | Unblock task | Remove blockers and set to ready |
+| `x` | Delete task | Delete with confirmation |
+| `t` | Toggle timer | Start/stop time tracking |
+| `a` | Archive task | Archive done task |
+| `A` | Archive all done | Bulk archive with confirmation |
+| `enter` | View details | Show full task information |
+| **Navigation** |||
+| `/` | Filter tasks | Text search through tasks |
+| `0` | All tasks | Show all statuses |
+| `1` | Ready only | Filter to ready tasks |
+| `2` | In progress only | Filter to in_progress |
+| `3` | Blocked only | Filter to blocked tasks |
+| `4` | Done only | Filter to done tasks |
+| `p` | Toggle priority sort | Switch between status/priority sort |
+| `N` | View notes | Show notes for selected task |
+| `L` | View learnings | Show project learnings |
+| `D` | View decisions | Show architectural decisions |
+| **General** |||
+| `r` | Refresh | Reload data from storage |
+| `?` | Help | Show keybinding help |
+| `q` | Quit | Exit TUI |
 
 ### Running the server
 
