@@ -21,10 +21,11 @@ import (
 	"github.com/iheanyi/tasuku/internal/cmd/pr"
 	"github.com/iheanyi/tasuku/internal/cmd/serve"
 	"github.com/iheanyi/tasuku/internal/cmd/skills"
-	"github.com/iheanyi/tasuku/internal/cmd/task"
+	taskcmd "github.com/iheanyi/tasuku/internal/cmd/task"
 	"github.com/iheanyi/tasuku/internal/cmd/ui"
 	"github.com/iheanyi/tasuku/internal/mcp"
 	"github.com/iheanyi/tasuku/internal/store"
+	"github.com/iheanyi/tasuku/internal/task"
 )
 
 const Version = "0.3.0"
@@ -61,7 +62,7 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.PersistentFlags().StringVarP(&config.OutputFormat, "format", "f", "table", "Output format: table, json, yaml")
 
 	// Register all subcommands
-	cmd.AddCommand(task.Cmd)
+	cmd.AddCommand(taskcmd.Cmd)
 	cmd.AddCommand(learning.Cmd)
 	cmd.AddCommand(decision.Cmd)
 	cmd.AddCommand(note.Cmd)
@@ -78,6 +79,10 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.AddCommand(initCmd)
 	cmd.AddCommand(doctorCmd)
 	cmd.AddCommand(newValidateCmd())
+
+	// Shortcut commands (documented in CLAUDE.md)
+	cmd.AddCommand(newLearnShortcutCmd())
+	cmd.AddCommand(newDecideShortcutCmd())
 
 	return cmd
 }
@@ -392,6 +397,148 @@ func mustGetwd() string {
 		return "."
 	}
 	return wd
+}
+
+// newLearnShortcutCmd creates a top-level shortcut for adding learnings.
+// This allows "tk learn 'insight'" instead of "tk learning add 'insight'".
+func newLearnShortcutCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "learn \"insight\"",
+		Short: "Record an insight (shortcut for 'tk learning add')",
+		Long: `Record an insight or knowledge discovered during work.
+This is a shortcut for 'tk learning add'.
+
+Examples:
+  tk learn "Redis connection pooling significantly improves API latency"
+  tk learn "The auth middleware must run before rate limiting" --permanent
+  tk learn "Never use raw SQL queries" --rule`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			learningText := args[0]
+			permanent, _ := cmd.Flags().GetBool("permanent")
+			forceRule, _ := cmd.Flags().GetBool("rule")
+			s := store.DefaultStorageWithWarning()
+
+			var id string
+			var isRule bool
+			var err error
+
+			if forceRule {
+				ruleVal := true
+				id, isRule, err = s.AddLearningWithRule(learningText, &ruleVal)
+			} else {
+				id, isRule, err = s.AddLearningWithRule(learningText, nil)
+			}
+			if err != nil {
+				return err
+			}
+
+			if permanent {
+				if err := appendLearningToCLAUDEmd(learningText); err != nil {
+					fmt.Printf("Warning: could not append to CLAUDE.md: %v\n", err)
+				} else {
+					fmt.Printf("Learning added [%s] (also appended to CLAUDE.md)\n", id)
+					return nil
+				}
+			}
+
+			if isRule {
+				fmt.Printf("Learning added [%s] [RULE]\n", id)
+				fmt.Println("Hint: Promote rules to permanent docs with: tk learning promote", id)
+			} else {
+				fmt.Printf("Learning added [%s]\n", id)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().Bool("permanent", false, "Also append learning to CLAUDE.md")
+	cmd.Flags().Bool("rule", false, "Explicitly mark this learning as a rule")
+
+	return cmd
+}
+
+// newDecideShortcutCmd creates a top-level shortcut for adding decisions.
+// This allows "tk decide --id X --chose Y --because Z" instead of "tk decision add ...".
+func newDecideShortcutCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "decide --id <id> --chose <option> --because <reason>",
+		Short: "Record a decision (shortcut for 'tk decision add')",
+		Long: `Document an architectural or design decision.
+This is a shortcut for 'tk decision add'.
+
+Examples:
+  tk decide --id db-choice --chose PostgreSQL --over MySQL,SQLite --because "Better JSON support"
+  tk decide --id auth-method --chose JWT --over sessions --because "Stateless and scalable"
+  tk decide --id framework --chose Cobra --because "Standard Go CLI library"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, _ := cmd.Flags().GetString("id")
+			chose, _ := cmd.Flags().GetString("chose")
+			alternatives, _ := cmd.Flags().GetStringSlice("over")
+			because, _ := cmd.Flags().GetString("because")
+
+			if id == "" || chose == "" || because == "" {
+				return fmt.Errorf("usage: tk decide --id <id> --chose <choice> --over <options> --because <reason>")
+			}
+
+			for i := range alternatives {
+				alternatives[i] = strings.TrimSpace(alternatives[i])
+			}
+
+			d := task.Decision{
+				ID:      id,
+				Chose:   chose,
+				Over:    alternatives,
+				Because: because,
+			}
+
+			s := store.DefaultStorageWithWarning()
+			if err := s.AddDecision(d); err != nil {
+				return err
+			}
+
+			fmt.Printf("Decision recorded: %s\n", id)
+			return nil
+		},
+	}
+
+	cmd.Flags().String("id", "", "Decision ID")
+	cmd.Flags().String("chose", "", "The option chosen")
+	cmd.Flags().StringSlice("over", nil, "Alternatives considered (repeatable or comma-separated)")
+	cmd.Flags().String("because", "", "Reasoning")
+	cmd.MarkFlagRequired("id")
+	cmd.MarkFlagRequired("chose")
+	cmd.MarkFlagRequired("because")
+
+	return cmd
+}
+
+// appendLearningToCLAUDEmd appends a learning to CLAUDE.md
+func appendLearningToCLAUDEmd(content string) error {
+	claudePath := "CLAUDE.md"
+	existing, err := os.ReadFile(claudePath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	text := string(existing)
+	entry := fmt.Sprintf("- %s\n", content)
+
+	if strings.Contains(text, "## Learnings") {
+		idx := strings.Index(text, "## Learnings")
+		endOfLine := strings.Index(text[idx:], "\n") + idx + 1
+		nextSection := strings.Index(text[endOfLine:], "\n## ")
+		if nextSection == -1 {
+			text = text + entry
+		} else {
+			insertAt := endOfLine + nextSection
+			text = text[:insertAt] + entry + text[insertAt:]
+		}
+	} else {
+		text = text + "\n\n## Learnings\n\n" + entry
+	}
+
+	return os.WriteFile(claudePath, []byte(text), 0644)
 }
 
 // AITool represents a supported AI tool configuration
