@@ -352,9 +352,13 @@ Once installed, Claude has access to these tools:
 - `tk_block`, `tk_unblock` - Dependency management
 - `tk_priority` - Set task priority
 - `tk_find` - Search across tasks, notes, learnings
+- `tk_ready` - List tasks ready to work on
+- `tk_deps` - Show task dependency tree
+- `tk_stats` - Project statistics and progress
 
 **Agent Coordination:**
 - `tk_claim`, `tk_release`, `tk_owner` - Task ownership for multi-agent work
+- `tk_who` - Show tasks claimed by each owner
 
 **Tags & Fields:**
 - `tk_tag_add`, `tk_tag_remove` - Manage task tags
@@ -367,6 +371,20 @@ Once installed, Claude has access to these tools:
 - `tk_context` - Get full project context
 - `tk_learn`, `tk_decide`, `tk_note` - Record knowledge
 - `tk_suggest` - Check if task should persist to Tasuku
+
+**Learnings:**
+- `tk_learning_list` - List all learnings
+- `tk_learning_promote` - Promote learning to permanent docs
+- `tk_learning_remove` - Remove a learning
+- `tk_learning_rules` - Find "never/always" patterns
+
+**Decisions:**
+- `tk_decision_list` - List all decisions
+- `tk_decision_remove` - Remove a decision
+
+**Notes:**
+- `tk_note_list` - List notes for a task
+- `tk_note_remove` - Remove a note
 
 **Archiving:**
 - `tk_archive`, `tk_archive_list`, `tk_archive_restore` - Archive management
@@ -390,7 +408,12 @@ This installs skills that can be invoked with `/skill-name`:
 | `/tasuku-ready` | Show tasks ready to work on |
 | `/tasuku-start` | Start working on a task |
 | `/tasuku-done` | Mark a task complete |
+| `/tasuku-block` | Mark task as blocked |
+| `/tasuku-show` | Show task details |
 | `/tasuku-learn` | Record learnings and insights |
+| `/tasuku-decide` | Record architectural decisions |
+| `/tasuku-note` | Add notes to tasks |
+| `/tasuku-promote` | Promote learnings to docs |
 | `/tasuku-context` | Get full project context |
 | `/tasuku-stats` | Show task statistics |
 

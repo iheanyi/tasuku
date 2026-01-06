@@ -416,6 +416,247 @@ tk promote 1 --keep             # Keep in learnings after promoting
 3. Promote important learnings to permanent docs
 4. Review learnings periodically to refresh memory
 `,
+
+	"decide": `---
+name: decide
+description: Record an architectural decision with reasoning. Use when making design choices, selecting technologies, or resolving trade-offs.
+---
+
+# Record Decision
+
+Capture important decisions with the alternatives considered and reasoning.
+
+## Usage
+
+` + "```bash" + `
+tk decision add --id auth-strategy --chose "JWT tokens" --over "sessions,OAuth" --because "Stateless for microservices"
+tk decision list                    # List all decisions
+tk decision remove auth-strategy    # Remove a decision
+` + "```" + `
+
+## What to Record
+
+Good decisions to document:
+
+- **Technology choices**: "Chose PostgreSQL over MongoDB for relational data"
+- **Architecture patterns**: "Chose event sourcing over CRUD for audit trail"
+- **API design**: "Chose REST over GraphQL for simplicity"
+- **Trade-offs**: "Chose performance over memory efficiency"
+
+## Decision Structure
+
+Each decision includes:
+- **ID**: Identifier for the decision
+- **Chose**: What was selected
+- **Over**: Alternatives that were considered
+- **Because**: Reasoning behind the choice
+
+## When to Use
+
+- Selecting a framework or library
+- Designing system architecture
+- Choosing between implementation approaches
+- Making trade-offs that affect future work
+
+## Best Practices
+
+1. Record decisions before implementing them
+2. Include realistic alternatives that were considered
+3. Be specific about the reasoning
+4. Reference decisions in related tasks
+`,
+
+	"note": `---
+name: note
+description: Add a note to a task for context, progress, or insights. Use proactively when starting tasks, making progress, or discovering context.
+---
+
+# Add Task Note
+
+Attach notes to tasks to capture context, progress, and insights.
+
+## Usage
+
+` + "```bash" + `
+tk note add <task-id> "Note text"   # Add a note to a task
+tk note list <task-id>              # List notes for a task
+tk note remove <task-id> <index>    # Remove a specific note
+` + "```" + `
+
+## When to Add Notes
+
+**PROACTIVELY** add notes when:
+
+1. **Starting a task**: Note your planned approach
+   ` + "```bash" + `
+   tk note add auth-feature "Planning to use JWT with refresh tokens, 1hr expiry"
+   ` + "```" + `
+
+2. **Making progress**: Note milestones or partial work
+   ` + "```bash" + `
+   tk note add auth-feature "Login endpoint complete, working on refresh flow"
+   ` + "```" + `
+
+3. **Encountering issues**: Note blockers or failed approaches
+   ` + "```bash" + `
+   tk note add auth-feature "OAuth library incompatible with Node 20, trying alternative"
+   ` + "```" + `
+
+4. **Discovering context**: Note findings for future agents
+   ` + "```bash" + `
+   tk note add auth-feature "Found existing token validation in utils/auth.ts"
+   ` + "```" + `
+
+## Best Practices
+
+1. Add notes at the start of each work session
+2. Note any unexpected findings or gotchas
+3. Document failed approaches so they aren't repeated
+4. Include file paths and line numbers when relevant
+5. Notes persist across sessions - use them for continuity
+`,
+
+	"show": `---
+name: show
+description: Show detailed information about a single task. Use when you need full task details, notes, or metadata.
+---
+
+# Show Task Details
+
+Display complete information about a specific task.
+
+## Usage
+
+` + "```bash" + `
+tk task show <task-id>              # Show task details
+tk task show <task-id> --format json   # Output as JSON
+` + "```" + `
+
+## Information Displayed
+
+- Task ID and description
+- Status (ready, in_progress, blocked, done)
+- Priority level
+- Blockers (if any)
+- Owner/assignee
+- Parent task (if subtask)
+- Tags and custom fields
+- Notes attached to the task
+- Time tracked
+- Created and updated timestamps
+
+## When to Use
+
+- Before starting work to understand full context
+- Checking notes left by previous work sessions
+- Reviewing blockers and dependencies
+- Inspecting task metadata
+
+## Related Commands
+
+- ` + "`tk task list`" + ` - See all tasks
+- ` + "`tk task deps <id>`" + ` - Show dependency tree
+- ` + "`tk note list <id>`" + ` - List just the notes
+`,
+
+	"block": `---
+name: block
+description: Mark a task as blocked by other tasks. Use when work cannot proceed until dependencies are resolved.
+---
+
+# Block Task
+
+Mark a task as blocked, indicating it cannot proceed until dependencies are resolved.
+
+## Usage
+
+` + "```bash" + `
+tk task block <task-id> --by <blocker-id>           # Block by one task
+tk task block <task-id> --by task1 --by task2       # Block by multiple tasks
+tk task unblock <task-id>                           # Remove all blockers
+` + "```" + `
+
+## When to Use
+
+- Task requires another task to be completed first
+- Waiting on external dependencies
+- Work discovered to have prerequisites during implementation
+- Parallel tasks that converge
+
+## Blocked Task Behavior
+
+- Blocked tasks won't appear in ` + "`tk task ready`" + `
+- Shows blockers in ` + "`tk task list`" + ` output
+- Can view with ` + "`tk task list --status blocked`" + `
+- Auto-unblocks when all blocking tasks are done
+
+## Best Practices
+
+1. Be specific about which task is blocking
+2. Don't block on vague dependencies - create tasks for them
+3. Check blocked tasks when completing work
+4. Use ` + "`tk task deps <id>`" + ` to visualize dependency chains
+
+## Unblocking
+
+` + "```bash" + `
+# When blocker is done, blocked task becomes ready automatically
+tk task done <blocker-id>
+
+# Or manually unblock
+tk task unblock <blocked-id>
+` + "```" + `
+`,
+
+	"promote": `---
+name: promote
+description: Promote a learning to permanent documentation. Use when a learning proves valuable and should persist in project docs.
+---
+
+# Promote Learning
+
+Move a learning from Tasuku's context to permanent project documentation.
+
+## Usage
+
+` + "```bash" + `
+tk learnings                        # List learnings with indices
+tk promote <index>                  # Promote to auto-detected context file
+tk promote <index> --to CLAUDE.md   # Promote to specific file
+tk promote <index> --keep           # Keep in learnings after promoting
+` + "```" + `
+
+## Auto-Detected Context Files
+
+Tasuku looks for these files (in priority order):
+1. ` + "`CLAUDE.md`" + ` - Claude Code
+2. ` + "`.cursorrules`" + ` - Cursor
+3. ` + "`.github/copilot-instructions.md`" + ` - GitHub Copilot
+4. ` + "`AGENTS.md`" + ` - Generic AI agents
+
+If none exist, defaults to creating ` + "`CLAUDE.md`" + `.
+
+## When to Promote
+
+Promote learnings when they:
+- Have proven valuable multiple times
+- Are "never/always" rules worth enforcing
+- Should persist beyond the current task
+- Would help future developers or agents
+
+## What Gets Promoted
+
+- The learning text is appended to the context file
+- Adds under a "## Learnings" section if not present
+- Removes from Tasuku learnings unless ` + "`--keep`" + ` is used
+
+## Best Practices
+
+1. Let learnings prove their value before promoting
+2. Use ` + "`--to`" + ` to choose the appropriate file
+3. Review promoted content for clarity
+4. Periodically audit context files for outdated learnings
+`,
 }
 
 func getSkillsBaseDir(global bool) (string, error) {
@@ -505,7 +746,12 @@ Use specific skills for detailed guidance:
 - **/tasuku-ready** - Show tasks ready to work on
 - **/tasuku-start** - Start working on a task
 - **/tasuku-done** - Mark a task complete
+- **/tasuku-block** - Mark task as blocked
+- **/tasuku-show** - Show task details
 - **/tasuku-learn** - Record learnings and insights
+- **/tasuku-decide** - Record architectural decisions
+- **/tasuku-note** - Add notes to tasks
+- **/tasuku-promote** - Promote learnings to docs
 - **/tasuku-context** - Get full project context
 - **/tasuku-stats** - Show task statistics
 
@@ -542,7 +788,12 @@ Use specific skills for detailed guidance:
 	fmt.Println("  /tasuku-ready   - Show ready tasks")
 	fmt.Println("  /tasuku-start   - Start a task")
 	fmt.Println("  /tasuku-done    - Complete a task")
+	fmt.Println("  /tasuku-block   - Mark task blocked")
+	fmt.Println("  /tasuku-show    - Show task details")
 	fmt.Println("  /tasuku-learn   - Record learnings")
+	fmt.Println("  /tasuku-decide  - Record decisions")
+	fmt.Println("  /tasuku-note    - Add task notes")
+	fmt.Println("  /tasuku-promote - Promote to docs")
 	fmt.Println("  /tasuku-context - Get full context")
 	fmt.Println("  /tasuku-stats   - Show statistics")
 	fmt.Println("\nRestart Claude Code for skills to take effect.")
