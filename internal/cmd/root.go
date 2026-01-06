@@ -20,6 +20,7 @@ import (
 	"github.com/iheanyi/tasuku/internal/cmd/note"
 	"github.com/iheanyi/tasuku/internal/cmd/pr"
 	"github.com/iheanyi/tasuku/internal/cmd/serve"
+	"github.com/iheanyi/tasuku/internal/cmd/skills"
 	"github.com/iheanyi/tasuku/internal/cmd/task"
 	"github.com/iheanyi/tasuku/internal/cmd/ui"
 	"github.com/iheanyi/tasuku/internal/mcp"
@@ -71,6 +72,7 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.AddCommand(migrate.Cmd)
 	cmd.AddCommand(pr.Cmd)
 	cmd.AddCommand(ui.Cmd)
+	cmd.AddCommand(skills.Cmd)
 
 	// Root-level commands
 	cmd.AddCommand(initCmd)

@@ -75,8 +75,9 @@ tk task list --format json    # Output as JSON
 | `tk task show <id>` | Show task details |
 | `tk task edit <id> "new description"` | Update task description |
 | `tk task start <id>` | Mark task as in progress |
-| `tk task pause <id>` | Pause work (revert to ready) |
-| `tk task done <id>` | Mark task as complete |
+| `tk task start <id> --timer` | Start task with time tracking |
+| `tk task pause <id>` | Pause work (auto-stops timer) |
+| `tk task done <id>` | Mark task as complete (auto-stops timer) |
 | `tk task block <id> --by <other>` | Mark task as blocked |
 | `tk task unblock <id>` | Remove all blockers from task |
 | `tk task delete <id>` | Delete a task |
@@ -151,6 +152,9 @@ tk task list --format json    # Output as JSON
 | `tk migrate v3` | Migrate from V2 (.tasuku.json) to V3 (.tasuku/) |
 | `tk migrate beads` | Migrate from Beads format |
 | `tk migrate beads --dry-run` | Preview migration without changes |
+| `tk skills install` | Install Claude Code slash command skills |
+| `tk skills uninstall` | Remove Tasuku skills |
+| `tk skills list` | List available skills |
 
 ### Output Formats
 
@@ -365,6 +369,31 @@ Once installed, Claude has access to these tools:
 
 **Archiving:**
 - `tk_archive`, `tk_archive_list`, `tk_archive_restore` - Archive management
+
+### Slash Command Skills
+
+Install slash command skills for quick access to common operations:
+
+```bash
+tk skills install           # Install to current project (.claude/skills/)
+tk skills install --global  # Install globally (~/.claude/skills/)
+```
+
+This installs skills that can be invoked with `/skill-name`:
+
+| Skill | Description |
+|-------|-------------|
+| `/tasuku` | Overview and quick reference |
+| `/tasuku-add` | Create a new task |
+| `/tasuku-list` | List all tasks with optional filtering |
+| `/tasuku-ready` | Show tasks ready to work on |
+| `/tasuku-start` | Start working on a task |
+| `/tasuku-done` | Mark a task complete |
+| `/tasuku-learn` | Record learnings and insights |
+| `/tasuku-context` | Get full project context |
+| `/tasuku-stats` | Show task statistics |
+
+Restart Claude Code after installing for skills to take effect.
 
 ### Manual Configuration
 
