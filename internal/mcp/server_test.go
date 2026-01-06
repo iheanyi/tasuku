@@ -31,7 +31,7 @@ func TestTools(t *testing.T) {
 		"tk_timer_start", "tk_timer_stop", "tk_timer_status",
 		"tk_field_set", "tk_field_remove",
 		"tk_tag_add", "tk_tag_remove",
-		"tk_archive", "tk_archive_restore", "tk_archive_list",
+		"tk_archive", "tk_archive_restore", "tk_archive_list", "tk_archive_all",
 		"tk_show", "tk_delete", "tk_edit", "tk_pause", "tk_unblock",
 		"tk_find", "tk_priority", "tk_owner", "tk_claim", "tk_release",
 		"tk_suggest",
@@ -361,8 +361,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 43 {
-		t.Errorf("expected 43 tools, got %d", len(tools))
+	if len(tools) != 44 {
+		t.Errorf("expected 44 tools, got %d", len(tools))
 	}
 }
 

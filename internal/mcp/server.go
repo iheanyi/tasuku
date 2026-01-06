@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -430,6 +431,20 @@ func (s *Server) Tools() []Tool {
 			},
 		},
 		{
+			Name:        "tk_archive_all",
+			Description: "Archive all done tasks older than a specified duration. Use for bulk cleanup to reduce clutter. Duration format: 1h (hours), 1d (days), 1w (weeks). Example: '7d' archives tasks done more than 7 days ago.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"older_than"},
+				"properties": map[string]interface{}{
+					"older_than": map[string]interface{}{
+						"type":        "string",
+						"description": "Duration threshold (e.g., '7d', '24h', '2w'). Tasks done before this are archived.",
+					},
+				},
+			},
+		},
+		{
 			Name:        "tk_show",
 			Description: "Get detailed information about a specific task including notes, priority, timestamps, and custom fields. Use before starting work to understand full context, check notes from previous sessions, or review task metadata.",
 			InputSchema: map[string]interface{}{
@@ -811,6 +826,8 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleArchiveRestore(args)
 	case "tk_archive_list":
 		return s.handleArchiveList(args)
+	case "tk_archive_all":
+		return s.handleArchiveAll(args)
 	case "tk_show":
 		return s.handleShow(args)
 	case "tk_delete":
@@ -1368,6 +1385,56 @@ func (s *Server) handleArchiveList(args map[string]interface{}) (interface{}, er
 	}
 
 	return results, nil
+}
+
+func (s *Server) handleArchiveAll(args map[string]interface{}) (interface{}, error) {
+	olderThan, _ := args["older_than"].(string)
+	if olderThan == "" {
+		return nil, fmt.Errorf("older_than is required")
+	}
+
+	// Parse duration string (e.g., "7d", "24h", "2w")
+	duration, err := parseDurationString(olderThan)
+	if err != nil {
+		return nil, fmt.Errorf("invalid duration format '%s': %w", olderThan, err)
+	}
+
+	archived, err := s.store.ArchiveDoneTasks(duration)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"archived_count": len(archived),
+		"archived_tasks": archived,
+		"message":        fmt.Sprintf("Archived %d task(s) older than %s", len(archived), olderThan),
+	}, nil
+}
+
+// parseDurationString parses a human-friendly duration string like "7d", "24h", "2w"
+func parseDurationString(s string) (time.Duration, error) {
+	if len(s) < 2 {
+		return 0, fmt.Errorf("duration too short")
+	}
+
+	unit := s[len(s)-1]
+	valueStr := s[:len(s)-1]
+
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number: %s", valueStr)
+	}
+
+	switch unit {
+	case 'h':
+		return time.Duration(value) * time.Hour, nil
+	case 'd':
+		return time.Duration(value) * 24 * time.Hour, nil
+	case 'w':
+		return time.Duration(value) * 7 * 24 * time.Hour, nil
+	default:
+		return 0, fmt.Errorf("unknown unit: %c (use h, d, or w)", unit)
+	}
 }
 
 func (s *Server) handleShow(args map[string]interface{}) (interface{}, error) {

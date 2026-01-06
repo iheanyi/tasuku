@@ -343,7 +343,7 @@ func runDoctor() error {
 			"task tag":      {"tk_tag_add", "tk_tag_remove"},
 			"task field":    {"tk_field_set", "tk_field_remove"},
 			"task timer":    {"tk_timer_start", "tk_timer_stop", "tk_timer_status"},
-			"task archive":  {"tk_archive", "tk_archive_restore", "tk_archive_list"},
+			"task archive":  {"tk_archive", "tk_archive_restore", "tk_archive_list", "tk_archive_all"},
 			// Context commands
 			"learn":         {"tk_learn"},
 			"decide":        {"tk_decide"},

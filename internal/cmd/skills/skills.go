@@ -657,6 +657,55 @@ Promote learnings when they:
 3. Review promoted content for clarity
 4. Periodically audit context files for outdated learnings
 `,
+
+	"health": `---
+name: health
+description: Check project health with actionable recommendations. Use at session start, periodically, or when project feels stuck.
+---
+
+# Project Health Check
+
+Get a comprehensive health assessment with actionable recommendations.
+
+## Usage
+
+` + "```bash" + `
+tk health              # Human-readable health report
+tk health -f json      # JSON output for programmatic use
+tk health -f yaml      # YAML output
+` + "```" + `
+
+## What It Checks
+
+1. **Stale in_progress tasks**: Tasks not updated in 24+ hours
+2. **High-priority blocked tasks**: Critical/high tasks that can't proceed
+3. **Long-running timers**: Timers active for 4+ hours
+4. **Old done tasks**: Completed tasks ready for archival (7+ days)
+5. **Rule learnings**: Never/always patterns ready for promotion
+
+## Health Score
+
+The health score (0-100) indicates project state:
+- **80-100**: Healthy - everything running smoothly
+- **50-79**: Needs attention - some issues to address
+- **0-49**: Unhealthy - significant blockers
+
+## Recommendations
+
+Each issue comes with an actionable recommendation:
+- STALE: Update or pause in_progress tasks
+- BLOCKED: Unblock high-priority tasks
+- TIMERS: Stop inactive timers
+- ARCHIVE: Clean up old done tasks
+- PROMOTE: Move rule learnings to permanent docs
+
+## Best Practices
+
+1. Run ` + "`tk health`" + ` at the start of each session
+2. Address critical issues before starting new work
+3. Keep health score above 80 for optimal workflow
+4. Archive completed tasks regularly to reduce clutter
+`,
 }
 
 func getSkillsBaseDir(global bool) (string, error) {
