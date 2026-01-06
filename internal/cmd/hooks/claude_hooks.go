@@ -54,13 +54,16 @@ type ClaudeHook struct {
 
 const tasukuHookMarker = "# tasuku-hook"
 
-func getClaudeSettingsPath() string {
+func getClaudeSettingsPath(local bool) string {
+	if local {
+		return filepath.Join(".claude", "settings.json")
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".claude", "settings.json")
 }
 
-func readClaudeSettings() (map[string]interface{}, error) {
-	path := getClaudeSettingsPath()
+func readClaudeSettings(local bool) (map[string]interface{}, error) {
+	path := getClaudeSettingsPath(local)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -76,8 +79,8 @@ func readClaudeSettings() (map[string]interface{}, error) {
 	return settings, nil
 }
 
-func writeClaudeSettings(settings map[string]interface{}) error {
-	path := getClaudeSettingsPath()
+func writeClaudeSettings(settings map[string]interface{}, local bool) error {
+	path := getClaudeSettingsPath(local)
 
 	// Ensure directory exists
 	dir := filepath.Dir(path)
@@ -117,8 +120,9 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 // installClaudeHooks installs Tasuku hooks in Claude Code settings.
 // If force is true, existing Tasuku hooks will be replaced.
 // If force is false and hooks already exist, they will be skipped with a message.
-func installClaudeHooks(force bool) error {
-	settings, err := readClaudeSettings()
+// If local is true, installs to ./.claude/settings.json instead of ~/.claude/settings.json.
+func installClaudeHooks(force, local bool) error {
+	settings, err := readClaudeSettings(local)
 	if err != nil {
 		return err
 	}
@@ -227,11 +231,15 @@ func installClaudeHooks(force bool) error {
 
 	settings["hooks"] = hooks
 
-	if err := writeClaudeSettings(settings); err != nil {
+	if err := writeClaudeSettings(settings, local); err != nil {
 		return err
 	}
 
-	fmt.Printf("Installed %d Tasuku hook(s) in Claude Code:\n", installedCount)
+	location := "global"
+	if local {
+		location = "project"
+	}
+	fmt.Printf("Installed %d Tasuku hook(s) in Claude Code (%s):\n", installedCount, location)
 	fmt.Println("  - PostToolUse/ExitPlanMode: prompts to sync plan to tasks")
 	fmt.Println()
 	fmt.Println("Restart Claude Code for hooks to take effect.")
@@ -241,8 +249,9 @@ func installClaudeHooks(force bool) error {
 
 // uninstallClaudeHooks removes Tasuku hooks from Claude Code settings.
 // Other hooks configured by the user are preserved.
-func uninstallClaudeHooks() error {
-	settings, err := readClaudeSettings()
+// If local is true, removes from ./.claude/settings.json instead of ~/.claude/settings.json.
+func uninstallClaudeHooks(local bool) error {
+	settings, err := readClaudeSettings(local)
 	if err != nil {
 		return err
 	}
@@ -311,11 +320,15 @@ func uninstallClaudeHooks() error {
 		settings["hooks"] = hooks
 	}
 
-	if err := writeClaudeSettings(settings); err != nil {
+	if err := writeClaudeSettings(settings, local); err != nil {
 		return err
 	}
 
-	fmt.Printf("Removed %d Tasuku hook(s) from Claude Code.\n", removedCount)
+	location := "global"
+	if local {
+		location = "project"
+	}
+	fmt.Printf("Removed %d Tasuku hook(s) from Claude Code (%s).\n", removedCount, location)
 	fmt.Println("Restart Claude Code for changes to take effect.")
 
 	return nil

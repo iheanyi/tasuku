@@ -62,23 +62,26 @@ func newInstallCmd() *cobra.Command {
 
 By default, installs all hooks. Use flags to install specific hooks only.
 
-Git hooks:
+Git hooks (always local to .git/hooks/):
   - pre-commit: Validates Tasuku storage before commits
   - post-commit: Suggests task status updates based on commit messages
 
-Claude Code hooks:
+Claude Code hooks (global ~/.claude/ by default, or local ./.claude/ with --local):
   - ExitPlanMode: Prompts to sync plan to Tasuku tasks
 
 Examples:
-  tk hooks install           # Install all hooks (git + claude)
+  tk hooks install           # Git (local) + Claude (global)
+  tk hooks install --local   # Git (local) + Claude (local to project)
   tk hooks install --git     # Install only git hooks
-  tk hooks install --claude  # Install only Claude Code hooks`,
+  tk hooks install --claude  # Install only Claude Code hooks (global)
+  tk hooks install --claude --local  # Claude hooks local to project`,
 		RunE: runInstall,
 	}
 
 	cmd.Flags().Bool("git", false, "Install git hooks only")
 	cmd.Flags().Bool("claude", false, "Install Claude Code hooks only")
 	cmd.Flags().Bool("force", false, "Overwrite existing hooks")
+	cmd.Flags().Bool("local", false, "Install Claude hooks to project .claude/ instead of global")
 
 	return cmd
 }
@@ -92,14 +95,16 @@ func newUninstallCmd() *cobra.Command {
 By default, removes all hooks. Use flags to remove specific hooks only.
 
 Examples:
-  tk hooks uninstall           # Remove all hooks
-  tk hooks uninstall --git     # Remove only git hooks
-  tk hooks uninstall --claude  # Remove only Claude Code hooks`,
+  tk hooks uninstall                  # Remove all hooks
+  tk hooks uninstall --git            # Remove only git hooks
+  tk hooks uninstall --claude         # Remove Claude Code hooks (global)
+  tk hooks uninstall --claude --local # Remove Claude Code hooks (project)`,
 		RunE: runUninstall,
 	}
 
 	cmd.Flags().Bool("git", false, "Remove git hooks only")
 	cmd.Flags().Bool("claude", false, "Remove Claude Code hooks only")
+	cmd.Flags().Bool("local", false, "Remove Claude hooks from project .claude/ instead of global")
 
 	return cmd
 }
@@ -108,6 +113,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	gitOnly, _ := cmd.Flags().GetBool("git")
 	claudeOnly, _ := cmd.Flags().GetBool("claude")
 	force, _ := cmd.Flags().GetBool("force")
+	local, _ := cmd.Flags().GetBool("local")
 
 	// If neither specified, install all
 	installGit := !claudeOnly || gitOnly
@@ -128,7 +134,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	if installClaude {
-		if err := installClaudeHooks(force); err != nil {
+		if err := installClaudeHooks(force, local); err != nil {
 			errors = append(errors, fmt.Sprintf("claude: %v", err))
 		}
 	}
@@ -143,6 +149,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 func runUninstall(cmd *cobra.Command, args []string) error {
 	gitOnly, _ := cmd.Flags().GetBool("git")
 	claudeOnly, _ := cmd.Flags().GetBool("claude")
+	local, _ := cmd.Flags().GetBool("local")
 
 	// If neither specified, uninstall all
 	uninstallGit := !claudeOnly || gitOnly
@@ -163,7 +170,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	}
 
 	if uninstallClaude {
-		if err := uninstallClaudeHooks(); err != nil {
+		if err := uninstallClaudeHooks(local); err != nil {
 			errors = append(errors, fmt.Sprintf("claude: %v", err))
 		}
 	}

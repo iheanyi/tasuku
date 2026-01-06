@@ -448,14 +448,20 @@ Tasuku provides hooks for automating task management workflows with git and Clau
 ### Installation
 
 ```bash
-# Install all hooks (git + Claude Code)
+# Install all hooks (git local + Claude global)
 tk hooks install
+
+# Install Claude hooks to project instead of global
+tk hooks install --local
 
 # Install only git hooks
 tk hooks install --git
 
-# Install only Claude Code hooks
+# Install only Claude Code hooks (global)
 tk hooks install --claude
+
+# Install Claude hooks to project .claude/
+tk hooks install --claude --local
 
 # Overwrite existing hooks
 tk hooks install --force
@@ -463,12 +469,18 @@ tk hooks install --force
 
 ### Git Hooks
 
+Git hooks are always installed locally to `.git/hooks/`:
+
 - **pre-commit**: Validates task files before committing
 - **post-commit**: Auto-updates task status based on commit messages
 
 ### Claude Code Hooks
 
+Claude hooks can be global (`~/.claude/settings.json`) or local (`./.claude/settings.json`):
+
 - **ExitPlanMode**: Syncs tasks when Claude exits plan mode, extracting tasks from plan files
+
+Use `--local` to install to project `.claude/` for project-specific configuration.
 
 ### Additional Commands
 
@@ -481,6 +493,12 @@ tk hooks session
 
 # Remove all hooks
 tk hooks uninstall
+
+# Remove only Claude hooks (global)
+tk hooks uninstall --claude
+
+# Remove project-level Claude hooks
+tk hooks uninstall --claude --local
 ```
 
 ## Data Format
