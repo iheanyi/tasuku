@@ -244,6 +244,15 @@ func outputTaskDetail(id string, t task.Task, notes []task.Note, allTasks map[st
 				fmt.Printf("  %s: %s\n", k, v)
 			}
 		}
+		// Show time spent if any
+		if duration := t.CurrentDuration(); duration > 0 {
+			fmt.Printf("Time spent:  %s\n", formatDuration(duration))
+			if t.TimerStart != nil {
+				fmt.Printf("Timer:       running (started %s)\n", formatRelativeTime(*t.TimerStart))
+			}
+		} else if t.TimerStart != nil {
+			fmt.Printf("Timer:       running (started %s)\n", formatRelativeTime(*t.TimerStart))
+		}
 		fmt.Printf("Created:     %s\n", t.CreatedAt.Format(time.RFC3339))
 		fmt.Printf("Updated:     %s\n", t.UpdatedAt.Format(time.RFC3339))
 
