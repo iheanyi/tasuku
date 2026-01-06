@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/iheanyi/tasuku/internal/store"
@@ -65,6 +66,9 @@ type Model struct {
 	err          error
 	sortMode     SortMode     // current sort mode
 	statusFilter StatusFilter // current status filter
+
+	// Markdown renderer for rich content
+	mdRenderer *glamour.TermRenderer
 
 	// Confirmation dialog state
 	confirmAction  string // what action to confirm (e.g., "archive", "bulk_archive")
@@ -255,11 +259,18 @@ func New(s store.Storage) (*Model, error) {
 		progress.WithoutPercentage(),
 	)
 
+	// Initialize markdown renderer for rich content display
+	mdRenderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(80),
+	)
+
 	m := &Model{
-		store:    s,
-		file:     f,
-		view:     ViewDashboard,
-		progress: prog,
+		store:      s,
+		file:       f,
+		view:       ViewDashboard,
+		progress:   prog,
+		mdRenderer: mdRenderer,
 	}
 
 	m.initTaskList()
@@ -1175,13 +1186,22 @@ func (m Model) viewTaskDetail() string {
 	b.WriteString(fmt.Sprintf("Priority: %s %s\n", PrioritySymbol(t.GetPriority()), task.PriorityName(t.GetPriority())))
 	b.WriteString("\n")
 
-	// Description
+	// Description (render as Markdown if renderer available)
 	sectionStyle := lipgloss.NewStyle().
 		Foreground(ColorAccent).
 		Bold(true)
 	b.WriteString(sectionStyle.Render("Description"))
 	b.WriteString("\n")
-	b.WriteString(t.Description)
+	if m.mdRenderer != nil && containsMarkdown(t.Description) {
+		rendered, err := m.mdRenderer.Render(t.Description)
+		if err == nil {
+			b.WriteString(strings.TrimSpace(rendered))
+		} else {
+			b.WriteString(t.Description)
+		}
+	} else {
+		b.WriteString(t.Description)
+	}
 	b.WriteString("\n\n")
 
 	// Timer
@@ -1298,6 +1318,36 @@ func generateTaskID(desc string) string {
 	return result
 }
 
+// containsMarkdown checks if text contains Markdown formatting.
+// Returns true if there are indicators like headers, code blocks, emphasis, etc.
+func containsMarkdown(text string) bool {
+	// Check for common Markdown patterns
+	patterns := []string{
+		"```",  // Code blocks
+		"**",   // Bold
+		"__",   // Bold
+		"*",    // Italic (if single)
+		"_",    // Italic (if single)
+		"# ",   // Headers
+		"## ",  // Headers
+		"- ",   // Lists
+		"* ",   // Lists
+		"1. ",  // Ordered lists
+		"[",    // Links
+		"`",    // Inline code
+		"> ",   // Blockquotes
+		"---",  // Horizontal rule
+		"***",  // Horizontal rule
+	}
+
+	for _, p := range patterns {
+		if strings.Contains(text, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m Model) viewCreate() string {
 	modal := m.renderModal(
 		"New Task",
@@ -1338,7 +1388,15 @@ func (m Model) viewNotes() string {
 		))
 	} else {
 		for i, n := range notes {
-			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, n.Text))
+			// Render note text as Markdown if it contains formatting
+			noteText := n.Text
+			if m.mdRenderer != nil && containsMarkdown(noteText) {
+				rendered, err := m.mdRenderer.Render(noteText)
+				if err == nil {
+					noteText = strings.TrimSpace(rendered)
+				}
+			}
+			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, noteText))
 			b.WriteString(fmt.Sprintf("     %s\n", HelpStyle.Render(n.CreatedAt.Format("2006-01-02 15:04"))))
 		}
 	}

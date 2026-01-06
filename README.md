@@ -11,8 +11,9 @@ Traditional task management is built for humans pushing updates. Tasuku flips th
 - **Pull over push**: Agents query when needed, no constant context injections
 - **Parallel-safe**: Per-file locking for multiple agents working simultaneously
 - **Minimal context**: Only load what's needed for the current task
-- **Human-readable**: JSON files in `.tasuku/` directory, can be edited by hand
+- **Human-readable**: Markdown files with YAML frontmatter (V4), can be edited by hand
 - **Git-friendly**: One file per task means clean diffs and fewer merge conflicts
+- **Rich content**: Full Markdown support with code blocks, lists, and formatting
 
 ## Installation
 
@@ -65,7 +66,7 @@ tk task list --format json    # Output as JSON
 
 | Command | Description |
 |---------|-------------|
-| `tk init` | Create `.tasuku/` directory (V3 format) |
+| `tk init` | Create `.tasuku/` directory (V4 Markdown format) |
 | `tk task list` | List all tasks (use `--status` to filter) |
 | `tk task list --tree` | Show hierarchical subtask view |
 | `tk task add "description"` | Add a new task |
@@ -152,7 +153,8 @@ tk task list --format json    # Output as JSON
 | `tk mcp install` | Install MCP server in Claude Code (global) |
 | `tk mcp install --local` | Install MCP to project .claude.json |
 | `tk mcp uninstall` | Remove MCP server from Claude Code |
-| `tk migrate v3` | Migrate from V2 (.tasuku.json) to V3 (.tasuku/) |
+| `tk migrate v3` | Migrate from V2 (.tasuku.json) to V3 (.tasuku/ JSON) |
+| `tk migrate v4` | Migrate from V3 to V4 (.tasuku/ Markdown) |
 | `tk migrate beads` | Migrate from Beads format |
 | `tk migrate beads --dry-run` | Preview migration without changes |
 | `tk skills install` | Install Claude Code slash command skills |
@@ -535,14 +537,60 @@ tk hooks uninstall --claude --local
 
 ## Data Format
 
-### V3 Format (Default)
+### V4 Format (Default)
 
-Tasuku stores tasks in the `.tasuku/` directory:
+Tasuku stores tasks as Markdown files with YAML frontmatter in the `.tasuku/` directory:
 
 ```
 .tasuku/
 ├── tasks/
-│   └── task-id.json        # One file per task
+│   └── task-id.md          # Markdown file per task
+├── archive/
+│   └── old-task.md         # Archived tasks
+├── context/
+│   ├── learnings.md        # Learnings in Markdown
+│   └── decisions.md        # Decisions in Markdown
+├── config.json             # Version marker (version: 4)
+└── index.json              # Auto-generated index for fast queries
+```
+
+**Task file** (`.tasuku/tasks/task-id.md`):
+```markdown
+---
+status: ready
+priority: 2
+tags: [backend, api]
+blocked_by: []
+created_at: 2024-01-04T10:00:00Z
+updated_at: 2024-01-04T10:00:00Z
+---
+
+# Implement user authentication
+
+Add JWT-based authentication to protect API endpoints.
+
+Support **rich formatting**, `inline code`, and code blocks:
+
+```go
+func ValidateToken(token string) (*Claims, error) {
+    // Implementation
+}
+```
+
+## Notes
+
+### 2024-01-04 11:00 [abc123]
+Started investigating authentication middleware options.
+```
+
+### V3 Format (Legacy JSON)
+
+Directory-based JSON format. Use `tk migrate v4` to upgrade.
+
+```
+.tasuku/
+├── tasks/
+│   └── task-id.json        # JSON file per task
 ├── archive/
 │   └── old-task.json       # Completed/archived tasks
 └── context/
@@ -550,26 +598,10 @@ Tasuku stores tasks in the `.tasuku/` directory:
     └── decisions.json      # Array of decisions
 ```
 
-**Task file** (`.tasuku/tasks/task-id.json`):
-```json
-{
-  "status": "ready",
-  "description": "What needs to be done",
-  "priority": 2,
-  "parent_id": null,
-  "blocked_by": [],
-  "owner": null,
-  "tags": ["backend"],
-  "notes": [{"text": "Note 1", "created_at": "..."}],
-  "created_at": "2024-01-04T10:00:00Z",
-  "updated_at": "2024-01-04T10:00:00Z"
-}
-```
-
 ### V2 Format (Legacy)
 
 Single `.tasuku.json` file with all data. Auto-detected for backwards compatibility.
-Use `tk migrate v3` to upgrade.
+Use `tk migrate v3` then `tk migrate v4` to upgrade.
 
 ### Task Statuses
 
@@ -602,6 +634,18 @@ V3's per-file locking means agents working on different tasks never block each o
 
 ## Migration
 
+### From V3 to V4
+
+If you have an existing V3 `.tasuku/` directory with JSON files:
+
+```bash
+# Preview the migration
+tk migrate v4 --dry-run
+
+# Run the migration (creates backup in .tasuku.v3.bak/)
+tk migrate v4
+```
+
 ### From V2 to V3
 
 If you have an existing `.tasuku.json`:
@@ -612,6 +656,9 @@ tk migrate v3 --dry-run
 
 # Run the migration
 tk migrate v3
+
+# Then migrate to V4
+tk migrate v4
 ```
 
 ### From Beads

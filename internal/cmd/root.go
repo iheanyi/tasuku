@@ -27,6 +27,7 @@ import (
 	"github.com/iheanyi/tasuku/internal/cmd/ui"
 	"github.com/iheanyi/tasuku/internal/mcp"
 	"github.com/iheanyi/tasuku/internal/store"
+	"github.com/iheanyi/tasuku/internal/store/v4"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
@@ -121,39 +122,48 @@ var initCmd = &cobra.Command{
 	Short: "Initialize Tasuku in current directory",
 	Long: `Initialize a new Tasuku project in the current directory.
 
-Creates a .tasuku/ directory with:
-  - tasks/     Individual task JSON files (one per task)
-  - archive/   Completed tasks that have been archived
-  - context/   Learnings and decisions
+Creates a .tasuku/ directory with V4 Markdown format:
+  - tasks/              Individual task Markdown files with YAML frontmatter
+  - archive/            Completed tasks that have been archived
+  - context/learnings.md  Discovered insights and knowledge
+  - context/decisions.md  Documented architectural choices
+  - index.json          Auto-generated index for fast queries
 
 Benefits:
-  - One file per task = cleaner git diffs, fewer merge conflicts
-  - Human-readable JSON, can be edited directly
+  - Human-readable Markdown with rich formatting support
+  - Clean git diffs with one file per task
+  - Fast queries via auto-generated index.json
   - Safe for multiple agents working in parallel
 
-If you have a legacy .tasuku.json file, use 'tk migrate v3' to upgrade.
+If you have a legacy .tasuku.json file, use 'tk migrate v3' then 'tk migrate v4'.
 
 Examples:
-  tk init                    # Create .tasuku/ directory
+  tk init                    # Create .tasuku/ directory (V4 format)
   tk init && tk task add "Setup"  # Initialize and add first task`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Check if already initialized
 		storageType := store.DetectStorageType(".")
 		if storageType != store.StorageTypeNone {
-			if storageType == store.StorageTypeDir {
-				return fmt.Errorf(".tasuku/ directory already exists")
+			switch storageType {
+			case store.StorageTypeDirV4:
+				return fmt.Errorf(".tasuku/ directory already exists (V4 Markdown format)")
+			case store.StorageTypeDir:
+				return fmt.Errorf(".tasuku/ directory already exists (V3 JSON format) - run 'tk migrate v4' to upgrade")
+			default:
+				return fmt.Errorf(".tasuku.json already exists - run 'tk migrate v3' then 'tk migrate v4' to upgrade")
 			}
-			return fmt.Errorf(".tasuku.json already exists - run 'tk migrate v3' to upgrade")
 		}
 
-		s := store.NewDirStore(store.DirName)
+		s := v4.New(store.DirName)
 		if err := s.Init(); err != nil {
 			return err
 		}
-		fmt.Println("Created .tasuku/ directory")
-		fmt.Println("  tasks/    - Your task files")
-		fmt.Println("  archive/  - Archived completed tasks")
-		fmt.Println("  context/  - Learnings and decisions")
+		fmt.Println("Created .tasuku/ directory (V4 Markdown format)")
+		fmt.Println("  tasks/              - Task Markdown files with YAML frontmatter")
+		fmt.Println("  archive/            - Archived completed tasks")
+		fmt.Println("  context/learnings.md - Insights and knowledge")
+		fmt.Println("  context/decisions.md - Architectural decisions")
+		fmt.Println("  index.json          - Auto-generated index for fast queries")
 		fmt.Println()
 		fmt.Println("Tip: Commit .tasuku/ to git so tasks travel with your code.")
 		fmt.Println()
