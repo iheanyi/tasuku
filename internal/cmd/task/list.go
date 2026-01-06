@@ -30,6 +30,7 @@ Sort Order:
 Filtering:
   Use --status to show only tasks with a specific status.
   Use --tag to show only tasks with a specific tag.
+  Use --owner to show only tasks assigned to a specific owner.
 
 Tree View:
   Use --tree to show tasks in a hierarchical tree format,
@@ -40,12 +41,14 @@ Examples:
   tk task list -s ready        # Show only ready tasks
   tk task list --status done   # Show completed tasks
   tk task list --tag backend   # Show tasks with 'backend' tag
+  tk task list --owner alice   # Show tasks owned by alice
   tk task list -t bug -s ready # Combine filters
   tk task list -f json         # Output as JSON
   tk task list --tree          # Show tasks in tree view`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			status, _ := cmd.Flags().GetString("status")
 			tagFilter, _ := cmd.Flags().GetString("tag")
+			ownerFilter, _ := cmd.Flags().GetString("owner")
 			treeView, _ := cmd.Flags().GetBool("tree")
 
 			s := store.DefaultStorageWithWarning()
@@ -62,6 +65,11 @@ Examples:
 				}
 				if tagFilter != "" && !t.HasTag(tagFilter) {
 					continue
+				}
+				if ownerFilter != "" {
+					if t.Owner == nil || *t.Owner != ownerFilter {
+						continue
+					}
 				}
 				tasks = append(tasks, taskEntry{ID: id, Task: t})
 			}
@@ -93,6 +101,7 @@ Examples:
 
 	cmd.Flags().StringP("status", "s", "", "Filter by status: ready, in_progress, blocked, done")
 	cmd.Flags().StringP("tag", "t", "", "Filter by tag")
+	cmd.Flags().StringP("owner", "o", "", "Filter by owner")
 	cmd.Flags().Bool("tree", false, "Show tasks in tree view with subtasks indented")
 
 	return cmd
