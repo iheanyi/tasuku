@@ -911,6 +911,23 @@ func (s *Server) handleStart(args map[string]interface{}) (interface{}, error) {
 	id, _ := args["id"].(string)
 	startTimer, _ := args["start_timer"].(bool)
 
+	// Read current state for context
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check for other in_progress tasks (warning)
+	var otherInProgress []string
+	for taskID, t := range f.Tasks {
+		if t.Status == task.StatusInProgress && taskID != id {
+			otherInProgress = append(otherInProgress, taskID)
+		}
+	}
+
+	// Get notes for this task (context from previous sessions)
+	notes := f.Context.Notes[id]
+
 	if err := s.store.SetStatus(id, task.StatusInProgress); err != nil {
 		return nil, err
 	}
@@ -923,6 +940,25 @@ func (s *Server) handleStart(args map[string]interface{}) (interface{}, error) {
 		} else {
 			result["timer_started"] = true
 		}
+	}
+
+	// Add warnings and context
+	if len(otherInProgress) > 0 {
+		result["warning"] = fmt.Sprintf("You have %d other task(s) in_progress: %v. Consider pausing them with tk_pause.", len(otherInProgress), otherInProgress)
+	}
+
+	if len(notes) > 0 {
+		// Show recent notes for context
+		type noteInfo struct {
+			ID   string `json:"id"`
+			Text string `json:"text"`
+		}
+		var recentNotes []noteInfo
+		for i := len(notes) - 1; i >= 0 && i >= len(notes)-3; i-- {
+			recentNotes = append(recentNotes, noteInfo{ID: notes[i].ID, Text: notes[i].Text})
+		}
+		result["previous_notes"] = recentNotes
+		result["hint"] = "Review previous notes above for context from earlier sessions."
 	}
 
 	return result, nil
@@ -941,10 +977,58 @@ func (s *Server) handleDone(args map[string]interface{}) (interface{}, error) {
 		return nil, err
 	}
 
+	// Read updated state to find unblocked tasks
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	// Find tasks that were blocked by this task and are now unblocked
+	var nowUnblocked []string
+	for taskID, t := range f.Tasks {
+		if t.Status == task.StatusBlocked {
+			// Check if this task was the only blocker
+			allBlockersDone := true
+			wasBlockedByUs := false
+			for _, blockerID := range t.BlockedBy {
+				if blockerID == id {
+					wasBlockedByUs = true
+				}
+				if blocker, exists := f.Tasks[blockerID]; exists && blocker.Status != task.StatusDone {
+					allBlockersDone = false
+					break
+				}
+			}
+			if wasBlockedByUs && allBlockersDone {
+				nowUnblocked = append(nowUnblocked, taskID)
+			}
+		}
+	}
+
 	result := map[string]interface{}{"id": id, "status": "done"}
 	if wasRunning {
 		result["timer_stopped"] = true
 		result["elapsed"] = elapsed.String()
+	}
+
+	// Add smart suggestions
+	var hints []string
+
+	if len(nowUnblocked) > 0 {
+		result["unblocked_tasks"] = nowUnblocked
+		hints = append(hints, fmt.Sprintf("Completing this task unblocked %d task(s): %v", len(nowUnblocked), nowUnblocked))
+	}
+
+	// Check if task has notes worth reviewing for learnings
+	if notes := f.Context.Notes[id]; len(notes) > 0 {
+		hints = append(hints, "This task has notes - consider if any insights should be recorded as learnings with tk_learn.")
+	}
+
+	// Suggest archiving if appropriate
+	hints = append(hints, "Consider archiving with tk_archive if this task is fully verified and no longer needs visibility.")
+
+	if len(hints) > 0 {
+		result["hints"] = hints
 	}
 
 	return result, nil
@@ -1020,7 +1104,77 @@ func (s *Server) handleNote(args map[string]interface{}) (interface{}, error) {
 }
 
 func (s *Server) handleContext(args map[string]interface{}) (interface{}, error) {
-	return s.store.Read()
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate smart suggestions based on project state
+	var suggestions []string
+
+	// Count tasks by status
+	statusCounts := map[string]int{}
+	var highPriorityReady []string
+	var staleInProgress []string
+	now := time.Now()
+
+	for id, t := range f.Tasks {
+		statusCounts[string(t.Status)]++
+
+		// Find high-priority ready tasks
+		if t.Status == task.StatusReady && t.GetPriority() <= task.PriorityHigh {
+			highPriorityReady = append(highPriorityReady, id)
+		}
+
+		// Find stale in_progress tasks (>24h without update)
+		if t.Status == task.StatusInProgress && now.Sub(t.UpdatedAt) > 24*time.Hour {
+			staleInProgress = append(staleInProgress, id)
+		}
+	}
+
+	// Generate suggestions
+	if len(highPriorityReady) > 0 {
+		suggestions = append(suggestions, fmt.Sprintf("High-priority tasks ready: %v", highPriorityReady))
+	}
+
+	if len(staleInProgress) > 0 {
+		suggestions = append(suggestions, fmt.Sprintf("Stale in_progress tasks (>24h): %v - consider updating or pausing", staleInProgress))
+	}
+
+	if statusCounts["blocked"] > 3 {
+		suggestions = append(suggestions, fmt.Sprintf("%d blocked tasks - review blockers to unblock progress", statusCounts["blocked"]))
+	}
+
+	// Check for rule learnings that should be promoted
+	ruleCount := 0
+	for _, l := range f.Context.Learnings {
+		if l.IsRule {
+			ruleCount++
+		}
+	}
+	if ruleCount > 0 {
+		suggestions = append(suggestions, fmt.Sprintf("%d rule learnings ready for promotion to docs - use tk_learning_rules", ruleCount))
+	}
+
+	// Build enhanced response
+	result := map[string]interface{}{
+		"tasks":     f.Tasks,
+		"context":   f.Context,
+		"version":   f.Version,
+		"task_counts": map[string]int{
+			"ready":       statusCounts["ready"],
+			"in_progress": statusCounts["in_progress"],
+			"blocked":     statusCounts["blocked"],
+			"done":        statusCounts["done"],
+			"total":       len(f.Tasks),
+		},
+	}
+
+	if len(suggestions) > 0 {
+		result["suggestions"] = suggestions
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleTimerStart(args map[string]interface{}) (interface{}, error) {
