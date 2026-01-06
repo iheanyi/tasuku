@@ -544,6 +544,59 @@ func (s *DirStore) SetStatusAndRead(id string, status task.Status) (*task.File, 
 	return s.Read()
 }
 
+// MarkDoneAndUnblock marks a task as done and automatically unblocks any tasks
+// that were blocked by it. Returns the list of task IDs that were unblocked.
+func (s *DirStore) MarkDoneAndUnblock(id string) ([]string, error) {
+	// First, mark the task as done
+	if err := s.SetStatus(id, task.StatusDone); err != nil {
+		return nil, err
+	}
+
+	// Read all tasks to find which ones were blocked by this task
+	f, err := s.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	var unblocked []string
+	for taskID, t := range f.Tasks {
+		if t.Status != task.StatusBlocked {
+			continue
+		}
+
+		// Check if this task was blocked by the completed task
+		wasBlockedByUs := false
+		for _, blockerID := range t.BlockedBy {
+			if blockerID == id {
+				wasBlockedByUs = true
+				break
+			}
+		}
+
+		if !wasBlockedByUs {
+			continue
+		}
+
+		// Check if all blockers are now done
+		allBlockersDone := true
+		for _, blockerID := range t.BlockedBy {
+			if blocker, exists := f.Tasks[blockerID]; exists && blocker.Status != task.StatusDone {
+				allBlockersDone = false
+				break
+			}
+		}
+
+		if allBlockersDone {
+			// Unblock this task
+			if err := s.UnblockTask(taskID); err == nil {
+				unblocked = append(unblocked, taskID)
+			}
+		}
+	}
+
+	return unblocked, nil
+}
+
 // SetDescription updates a task's description.
 func (s *DirStore) SetDescription(id string, description string) error {
 	return s.updateTask(id, func(t *task.Task) error {
@@ -564,8 +617,11 @@ func (s *DirStore) SetPriority(id string, priority int) error {
 
 // BlockTask marks a task as blocked.
 func (s *DirStore) BlockTask(id string, blockers []string) error {
-	// Verify blockers exist
+	// Verify blockers exist and prevent self-blocking
 	for _, blocker := range blockers {
+		if blocker == id {
+			return fmt.Errorf("store: task %q cannot block itself", id)
+		}
 		if _, err := os.Stat(s.taskPath(blocker)); os.IsNotExist(err) {
 			return fmt.Errorf("store: blocker task %q not found", blocker)
 		}
