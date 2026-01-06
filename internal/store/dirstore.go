@@ -535,6 +535,15 @@ func (s *DirStore) SetStatus(id string, status task.Status) error {
 	})
 }
 
+// SetStatusAndRead sets a task's status and returns the updated file.
+// This avoids a redundant Read() call when you need the file state after setting status.
+func (s *DirStore) SetStatusAndRead(id string, status task.Status) (*task.File, error) {
+	if err := s.SetStatus(id, status); err != nil {
+		return nil, err
+	}
+	return s.Read()
+}
+
 // SetDescription updates a task's description.
 func (s *DirStore) SetDescription(id string, description string) error {
 	return s.updateTask(id, func(t *task.Task) error {

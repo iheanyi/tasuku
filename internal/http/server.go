@@ -947,7 +947,11 @@ func (s *Server) calculateStats() (DashboardStats, error) {
 	if err != nil {
 		return DashboardStats{}, err
 	}
+	return s.calculateStatsFromFile(f), nil
+}
 
+// calculateStatsFromFile computes stats from a pre-read file (avoids extra I/O).
+func (s *Server) calculateStatsFromFile(f *task.File) DashboardStats {
 	stats := DashboardStats{}
 	for _, t := range f.Tasks {
 		stats.Total++
@@ -970,7 +974,7 @@ func (s *Server) calculateStats() (DashboardStats, error) {
 		stats.DonePercent = float64(stats.Done) / float64(stats.Total) * 100
 	}
 
-	return stats, nil
+	return stats
 }
 
 // getTaskViews returns task views, optionally filtered by status.
@@ -979,7 +983,11 @@ func (s *Server) getTaskViews(statusFilter string) ([]TaskView, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.getTaskViewsFromFile(f, statusFilter), nil
+}
 
+// getTaskViewsFromFile returns task views from a pre-read file (avoids extra I/O).
+func (s *Server) getTaskViewsFromFile(f *task.File, statusFilter string) []TaskView {
 	var tasks []TaskView
 	for id, t := range f.Tasks {
 		if statusFilter != "" && string(t.Status) != statusFilter {
@@ -1024,7 +1032,7 @@ func (s *Server) getTaskViews(statusFilter string) ([]TaskView, error) {
 		return tasks[i].CreatedAt.Before(tasks[j].CreatedAt)
 	})
 
-	return tasks, nil
+	return tasks
 }
 
 // getArchivedViews returns archived task views.
@@ -1058,6 +1066,7 @@ func (s *Server) getArchivedViews() ([]ArchivedView, error) {
 }
 
 // handleDashboard serves the main dashboard page.
+// Optimized: single store.Read() + parallel archived fetch.
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// Only handle root path
 	if r.URL.Path != "/" {
@@ -1065,21 +1074,32 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := s.calculateStats()
+	// Single read for tasks - calculateStats and getTaskViews share this
+	f, err := s.store.Read()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	tasks, err := s.getTaskViews("")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	// Start archived fetch in parallel (separate I/O operation)
+	type archivedResult struct {
+		views []ArchivedView
+		err   error
 	}
+	archivedCh := make(chan archivedResult, 1)
+	go func() {
+		views, err := s.getArchivedViews()
+		archivedCh <- archivedResult{views, err}
+	}()
 
-	archived, err := s.getArchivedViews()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Calculate stats and task views from shared file (no extra I/O)
+	stats := s.calculateStatsFromFile(f)
+	tasks := s.getTaskViewsFromFile(f, "")
+
+	// Wait for archived result
+	archivedRes := <-archivedCh
+	if archivedRes.err != nil {
+		http.Error(w, archivedRes.err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -1087,7 +1107,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		Title:    "Dashboard",
 		Stats:    stats,
 		Tasks:    tasks,
-		Archived: archived,
+		Archived: archivedRes.views,
 		Filter:   "",
 	}
 

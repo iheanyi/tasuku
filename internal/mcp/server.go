@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -1008,12 +1009,8 @@ func (s *Server) handleDone(args map[string]interface{}) (interface{}, error) {
 		return nil, err
 	}
 
-	if err := s.store.SetStatus(id, task.StatusDone); err != nil {
-		return nil, err
-	}
-
-	// Read updated state to find unblocked tasks
-	f, err := s.store.Read()
+	// SetStatusAndRead combines setting status + reading file (avoids redundant read)
+	f, err := s.store.SetStatusAndRead(id, task.StatusDone)
 	if err != nil {
 		return nil, err
 	}
@@ -1880,14 +1877,10 @@ func (s *Server) handleReady(args map[string]interface{}) (interface{}, error) {
 		}
 	}
 
-	// Sort by priority (lower number = higher priority)
-	for i := 0; i < len(results)-1; i++ {
-		for j := i + 1; j < len(results); j++ {
-			if results[j].Priority < results[i].Priority {
-				results[i], results[j] = results[j], results[i]
-			}
-		}
-	}
+	// Sort by priority (lower number = higher priority) - O(n log n) vs O(n²) bubble sort
+	slices.SortFunc(results, func(a, b readyTask) int {
+		return a.Priority - b.Priority
+	})
 
 	// Build response with stats
 	response := map[string]interface{}{
