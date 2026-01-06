@@ -320,6 +320,7 @@ func runDoctor() error {
 
 		// Define expected MCP tools for CLI commands
 		cliToMCP := map[string][]string{
+			// Task commands
 			"task list":     {"tk_list"},
 			"task add":      {"tk_add"},
 			"task show":     {"tk_show"},
@@ -335,14 +336,33 @@ func runDoctor() error {
 			"task owner":    {"tk_owner"},
 			"task claim":    {"tk_claim"},
 			"task release":  {"tk_release"},
+			"task ready":    {"tk_ready"},
+			"task who":      {"tk_who"},
+			"task deps":     {"tk_deps"},
+			"task stats":    {"tk_stats"},
 			"task tag":      {"tk_tag_add", "tk_tag_remove"},
 			"task field":    {"tk_field_set", "tk_field_remove"},
 			"task timer":    {"tk_timer_start", "tk_timer_stop", "tk_timer_status"},
 			"task archive":  {"tk_archive", "tk_archive_restore", "tk_archive_list"},
-			"context learn": {"tk_learn"},
-			"context decide":{"tk_decide"},
-			"context note":  {"tk_note"},
+			// Context commands
+			"learn":         {"tk_learn"},
+			"decide":        {"tk_decide"},
+			"note":          {"tk_note"},
 			"context show":  {"tk_context"},
+			// Learning management
+			"learning list":    {"tk_learning_list"},
+			"learning promote": {"tk_learning_promote"},
+			"learning remove":  {"tk_learning_remove"},
+			"learning rules":   {"tk_learning_rules"},
+			// Decision management
+			"decision list":   {"tk_decision_list"},
+			"decision remove": {"tk_decision_remove"},
+			// Note management
+			"note list":   {"tk_note_list"},
+			"note remove": {"tk_note_remove"},
+			// Root commands
+			"suggest": {"tk_suggest"},
+			"health":  {"tk_health"},
 		}
 
 		missingTools := []string{}
