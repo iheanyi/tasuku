@@ -239,19 +239,40 @@ type Learning struct {
 func IsRuleLearning(text string) bool {
 	lower := strings.ToLower(strings.TrimSpace(text))
 
-	// Check if starts with never/always
-	if strings.HasPrefix(lower, "never ") || strings.HasPrefix(lower, "always ") {
-		return true
+	// Strong rule indicators - phrases that clearly indicate a rule
+	ruleStartPhrases := []string{
+		"never ", "always ", "avoid ", "prefer ", "ensure ", "must ",
+		"don't ", "do not ", "make sure ", "be sure to ", "remember to ",
+	}
+	for _, phrase := range ruleStartPhrases {
+		if strings.HasPrefix(lower, phrase) {
+			return true
+		}
 	}
 
-	// Check for never/always as key words in the text
-	// Look for patterns like "you should never", "must always", etc.
+	// Rule phrases that can appear anywhere in text
+	ruleContainsPhrases := []string{
+		"should never", "should always", "must always", "must never",
+		"when possible", "where possible", "whenever possible",
+		"don't forget", "make sure to", "be careful to",
+		"it's important to", "critical to", "essential to",
+		"best practice", "anti-pattern", "code smell",
+	}
+	for _, phrase := range ruleContainsPhrases {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+
+	// Single keywords that indicate rules
+	ruleKeywords := []string{"never", "always", "must", "shall"}
 	words := strings.Fields(lower)
 	for _, word := range words {
-		// Clean punctuation from word
 		word = strings.Trim(word, ".,;:!?\"'")
-		if word == "never" || word == "always" {
-			return true
+		for _, keyword := range ruleKeywords {
+			if word == keyword {
+				return true
+			}
 		}
 	}
 

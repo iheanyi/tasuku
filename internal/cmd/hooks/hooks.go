@@ -373,6 +373,27 @@ func hookSession() error {
 		fmt.Printf("Decisions: %d recorded\n", len(f.Context.Decisions))
 	}
 
+	// Surface rules at session start (limit to avoid noise)
+	var rules []task.Learning
+	for _, l := range f.Context.Learnings {
+		if l.IsRule {
+			rules = append(rules, l)
+		}
+	}
+	const maxRulesToShow = 7
+	if len(rules) > 0 && len(rules) <= maxRulesToShow {
+		fmt.Printf("\nActive rules (%d):\n", len(rules))
+		for _, r := range rules {
+			text := r.Text
+			if len(text) > 70 {
+				text = text[:67] + "..."
+			}
+			fmt.Printf("  - %s\n", text)
+		}
+	} else if len(rules) > maxRulesToShow {
+		fmt.Printf("\nActive rules: %d (run 'tk learning rules' to see all)\n", len(rules))
+	}
+
 	if highestPriority != nil {
 		t := f.Tasks[*highestPriority]
 		fmt.Printf("\nNext task: %s\n  %s\n", *highestPriority, t.Description)

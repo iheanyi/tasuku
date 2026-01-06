@@ -210,7 +210,33 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 	if isRule {
 		fmt.Printf("Learning added [%s] [RULE]\n", id)
-		fmt.Println("Hint: Consider promoting this rule to permanent docs with: tk learning promote", id)
+
+		// Surface rules when a new one is added (limit to avoid noise)
+		f, err := s.Read()
+		if err == nil {
+			var ruleCount int
+			for _, l := range f.Context.Learnings {
+				if l.IsRule {
+					ruleCount++
+				}
+			}
+			const maxRulesToShow = 7
+			if ruleCount > 1 && ruleCount <= maxRulesToShow {
+				fmt.Printf("\nActive rules (%d):\n", ruleCount)
+				for _, l := range f.Context.Learnings {
+					if l.IsRule {
+						text := l.Text
+						if len(text) > 70 {
+							text = text[:67] + "..."
+						}
+						fmt.Printf("  [%s] %s\n", l.ID, text)
+					}
+				}
+			} else if ruleCount > maxRulesToShow {
+				fmt.Printf("\nActive rules: %d (run 'tk learning rules' to see all)\n", ruleCount)
+			}
+		}
+		fmt.Println("\nHint: Promote rules to permanent docs with: tk learning promote", id)
 	} else {
 		fmt.Printf("Learning added [%s]\n", id)
 	}

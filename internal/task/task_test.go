@@ -263,11 +263,35 @@ func TestIsRuleLearning(t *testing.T) {
 		{"You should never, ever skip tests", true},
 		{"Always! Check for nil pointers", true},
 
+		// New rule start phrases
+		{"Avoid using global variables", true},
+		{"Prefer composition over inheritance", true},
+		{"Ensure all errors are handled", true},
+		{"Must validate input before processing", true},
+		{"Don't use magic numbers", true},
+		{"Do not commit secrets to version control", true},
+		{"Make sure tests pass before merging", true},
+		{"Be sure to close file handles", true},
+		{"Remember to update the changelog", true},
+
+		// Rule phrases that appear in text
+		{"Use batch operations when possible", true},
+		{"Parallelize I/O where possible", true},
+		{"Cache results whenever possible", true},
+		{"Don't forget to run linter", true},
+		{"Make sure to update docs", true},
+		{"Be careful to handle edge cases", true},
+		{"It's important to test edge cases", true},
+		{"It's critical to validate input", true},
+		{"It's essential to log errors", true},
+		{"This is a best practice for Go", true},
+		{"Using eval is an anti-pattern", true},
+		{"Nested callbacks are a code smell", true},
+
 		// Edge cases - should NOT match
 		{"Redis connection pooling improves performance", false},
 		{"The cache expires every 24 hours", false},
 		{"Use indexes for frequent queries", false},
-		{"Whenever possible, use batch operations", false}, // "Whenever" is not "never"
 		{"This is a general learning", false},
 		{"", false},
 		{"   ", false},
