@@ -11,26 +11,27 @@ import (
 
 func newBlockCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "block <task-id>",
-		Short: "Mark task as blocked",
-		Long: `Mark a task as blocked by one or more other tasks.
+		Use:   "block <task-id> [task-id...]",
+		Short: "Mark task(s) as blocked",
+		Long: `Mark one or more tasks as blocked by other tasks.
 
 Use the --by flag to specify which tasks are blocking.
 
 Examples:
   tk task block my-task --by other-task
-  tk task block my-task --by task-a,task-b`,
-		Args: cobra.ExactArgs(1),
+  tk task block my-task --by task-a,task-b
+  tk task block task-1 task-2 --by blocker     # Block multiple tasks`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			taskID := args[0]
 			blockers, _ := cmd.Flags().GetStringSlice("by")
 			s := store.DefaultStorageWithWarning()
 
-			if err := s.BlockTask(taskID, blockers); err != nil {
-				return err
+			for _, taskID := range args {
+				if err := s.BlockTask(taskID, blockers); err != nil {
+					return fmt.Errorf("%s: %w", taskID, err)
+				}
+				fmt.Printf("Blocked: %s (by: %s)\n", taskID, strings.Join(blockers, ", "))
 			}
-
-			fmt.Printf("Blocked: %s (by: %s)\n", taskID, strings.Join(blockers, ", "))
 			return nil
 		},
 	}
