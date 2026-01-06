@@ -314,7 +314,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_field_set",
-			Description: "Set a custom field on a task (key-value metadata).",
+			Description: "Set a custom field on a task for structured metadata. Use PROACTIVELY for: (1) Tracking estimates - field 'estimate' with hours/points, (2) Categorization - field 'component' or 'area' for code area, (3) External references - field 'pr', 'issue', or 'commit' for links, (4) Implementation approach - field 'approach' for strategy decisions, (5) Review tracking - field 'needs_review' or 'reviewer'. Fields persist across sessions and enable structured reporting.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "key", "value"},
@@ -325,7 +325,7 @@ func (s *Server) Tools() []Tool {
 					},
 					"key": map[string]interface{}{
 						"type":        "string",
-						"description": "Field name",
+						"description": "Field name (e.g., 'estimate', 'component', 'pr', 'approach', 'reviewer')",
 					},
 					"value": map[string]interface{}{
 						"type":        "string",
@@ -336,7 +336,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_field_remove",
-			Description: "Remove a custom field from a task.",
+			Description: "Remove a custom field from a task. Use when field is no longer relevant or was set incorrectly.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "key"},
