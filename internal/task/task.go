@@ -265,11 +265,12 @@ func IsRuleLearning(text string) bool {
 		}
 	}
 
-	// Single keywords that indicate rules
+	// Single keywords that indicate rules - strip all punctuation
 	ruleKeywords := []string{"never", "always", "must", "shall"}
 	words := strings.Fields(lower)
 	for _, word := range words {
-		word = strings.Trim(word, ".,;:!?\"'")
+		// Strip ALL common punctuation including parentheses, brackets, etc.
+		word = strings.Trim(word, ".,;:!?\"'()[]{}*_~`<>")
 		for _, keyword := range ruleKeywords {
 			if word == keyword {
 				return true

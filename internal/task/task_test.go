@@ -262,6 +262,9 @@ func TestIsRuleLearning(t *testing.T) {
 		// With punctuation around the keywords
 		{"You should never, ever skip tests", true},
 		{"Always! Check for nil pointers", true},
+		{"Do this (always)", true},           // Parentheses around keyword
+		{"Use [always] this approach", true}, // Brackets around keyword
+		{"Apply `always` consistently", true}, // Backticks around keyword
 
 		// New rule start phrases
 		{"Avoid using global variables", true},
