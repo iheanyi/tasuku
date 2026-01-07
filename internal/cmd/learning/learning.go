@@ -55,18 +55,23 @@ func newAddCmd() *cobra.Command {
 		Long: `Record an insight, discovery, or piece of knowledge learned while working.
 Learnings are stored in the context section and help build project knowledge.
 
+Use --scope to make the learning apply to specific files (glob pattern).
+Path-scoped learnings are automatically synced to .claude/rules/ with frontmatter.
+
 Use --permanent to also append the learning to CLAUDE.md for persistent documentation.
 
 Examples:
   tk learning add "Redis connection pooling significantly improves API latency"
   tk learning add "The auth middleware must run before rate limiting" --permanent
-  tk learning add "Users expect the save button in the top-right corner"`,
+  tk learning add "Always validate request bodies" --scope "src/api/**"
+  tk learning add "Use memo for expensive computations" --scope "src/components/**/*.tsx"`,
 		Args: cobra.ExactArgs(1),
 		RunE: runAdd,
 	}
 
 	cmd.Flags().Bool("permanent", false, "Also append learning to CLAUDE.md")
 	cmd.Flags().Bool("rule", false, "Explicitly mark this learning as a rule")
+	cmd.Flags().String("scope", "", "Glob pattern for path-scoped rules (e.g., 'src/api/**')")
 
 	return cmd
 }
@@ -153,27 +158,44 @@ func runList(cmd *cobra.Command, args []string) error {
 		fmt.Print(string(data))
 	default:
 		ruleCount := 0
+		scopedCount := 0
 		for _, l := range learnings {
 			if l.IsRule {
 				ruleCount++
 			}
+			if l.Scope != "" {
+				scopedCount++
+			}
 		}
 
+		// Build header
+		header := fmt.Sprintf("Learnings (%d", len(learnings))
 		if ruleCount > 0 {
-			fmt.Printf("Learnings (%d, %d rules):\n\n", len(learnings), ruleCount)
-		} else {
-			fmt.Printf("Learnings (%d):\n\n", len(learnings))
+			header += fmt.Sprintf(", %d rules", ruleCount)
 		}
+		if scopedCount > 0 {
+			header += fmt.Sprintf(", %d scoped", scopedCount)
+		}
+		header += "):\n\n"
+		fmt.Print(header)
+
 		for _, l := range learnings {
 			age := formatAge(l.CreatedAt)
-			ruleMarker := ""
+			markers := []string{}
 			if l.IsRule {
-				ruleMarker = " [RULE]"
+				markers = append(markers, "RULE")
+			}
+			if l.Scope != "" {
+				markers = append(markers, l.Scope)
+			}
+			markerStr := ""
+			if len(markers) > 0 {
+				markerStr = " [" + strings.Join(markers, "] [") + "]"
 			}
 			if age != "" {
-				fmt.Printf("  [%s] %s%s (%s)\n", l.ID, l.Text, ruleMarker, age)
+				fmt.Printf("  [%s] %s%s (%s)\n", l.ID, l.Text, markerStr, age)
 			} else {
-				fmt.Printf("  [%s] %s%s\n", l.ID, l.Text, ruleMarker)
+				fmt.Printf("  [%s] %s%s\n", l.ID, l.Text, markerStr)
 			}
 		}
 	}
@@ -184,17 +206,24 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	learningText := args[0]
 	permanent, _ := cmd.Flags().GetBool("permanent")
 	forceRule, _ := cmd.Flags().GetBool("rule")
+	scope, _ := cmd.Flags().GetString("scope")
 	s := store.DefaultStorageWithWarning()
 
 	var id string
 	var isRule bool
 	var err error
 
+	var rulePtr *bool
 	if forceRule {
 		ruleVal := true
-		id, isRule, err = s.AddLearningWithRule(learningText, &ruleVal)
+		rulePtr = &ruleVal
+	}
+
+	// Use AddLearningWithScope if scope is provided, otherwise use AddLearningWithRule
+	if scope != "" {
+		id, isRule, err = s.AddLearningWithScope(learningText, scope, rulePtr)
 	} else {
-		id, isRule, err = s.AddLearningWithRule(learningText, nil)
+		id, isRule, err = s.AddLearningWithRule(learningText, rulePtr)
 	}
 	if err != nil {
 		return err
@@ -209,9 +238,23 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Build output string with markers
+	markers := []string{}
 	if isRule {
-		fmt.Printf("Learning added [%s] [RULE]\n", id)
+		markers = append(markers, "RULE")
+	}
+	if scope != "" {
+		markers = append(markers, fmt.Sprintf("scope: %s", scope))
+	}
 
+	markerStr := ""
+	if len(markers) > 0 {
+		markerStr = " [" + strings.Join(markers, "] [") + "]"
+	}
+
+	fmt.Printf("Learning added [%s]%s\n", id, markerStr)
+
+	if isRule {
 		// Surface rules when a new one is added (limit to avoid noise)
 		f, err := s.Read()
 		if err == nil {
@@ -230,7 +273,11 @@ func runAdd(cmd *cobra.Command, args []string) error {
 						if len(text) > 70 {
 							text = text[:67] + "..."
 						}
-						fmt.Printf("  [%s] %s\n", l.ID, text)
+						scopeInfo := ""
+						if l.Scope != "" {
+							scopeInfo = fmt.Sprintf(" [%s]", l.Scope)
+						}
+						fmt.Printf("  [%s] %s%s\n", l.ID, text, scopeInfo)
 					}
 				}
 			} else if ruleCount > maxRulesToShow {
@@ -238,8 +285,6 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			}
 		}
 		fmt.Println("\nHint: Promote rules to permanent docs with: tk learning promote", id)
-	} else {
-		fmt.Printf("Learning added [%s]\n", id)
 	}
 	return nil
 }

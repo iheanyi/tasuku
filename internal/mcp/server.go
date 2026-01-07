@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iheanyi/tasuku/internal/rules"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
@@ -242,7 +243,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_learn",
-			Description: "Record a learning or insight discovered while working. Use PROACTIVELY when: (1) Debugging reveals undocumented behavior, (2) Finding gotchas or edge cases, (3) Discovering patterns that work well (or poorly), (4) API behaviors differ from expectations, (5) Performance insights. Use 'Never X' or 'Always Y' prefixes for rules. These persist across sessions and can be promoted to permanent docs.",
+			Description: "Record a learning or insight discovered while working. Use PROACTIVELY when: (1) Debugging reveals undocumented behavior, (2) Finding gotchas or edge cases, (3) Discovering patterns that work well (or poorly), (4) API behaviors differ from expectations, (5) Performance insights. Use 'Never X' or 'Always Y' prefixes for rules. Use 'scope' to apply learnings to specific file patterns. These persist across sessions and auto-sync to .claude/rules/.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"insight"},
@@ -250,6 +251,10 @@ func (s *Server) Tools() []Tool {
 					"insight": map[string]interface{}{
 						"type":        "string",
 						"description": "The insight or learning to record",
+					},
+					"scope": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional glob pattern for path-scoped rules (e.g., 'src/api/**', 'src/components/**/*.tsx'). Scoped learnings are synced to separate rule files with paths frontmatter.",
 					},
 				},
 			},
@@ -811,6 +816,15 @@ func (s *Server) Tools() []Tool {
 				"properties": map[string]interface{}{},
 			},
 		},
+		// Rules sync
+		{
+			Name:        "tk_rules_sync",
+			Description: "Sync learnings and decisions to editor rules directories (.claude/rules/tasuku/, .cursor/rules/tasuku/). Use PROACTIVELY after: (1) Adding important learnings or decisions, (2) At session end to persist knowledge, (3) When updating multiple learnings. Scoped learnings are written to separate files with paths frontmatter for conditional application.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
 	}
 }
 
@@ -905,6 +919,8 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleNoteRemove(args)
 	case "tk_health":
 		return s.handleHealth(args)
+	case "tk_rules_sync":
+		return s.handleRulesSync(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1273,11 +1289,26 @@ func (s *Server) handleBlock(args map[string]interface{}) (interface{}, error) {
 
 func (s *Server) handleLearn(args map[string]interface{}) (interface{}, error) {
 	insight, _ := args["insight"].(string)
-	id, isRule, err := s.store.AddLearningWithRule(insight, nil)
+	scope, _ := args["scope"].(string)
+
+	var id string
+	var isRule bool
+	var err error
+
+	if scope != "" {
+		id, isRule, err = s.store.AddLearningWithScope(insight, scope, nil)
+	} else {
+		id, isRule, err = s.store.AddLearningWithRule(insight, nil)
+	}
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"id": id, "status": "added", "is_rule": isRule}, nil
+
+	result := map[string]interface{}{"id": id, "status": "added", "is_rule": isRule}
+	if scope != "" {
+		result["scope"] = scope
+	}
+	return result, nil
 }
 
 func (s *Server) handleDecide(args map[string]interface{}) (interface{}, error) {
@@ -2284,6 +2315,7 @@ func (s *Server) handleLearningList(args map[string]interface{}) (interface{}, e
 		ID        string `json:"id"`
 		Text      string `json:"text"`
 		IsRule    bool   `json:"is_rule"`
+		Scope     string `json:"scope,omitempty"`
 		CreatedAt string `json:"created_at"`
 	}
 
@@ -2293,6 +2325,7 @@ func (s *Server) handleLearningList(args map[string]interface{}) (interface{}, e
 			ID:        l.ID,
 			Text:      l.Text,
 			IsRule:    l.IsRule,
+			Scope:     l.Scope,
 			CreatedAt: l.CreatedAt.Format(time.RFC3339),
 		})
 	}
@@ -2373,6 +2406,7 @@ func (s *Server) handleLearningRules(args map[string]interface{}) (interface{}, 
 	type ruleResult struct {
 		ID        string `json:"id"`
 		Text      string `json:"text"`
+		Scope     string `json:"scope,omitempty"`
 		CreatedAt string `json:"created_at"`
 		Hint      string `json:"hint"`
 	}
@@ -2383,6 +2417,7 @@ func (s *Server) handleLearningRules(args map[string]interface{}) (interface{}, 
 			results = append(results, ruleResult{
 				ID:        l.ID,
 				Text:      l.Text,
+				Scope:     l.Scope,
 				CreatedAt: l.CreatedAt.Format(time.RFC3339),
 				Hint:      "Consider promoting with tk_learning_promote",
 			})
@@ -2393,6 +2428,41 @@ func (s *Server) handleLearningRules(args map[string]interface{}) (interface{}, 
 		"rules":          results,
 		"count":          len(results),
 		"recommendation": "Rule learnings (never/always patterns) should be promoted to permanent docs when they prove useful",
+	}, nil
+}
+
+func (s *Server) handleRulesSync(args map[string]interface{}) (interface{}, error) {
+	f, err := s.store.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	results, err := rules.Sync(f.Context.Learnings, f.Context.Decisions)
+	if err != nil {
+		return nil, err
+	}
+
+	type syncResultOutput struct {
+		Editor       string   `json:"editor"`
+		FilesWritten []string `json:"files_written"`
+		Errors       []string `json:"errors,omitempty"`
+	}
+
+	var output []syncResultOutput
+	totalFiles := 0
+	for _, r := range results {
+		output = append(output, syncResultOutput{
+			Editor:       r.Editor,
+			FilesWritten: r.FilesWritten,
+			Errors:       r.Errors,
+		})
+		totalFiles += len(r.FilesWritten)
+	}
+
+	return map[string]interface{}{
+		"results":     output,
+		"total_files": totalFiles,
+		"message":     fmt.Sprintf("Synced to %d editor(s), %d files written", len(results), totalFiles),
 	}, nil
 }
 

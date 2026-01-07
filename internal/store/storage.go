@@ -69,6 +69,7 @@ type Storage interface {
 	// Context
 	AddLearning(text string) (string, error)
 	AddLearningWithRule(text string, forceRule *bool) (string, bool, error)
+	AddLearningWithScope(text, scope string, forceRule *bool) (string, bool, error)
 	RemoveLearning(id string) (string, error)
 	FindLearningByText(query string) (*task.Learning, error)
 	AddDecision(d task.Decision) error

@@ -1031,6 +1031,63 @@ func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool,
 	return id, isRule, nil
 }
 
+// AddLearningWithScope adds a learning with explicit scope and rule flag.
+func (s *Store) AddLearningWithScope(text, scope string, forceRule *bool) (string, bool, error) {
+	if isEmptyString(text) {
+		return "", false, ErrEmptyLearning
+	}
+
+	learningsPath := filepath.Join(s.root, ContextDir, "learnings.md")
+
+	f, err := os.OpenFile(learningsPath, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return "", false, fmt.Errorf("store: failed to open learnings: %w", err)
+	}
+	defer f.Close()
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return "", false, fmt.Errorf("store: failed to acquire lock: %w", err)
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+
+	data, _ := os.ReadFile(learningsPath)
+	var lf *LearningsFile
+	if len(data) > 0 {
+		lf, _ = ParseLearningsFile(data)
+	}
+	if lf == nil {
+		lf = &LearningsFile{Learnings: []task.Learning{}}
+	}
+
+	var isRule bool
+	if forceRule != nil {
+		isRule = *forceRule
+	} else {
+		isRule = task.IsRuleLearning(text)
+	}
+
+	id := task.GenerateShortID()
+	learning := task.Learning{
+		ID:        id,
+		Text:      text,
+		IsRule:    isRule,
+		Scope:     scope,
+		CreatedAt: time.Now().UTC(),
+	}
+	lf.Learnings = append(lf.Learnings, learning)
+
+	if err := os.WriteFile(learningsPath, WriteLearningsFile(lf.Learnings), 0644); err != nil {
+		return "", false, fmt.Errorf("store: failed to write learnings: %w", err)
+	}
+
+	// Update index
+	s.updateIndex(func(idx *Index) {
+		idx.LearningsCount = len(lf.Learnings)
+	})
+
+	return id, isRule, nil
+}
+
 // AddLearningFull adds a learning with all fields preserved (for migration).
 // Unlike AddLearningWithRule, this preserves the original ID, timestamp, and rule status.
 func (s *Store) AddLearningFull(l task.Learning) error {

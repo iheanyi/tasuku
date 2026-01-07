@@ -24,6 +24,8 @@ type DecisionsFile struct {
 var (
 	// learningHeaderRegex matches "## <id> - YYYY-MM-DDTHH:MM:SSZ" or "## <id> - YYYY-MM-DD" (legacy)
 	learningHeaderRegex = regexp.MustCompile(`^##\s+(\S+)\s+-\s+(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}Z)?)$`)
+	// learningScopeRegex matches "scope: <pattern>" line
+	learningScopeRegex = regexp.MustCompile(`^scope:\s*(.+)$`)
 	// decisionHeaderRegex matches "## <id> - YYYY-MM-DDTHH:MM:SSZ" or "## <id> - YYYY-MM-DD" (legacy)
 	decisionHeaderRegex = regexp.MustCompile(`^##\s+(\S+)\s+-\s+(\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}Z)?)$`)
 	// decisionFieldRegex matches "**Label**: Value"
@@ -36,12 +38,14 @@ var (
 //	# Learnings
 //
 //	## <id> - 2024-01-04T10:30:00Z
+//	scope: src/api/**
 //	Learning text with optional code blocks.
 //
 //	## <id2> - 2024-01-04T11:00:00Z
-//	Another learning.
+//	Another learning (no scope).
 //
 // Also supports legacy date-only format (YYYY-MM-DD) for backwards compatibility.
+// The "scope:" line is optional and specifies a glob pattern for path-scoped rules.
 func ParseLearningsFile(content []byte) (*LearningsFile, error) {
 	result := &LearningsFile{
 		Learnings: []task.Learning{},
@@ -50,6 +54,7 @@ func ParseLearningsFile(content []byte) (*LearningsFile, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(content))
 	var currentLearning *task.Learning
 	var currentContent []string
+	scopeParsed := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -82,7 +87,18 @@ func ParseLearningsFile(content []byte) (*LearningsFile, error) {
 				CreatedAt: date,
 			}
 			currentContent = nil
+			scopeParsed = false
 			continue
+		}
+
+		// Check for scope line (must be first line after header)
+		if currentLearning != nil && !scopeParsed {
+			if match := learningScopeRegex.FindStringSubmatch(line); match != nil {
+				currentLearning.Scope = strings.TrimSpace(match[1])
+				scopeParsed = true
+				continue
+			}
+			scopeParsed = true // Even if not found, don't check again
 		}
 
 		// Accumulate content for current learning
@@ -116,6 +132,10 @@ func WriteLearningsFile(learnings []task.Learning) []byte {
 		dateStr := ts.UTC().Format(time.RFC3339)
 
 		buf.WriteString(fmt.Sprintf("## %s - %s\n", l.ID, dateStr))
+		// Write scope line if present
+		if l.Scope != "" {
+			buf.WriteString(fmt.Sprintf("scope: %s\n", l.Scope))
+		}
 		buf.WriteString(l.Text)
 		buf.WriteString("\n\n")
 	}

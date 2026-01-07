@@ -338,6 +338,31 @@ func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool,
 	return id, isRule, err
 }
 
+// AddLearningWithScope adds a learning with explicit scope and rule flag.
+func (s *Store) AddLearningWithScope(text, scope string, forceRule *bool) (string, bool, error) {
+	id := task.GenerateShortID()
+	var isRule bool
+
+	err := s.Update(func(f *task.File) error {
+		if forceRule != nil {
+			isRule = *forceRule
+		} else {
+			isRule = task.IsRuleLearning(text)
+		}
+
+		learning := task.Learning{
+			ID:        id,
+			Text:      text,
+			IsRule:    isRule,
+			Scope:     scope,
+			CreatedAt: time.Now().UTC(),
+		}
+		f.Context.Learnings = append(f.Context.Learnings, learning)
+		return nil
+	})
+	return id, isRule, err
+}
+
 // RemoveLearning removes a learning by ID and returns the removed learning text.
 func (s *Store) RemoveLearning(id string) (string, error) {
 	var removedText string

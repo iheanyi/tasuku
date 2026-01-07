@@ -1,0 +1,174 @@
+// Package rules provides CLI commands for syncing learnings/decisions to editor rules.
+package rules
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	"github.com/iheanyi/tasuku/internal/rules"
+	"github.com/iheanyi/tasuku/internal/store"
+)
+
+func newRulesCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "rules",
+		Short: "Sync learnings and decisions to editor rules",
+		Long: `Sync Tasuku learnings and decisions to editor-specific rules directories.
+
+This enables automatic loading of learnings by Claude Code (.claude/rules/)
+and Cursor (.cursor/rules/) without manual intervention.
+
+Detected editors (based on project files):
+  - Claude Code: .claude/ directory or CLAUDE.md file
+  - Cursor: .cursor/ directory or .cursorrules file
+
+Subcommands:
+  sync   - Sync learnings and decisions to detected editors
+  clean  - Remove Tasuku-generated rules files
+  status - Show sync status and detected editors`,
+	}
+
+	cmd.AddCommand(newSyncCmd())
+	cmd.AddCommand(newCleanCmd())
+	cmd.AddCommand(newStatusCmd())
+
+	return cmd
+}
+
+// Cmd is the parent command for rules operations.
+var Cmd = newRulesCmd()
+
+func newSyncCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "sync",
+		Short: "Sync learnings and decisions to editor rules",
+		Long: `Sync all Tasuku learnings and decisions to detected editor rules directories.
+
+This creates or updates:
+  - .claude/rules/tasuku/learnings.md (general learnings)
+  - .claude/rules/tasuku/learnings-<scope>.md (scoped learnings with paths frontmatter)
+  - .claude/rules/tasuku/decisions.md (all decisions)
+
+Same structure for Cursor in .cursor/rules/tasuku/.
+
+Path-scoped learnings are written to separate files with YAML frontmatter
+containing the 'paths' field, which editors use for conditional application.
+
+Examples:
+  tk rules sync                    # Sync to all detected editors
+  tk learn "insight" && tk rules sync  # Add and sync`,
+		RunE: runSync,
+	}
+}
+
+func newCleanCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "clean",
+		Short: "Remove Tasuku-generated rules files",
+		Long: `Remove all Tasuku-generated files from editor rules directories.
+
+This removes files from:
+  - .claude/rules/tasuku/
+  - .cursor/rules/tasuku/
+
+The source learnings and decisions in .tasuku/ are preserved.`,
+		RunE: runClean,
+	}
+}
+
+func newStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show rules sync status",
+		Long:  `Show detected editors and current sync status.`,
+		RunE:  runStatus,
+	}
+}
+
+func runSync(cmd *cobra.Command, args []string) error {
+	s := store.DefaultStorageWithWarning()
+	f, err := s.Read()
+	if err != nil {
+		return err
+	}
+
+	results, err := rules.Sync(f.Context.Learnings, f.Context.Decisions)
+	if err != nil {
+		return err
+	}
+
+	for _, result := range results {
+		if len(result.Errors) > 0 {
+			fmt.Printf("%s: sync completed with errors\n", result.Editor)
+			for _, e := range result.Errors {
+				fmt.Printf("  Error: %s\n", e)
+			}
+		} else {
+			fmt.Printf("%s: synced %d files\n", result.Editor, len(result.FilesWritten))
+			for _, path := range result.FilesWritten {
+				fmt.Printf("  - %s\n", path)
+			}
+		}
+	}
+
+	return nil
+}
+
+func runClean(cmd *cobra.Command, args []string) error {
+	removed, err := rules.Clean()
+	if err != nil {
+		return err
+	}
+
+	if len(removed) == 0 {
+		fmt.Println("No Tasuku rules files to clean.")
+		return nil
+	}
+
+	fmt.Printf("Removed %d files:\n", len(removed))
+	for _, path := range removed {
+		fmt.Printf("  - %s\n", path)
+	}
+	return nil
+}
+
+func runStatus(cmd *cobra.Command, args []string) error {
+	targets := rules.GetTargets()
+
+	if len(targets) == 0 {
+		fmt.Println("No supported editors detected.")
+		fmt.Println("\nTo enable sync, create one of:")
+		fmt.Println("  - .claude/ directory (for Claude Code)")
+		fmt.Println("  - CLAUDE.md file (for Claude Code)")
+		fmt.Println("  - .cursor/ directory (for Cursor)")
+		fmt.Println("  - .cursorrules file (for Cursor)")
+		return nil
+	}
+
+	fmt.Printf("Detected editors (%d):\n", len(targets))
+	for _, target := range targets {
+		fmt.Printf("  - %s → %s\n", target.Name, target.RulesDir)
+	}
+
+	// Show stats
+	s := store.DefaultStorageWithWarning()
+	f, err := s.Read()
+	if err != nil {
+		return nil // Just show targets if no store
+	}
+
+	scopedCount := 0
+	for _, l := range f.Context.Learnings {
+		if l.Scope != "" {
+			scopedCount++
+		}
+	}
+
+	fmt.Printf("\nContent to sync:\n")
+	fmt.Printf("  - %d learnings (%d scoped)\n", len(f.Context.Learnings), scopedCount)
+	fmt.Printf("  - %d decisions\n", len(f.Context.Decisions))
+
+	fmt.Println("\nRun 'tk rules sync' to sync content to editors.")
+	return nil
+}

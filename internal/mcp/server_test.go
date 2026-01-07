@@ -42,6 +42,8 @@ func TestTools(t *testing.T) {
 		"tk_note_list", "tk_note_remove",
 		// Health check
 		"tk_health",
+		// Rules sync
+		"tk_rules_sync",
 	}
 
 	if len(tools) != len(expectedTools) {
@@ -361,8 +363,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 44 {
-		t.Errorf("expected 44 tools, got %d", len(tools))
+	if len(tools) != 45 {
+		t.Errorf("expected 45 tools, got %d", len(tools))
 	}
 }
 

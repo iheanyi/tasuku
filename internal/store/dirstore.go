@@ -925,6 +925,52 @@ func (s *DirStore) AddLearningWithRule(text string, forceRule *bool) (string, bo
 	return id, isRule, nil
 }
 
+// AddLearningWithScope adds a learning with explicit scope and rule flag.
+func (s *DirStore) AddLearningWithScope(text, scope string, forceRule *bool) (string, bool, error) {
+	learningsPath := filepath.Join(s.root, ContextDir, "learnings.json")
+
+	f, err := os.OpenFile(learningsPath, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return "", false, fmt.Errorf("store: failed to open learnings: %w", err)
+	}
+	defer f.Close()
+
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return "", false, fmt.Errorf("store: failed to acquire lock: %w", err)
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+
+	data, _ := os.ReadFile(learningsPath)
+	var learnings []task.Learning
+	if len(data) > 0 {
+		json.Unmarshal(data, &learnings)
+	}
+
+	var isRule bool
+	if forceRule != nil {
+		isRule = *forceRule
+	} else {
+		isRule = task.IsRuleLearning(text)
+	}
+
+	id := task.GenerateShortID()
+	learning := task.Learning{
+		ID:        id,
+		Text:      text,
+		IsRule:    isRule,
+		Scope:     scope,
+		CreatedAt: time.Now().UTC(),
+	}
+	learnings = append(learnings, learning)
+
+	newData, _ := json.MarshalIndent(learnings, "", "  ")
+	if err := os.WriteFile(learningsPath, newData, 0644); err != nil {
+		return "", false, fmt.Errorf("store: failed to write learnings: %w", err)
+	}
+
+	return id, isRule, nil
+}
+
 // RemoveLearning removes a learning by ID.
 func (s *DirStore) RemoveLearning(id string) (string, error) {
 	learningsPath := filepath.Join(s.root, ContextDir, "learnings.json")

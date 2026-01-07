@@ -229,6 +229,7 @@ type Learning struct {
 	ID        string    `json:"id"`
 	Text      string    `json:"text"`
 	IsRule    bool      `json:"is_rule,omitempty"` // V2.0: True if learning is a never/always rule
+	Scope     string    `json:"scope,omitempty"`   // V2.1: Optional glob pattern for path-scoped rules (e.g., "src/api/**")
 	CreatedAt time.Time `json:"created_at"`
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/iheanyi/tasuku/internal/cmd/migrate"
 	"github.com/iheanyi/tasuku/internal/cmd/note"
 	"github.com/iheanyi/tasuku/internal/cmd/pr"
+	rulescmd "github.com/iheanyi/tasuku/internal/cmd/rules"
 	"github.com/iheanyi/tasuku/internal/cmd/serve"
 	"github.com/iheanyi/tasuku/internal/cmd/skills"
 	taskcmd "github.com/iheanyi/tasuku/internal/cmd/task"
@@ -77,6 +78,7 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.AddCommand(pr.Cmd)
 	cmd.AddCommand(ui.Cmd)
 	cmd.AddCommand(skills.Cmd)
+	cmd.AddCommand(rulescmd.Cmd)
 
 	// Root-level commands
 	cmd.AddCommand(initCmd)
