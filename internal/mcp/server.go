@@ -1287,6 +1287,26 @@ func (s *Server) handleBlock(args map[string]interface{}) (interface{}, error) {
 	return map[string]interface{}{"id": id, "status": "blocked", "blocked_by": blockers}, nil
 }
 
+// autoSyncRules syncs learnings/decisions to editor rules if targets exist.
+// Returns the number of editors synced to, or 0 if sync was skipped/failed.
+func (s *Server) autoSyncRules() int {
+	targets := rules.GetTargets()
+	if len(targets) == 0 {
+		return 0
+	}
+
+	f, err := s.store.Read()
+	if err != nil {
+		return 0
+	}
+
+	if _, err := rules.Sync(f.Context.Learnings, f.Context.Decisions); err != nil {
+		return 0
+	}
+
+	return len(targets)
+}
+
 func (s *Server) handleLearn(args map[string]interface{}) (interface{}, error) {
 	insight, _ := args["insight"].(string)
 	scope, _ := args["scope"].(string)
@@ -1310,13 +1330,8 @@ func (s *Server) handleLearn(args map[string]interface{}) (interface{}, error) {
 	}
 
 	// Auto-sync to editor rules if targets exist
-	if targets := rules.GetTargets(); len(targets) > 0 {
-		f, readErr := s.store.Read()
-		if readErr == nil {
-			if _, syncErr := rules.Sync(f.Context.Learnings, f.Context.Decisions); syncErr == nil {
-				result["synced_to"] = len(targets)
-			}
-		}
+	if synced := s.autoSyncRules(); synced > 0 {
+		result["synced_to"] = synced
 	}
 
 	return result, nil
@@ -1351,13 +1366,8 @@ func (s *Server) handleDecide(args map[string]interface{}) (interface{}, error) 
 	result := map[string]interface{}{"id": id, "status": "recorded"}
 
 	// Auto-sync to editor rules if targets exist
-	if targets := rules.GetTargets(); len(targets) > 0 {
-		f, readErr := s.store.Read()
-		if readErr == nil {
-			if _, syncErr := rules.Sync(f.Context.Learnings, f.Context.Decisions); syncErr == nil {
-				result["synced_to"] = len(targets)
-			}
-		}
+	if synced := s.autoSyncRules(); synced > 0 {
+		result["synced_to"] = synced
 	}
 
 	return result, nil
@@ -1441,18 +1451,17 @@ func (s *Server) handleContext(args map[string]interface{}) (interface{}, error)
 		},
 	}
 
-	// Check if rules sync is active - if so, skip learnings to avoid duplication
-	// (Claude Code auto-loads from .claude/rules/)
-	targets := rules.GetTargets()
-	if len(targets) > 0 {
-		// Rules sync is active - only include decisions, learnings are auto-loaded
+	// Check if rules have actually been synced (not just that editors are detected)
+	// Only skip learnings if rules files exist - avoids missing data if sync hasn't happened
+	if rules.HasSyncedRules() {
+		// Rules files exist - only include decisions, learnings are auto-loaded by editor
 		result["context"] = map[string]interface{}{
 			"decisions": f.Context.Decisions,
 		}
 		result["rules_sync_active"] = true
 		result["rules_sync_note"] = "Learnings omitted - auto-loaded from editor rules directories"
 	} else {
-		// No rules sync - include full context
+		// No rules synced yet - include full context
 		result["context"] = f.Context
 	}
 
@@ -2418,6 +2427,13 @@ func (s *Server) handleLearningPromote(args map[string]interface{}) (interface{}
 		"kept":        keep,
 	}
 
+	// Auto-sync to editor rules if learning was removed
+	if !keep {
+		if synced := s.autoSyncRules(); synced > 0 {
+			result["synced_to"] = synced
+		}
+	}
+
 	_ = foundIdx // Used for potential future optimization
 
 	return result, nil
@@ -2431,7 +2447,14 @@ func (s *Server) handleLearningRemove(args map[string]interface{}) (interface{},
 		return nil, err
 	}
 
-	return map[string]string{"id": id, "removed": removedText}, nil
+	result := map[string]interface{}{"id": id, "removed": removedText}
+
+	// Auto-sync to editor rules to remove stale learning
+	if synced := s.autoSyncRules(); synced > 0 {
+		result["synced_to"] = synced
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleLearningRules(args map[string]interface{}) (interface{}, error) {
@@ -2548,7 +2571,14 @@ func (s *Server) handleDecisionRemove(args map[string]interface{}) (interface{},
 		return nil, err
 	}
 
-	return map[string]string{"id": id, "status": "removed"}, nil
+	result := map[string]interface{}{"id": id, "status": "removed"}
+
+	// Auto-sync to editor rules to remove stale decision
+	if synced := s.autoSyncRules(); synced > 0 {
+		result["synced_to"] = synced
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleNoteList(args map[string]interface{}) (interface{}, error) {

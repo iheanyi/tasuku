@@ -53,6 +53,27 @@ func GetTargets() []EditorTarget {
 	return targets
 }
 
+// HasSyncedRules checks if any editor target has actual rules files synced.
+// This is different from GetTargets which just checks if editors are detected.
+// Use this to avoid skipping learnings in context when sync hasn't happened yet.
+func HasSyncedRules() bool {
+	targets := GetTargets()
+	for _, target := range targets {
+		// Check if the rules directory exists and has .md files
+		if dirExists(target.RulesDir) {
+			entries, err := os.ReadDir(target.RulesDir)
+			if err == nil {
+				for _, entry := range entries {
+					if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 // Sync synchronizes learnings and decisions to all detected editor targets.
 func Sync(learnings []task.Learning, decisions []task.Decision) ([]SyncResult, error) {
 	targets := GetTargets()
@@ -81,6 +102,16 @@ func syncToTarget(target EditorTarget, learnings []task.Learning, decisions []ta
 	if err := os.MkdirAll(target.RulesDir, 0755); err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("failed to create %s: %v", target.RulesDir, err))
 		return result
+	}
+
+	// Clean existing .md files to prevent orphaned scope files
+	// (e.g., if all learnings with scope "src/api/**" are removed, learnings-api.md should be deleted)
+	if entries, err := os.ReadDir(target.RulesDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+				os.Remove(filepath.Join(target.RulesDir, entry.Name()))
+			}
+		}
 	}
 
 	// Group learnings by scope
