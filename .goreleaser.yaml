@@ -1,0 +1,79 @@
+# GoReleaser configuration for Tasuku
+# Run: goreleaser release --snapshot --clean (for testing)
+# Run: goreleaser release (for actual release, needs GITHUB_TOKEN)
+
+version: 2
+
+project_name: tasuku
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: tk
+    main: ./cmd/tk
+    binary: tk
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/iheanyi/tasuku/internal/version.version={{.Version}}
+      - -X github.com/iheanyi/tasuku/internal/version.commit={{.ShortCommit}}
+      - -X github.com/iheanyi/tasuku/internal/version.date={{.Date}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: tasuku
+    repository:
+      owner: iheanyi
+      name: homebrew-tap
+    directory: Formula
+    homepage: "https://github.com/iheanyi/tasuku"
+    description: "Agent-first task management for AI-powered development"
+    license: "MIT"
+    skip_upload: auto
+    test: |
+      system "#{bin}/tk", "--version"
+    install: |
+      bin.install "tk"
+
+release:
+  github:
+    owner: iheanyi
+    name: tasuku
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"

@@ -30,6 +30,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/iheanyi/tasuku/internal/version"
 )
 
 // ClaudeSettings represents the Claude Code settings.json structure
@@ -94,6 +96,56 @@ func writeClaudeSettings(settings map[string]interface{}, local bool) error {
 	}
 
 	return os.WriteFile(path, data, 0644)
+}
+
+// Hook version tracking - stores the tk version when hooks were installed
+// so we can warn users when their hooks are outdated.
+
+const hookVersionFile = ".tasuku-hooks-version"
+
+func getHookVersionPath(local bool) string {
+	if local {
+		return filepath.Join(".claude", hookVersionFile)
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".claude", hookVersionFile)
+}
+
+// writeHookVersion writes the current tk version to the hook version file.
+func writeHookVersion(local bool) error {
+	path := getHookVersionPath(local)
+
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, []byte(version.Version()), 0644)
+}
+
+// readHookVersion reads the installed hook version.
+func readHookVersion(local bool) string {
+	path := getHookVersionPath(local)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// CheckHookVersion compares installed hook version with current tk version.
+// Returns (installedVersion, currentVersion, needsUpdate).
+func CheckHookVersion(local bool) (string, string, bool) {
+	installed := readHookVersion(local)
+	current := version.Version()
+
+	if installed == "" {
+		// No version file - hooks may have been installed before version tracking
+		return "", current, false
+	}
+
+	return installed, current, installed != current
 }
 
 func getTasukuClaudeHooks() map[string][]map[string]interface{} {
@@ -305,6 +357,12 @@ func installClaudeHooks(force, local bool) error {
 	}
 	fmt.Println()
 	fmt.Println("Restart Claude Code for hooks to take effect.")
+
+	// Write hook version for update detection
+	if err := writeHookVersion(local); err != nil {
+		// Non-fatal: warn but don't fail the install
+		fmt.Printf("Warning: could not write hook version file: %v\n", err)
+	}
 
 	return nil
 }

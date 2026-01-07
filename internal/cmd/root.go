@@ -30,9 +30,8 @@ import (
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/store/v4"
 	"github.com/iheanyi/tasuku/internal/task"
+	"github.com/iheanyi/tasuku/internal/version"
 )
-
-const Version = "0.3.0"
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -59,7 +58,7 @@ AI Tool Integration:
   tk serve mcp             # Start MCP server (for AI tools)
 
 For full documentation: https://github.com/iheanyi/tasuku`,
-		Version: Version,
+		Version: version.Version(),
 	}
 
 	// Global flags

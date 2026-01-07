@@ -1822,6 +1822,9 @@ Examples:
 }
 
 func hookSession() error {
+	// Check for hook version mismatch (check both local and global)
+	checkHookVersionAndWarn()
+
 	s := store.DefaultStorageWithWarning()
 	if !s.Exists() {
 		return nil
@@ -2278,4 +2281,25 @@ func uninstallGitHooks() error {
 	}
 
 	return nil
+}
+
+// checkHookVersionAndWarn checks if installed hooks are outdated and warns the user.
+// Checks both local (./.claude/) and global (~/.claude/) installations.
+func checkHookVersionAndWarn() {
+	// Check local first, then global
+	for _, local := range []bool{true, false} {
+		installed, current, needsUpdate := CheckHookVersion(local)
+		if needsUpdate {
+			location := "global"
+			flag := ""
+			if local {
+				location = "project"
+				flag = " --local"
+			}
+			fmt.Printf("⬆️  Hooks outdated (%s): %s → %s\n", location, installed, current)
+			fmt.Printf("   Run: tk hooks install --force%s\n", flag)
+			fmt.Println()
+			return // Only show one warning
+		}
+	}
 }
