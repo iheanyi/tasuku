@@ -745,7 +745,7 @@ func hookSubagentDone() error {
 	return nil
 }
 
-// hookPromptCheck analyzes user prompts for task-related intent
+// hookPromptCheck analyzes user prompts for task-related intent and rule patterns
 func hookPromptCheck() error {
 	// Get user prompt from environment (set by Claude Code hook)
 	userPrompt := os.Getenv("USER_PROMPT")
@@ -769,6 +769,28 @@ func hookPromptCheck() error {
 	f, err := s.Read()
 	if err != nil {
 		return nil
+	}
+
+	// PRIORITY: Check for rule patterns in user prompts
+	// Users often give instructions like "always do X" or "never do Y"
+	if task.IsRuleLearning(userPrompt) && looksLikeInstruction(userPrompt) {
+		// Extract the rule-like portion of the message
+		rulePortion := extractRulePortion(userPrompt)
+		if rulePortion != "" {
+			// Check if we already have a similar learning
+			if !hasSimilarLearning(f.Context.Learnings, rulePortion) {
+				fmt.Println("📝 RULE DETECTED in your message:")
+				displayRulePortion := rulePortion
+				if len(displayRulePortion) > 80 {
+					displayRulePortion = displayRulePortion[:77] + "..."
+				}
+				fmt.Printf("   \"%s\"\n", displayRulePortion)
+				fmt.Println()
+				fmt.Println("   Record this as a project rule:")
+				fmt.Printf("   → tk learn \"%s\"\n", escapeForShell(rulePortion))
+				fmt.Println()
+			}
+		}
 	}
 
 	// Check for explicit task ID references (e.g., "work on fix-auth-bug")
@@ -830,6 +852,150 @@ func hookPromptCheck() error {
 	}
 
 	return nil
+}
+
+// looksLikeInstruction checks if a message looks like an instruction to an agent
+// rather than casual conversation
+func looksLikeInstruction(text string) bool {
+	lower := strings.ToLower(text)
+
+	// Instruction indicators - imperative tone or directive language
+	instructionIndicators := []string{
+		// Imperative verbs
+		"make sure", "ensure", "always", "never", "don't", "do not",
+		"use ", "avoid", "prefer", "remember to", "be sure to",
+		// Directive language
+		"you should", "you must", "you need to", "please ",
+		"when you", "if you", "try to",
+		// Code/development context
+		"the code", "the api", "the function", "the class",
+		"sdk", "library", "framework", "codebase",
+		"bug", "fix", "implement", "refactor",
+	}
+
+	for _, indicator := range instructionIndicators {
+		if strings.Contains(lower, indicator) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// extractRulePortion extracts the rule-like sentence from a longer message
+func extractRulePortion(text string) string {
+	// Split by sentence boundaries
+	sentences := splitSentences(text)
+
+	// Find the sentence containing the rule pattern
+	for _, sentence := range sentences {
+		sentence = strings.TrimSpace(sentence)
+		if task.IsRuleLearning(sentence) && len(sentence) > 10 {
+			return sentence
+		}
+	}
+
+	// If no single sentence matches, return empty (full text might be too noisy)
+	return ""
+}
+
+// splitSentences splits text into sentences
+func splitSentences(text string) []string {
+	// Simple sentence splitting on common terminators
+	// Replace multiple terminators with single marker
+	text = strings.ReplaceAll(text, "...", ".")
+	text = strings.ReplaceAll(text, ". ", ".|")
+	text = strings.ReplaceAll(text, "! ", "!|")
+	text = strings.ReplaceAll(text, "? ", "?|")
+	text = strings.ReplaceAll(text, ".\n", ".|\n")
+	text = strings.ReplaceAll(text, "!\n", "!|\n")
+	text = strings.ReplaceAll(text, "?\n", "?|\n")
+
+	parts := strings.Split(text, "|")
+	var sentences []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			sentences = append(sentences, p)
+		}
+	}
+	return sentences
+}
+
+// hasSimilarLearning checks if we already have a similar learning recorded
+func hasSimilarLearning(learnings []task.Learning, newText string) bool {
+	newLower := strings.ToLower(newText)
+	newWords := extractKeywords(newLower)
+
+	for _, l := range learnings {
+		existingLower := strings.ToLower(l.Text)
+
+		// Exact substring match
+		if strings.Contains(existingLower, newLower) || strings.Contains(newLower, existingLower) {
+			return true
+		}
+
+		// Keyword overlap check (if >60% keywords match, consider similar)
+		existingWords := extractKeywords(existingLower)
+		overlap := countOverlap(newWords, existingWords)
+		if len(newWords) > 0 && float64(overlap)/float64(len(newWords)) > 0.6 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// extractKeywords extracts significant words from text (skip common words)
+func extractKeywords(text string) []string {
+	stopWords := map[string]bool{
+		"the": true, "a": true, "an": true, "is": true, "are": true,
+		"was": true, "were": true, "be": true, "been": true, "being": true,
+		"have": true, "has": true, "had": true, "do": true, "does": true,
+		"did": true, "will": true, "would": true, "could": true, "should": true,
+		"may": true, "might": true, "must": true, "shall": true,
+		"to": true, "of": true, "in": true, "for": true, "on": true,
+		"with": true, "at": true, "by": true, "from": true, "as": true,
+		"into": true, "through": true, "during": true, "before": true,
+		"after": true, "above": true, "below": true, "between": true,
+		"and": true, "but": true, "or": true, "nor": true, "so": true,
+		"yet": true, "both": true, "either": true, "neither": true,
+		"not": true, "no": true, "yes": true, "this": true, "that": true,
+		"these": true, "those": true, "it": true, "its": true,
+	}
+
+	words := strings.Fields(text)
+	var keywords []string
+	for _, w := range words {
+		w = strings.Trim(w, ".,;:!?\"'()[]{}*_~`<>")
+		w = strings.ToLower(w)
+		if len(w) > 2 && !stopWords[w] {
+			keywords = append(keywords, w)
+		}
+	}
+	return keywords
+}
+
+// countOverlap counts how many words from a appear in b
+func countOverlap(a, b []string) int {
+	bSet := make(map[string]bool)
+	for _, w := range b {
+		bSet[w] = true
+	}
+
+	count := 0
+	for _, w := range a {
+		if bSet[w] {
+			count++
+		}
+	}
+	return count
+}
+
+// escapeForShell escapes a string for safe use in shell commands
+func escapeForShell(s string) string {
+	// Replace double quotes with escaped double quotes
+	return strings.ReplaceAll(s, "\"", "\\\"")
 }
 
 // execCommand runs a command and returns its output
