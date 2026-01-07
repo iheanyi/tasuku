@@ -23,14 +23,15 @@ func newHooksCmd() *cobra.Command {
 		Long: `Manage hooks for git and AI tool integration with Tasuku.
 
 Install/Uninstall:
-  install    Install hooks (git and/or Claude Code)
-  uninstall  Remove hooks (git and/or Claude Code)
+  install    Install hooks (git, Claude Code, Codex, OpenCode)
+  uninstall  Remove hooks (git, Claude Code, Codex, OpenCode)
 
 Utility Commands:
-  session       Display Tasuku context summary at session start
-  stop-reminder Remind about running timers and in-progress tasks
-  sync          Sync tasks from TodoWrite JSON input (uses nudge rule)
-  plan-sync     Extract tasks from plan files (uses nudge rule)
+  session        Display Tasuku context summary at session start
+  stop-reminder  Remind about running timers and in-progress tasks
+  codex-notify   Handle Codex notify callback
+  sync           Sync tasks from TodoWrite JSON input (uses nudge rule)
+  plan-sync      Extract tasks from plan files (uses nudge rule)
 
 Git hooks provide:
   - pre-commit: Validates Tasuku storage before commits
@@ -40,6 +41,14 @@ Claude Code hooks provide:
   - SessionStart: Shows project context summary when session begins
   - Stop: Reminds about running timers and in-progress tasks
   - ExitPlanMode: Prompts to sync plan to Tasuku tasks
+
+Codex hooks provide:
+  - notify: Called on agent turn completion
+
+OpenCode hooks provide (via plugin):
+  - session.created: Shows context summary at session start
+  - session.idle: Reminds about running timers
+  - todo.updated: Checks for project-level tasks
 
 The sync/plan-sync commands apply the nudge rule: only project-level tasks
 are synced, session-level implementation steps are skipped.
@@ -57,6 +66,7 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 	cmd.AddCommand(todoCheckCmd)
 	cmd.AddCommand(subagentDoneCmd)
 	cmd.AddCommand(promptCheckCmd)
+	cmd.AddCommand(codexNotifyCmd)
 
 	return cmd
 }
@@ -68,7 +78,7 @@ func newInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install Tasuku hooks",
-		Long: `Install Tasuku hooks for git and/or Claude Code.
+		Long: `Install Tasuku hooks for git and AI tools (Claude Code, Codex, OpenCode).
 
 By default, installs all hooks. Use flags to install specific hooks only.
 
@@ -81,19 +91,31 @@ Claude Code hooks (global ~/.claude/ by default, or local ./.claude/ with --loca
   - Stop: Reminds about running timers and in-progress tasks
   - ExitPlanMode: Prompts to sync plan to Tasuku tasks
 
+Codex hooks (global ~/.codex/config.toml):
+  - notify: Called on agent turn completion
+
+OpenCode hooks (via plugin in ~/.config/opencode/plugin/ or .opencode/plugin/):
+  - session.created: Shows context summary at session start
+  - session.idle: Reminds about running timers
+  - todo.updated: Checks for project-level tasks
+
 Examples:
-  tk hooks install           # Git (local) + Claude (global)
-  tk hooks install --local   # Git (local) + Claude (local to project)
-  tk hooks install --git     # Install only git hooks
-  tk hooks install --claude  # Install only Claude Code hooks (global)
-  tk hooks install --claude --local  # Claude hooks local to project`,
+  tk hooks install              # Git + Claude + Codex + OpenCode (global)
+  tk hooks install --local      # Git + Claude + OpenCode (local to project)
+  tk hooks install --git        # Install only git hooks
+  tk hooks install --claude     # Install only Claude Code hooks (global)
+  tk hooks install --codex      # Install only Codex hooks
+  tk hooks install --opencode   # Install only OpenCode hooks (global)
+  tk hooks install --opencode --local  # OpenCode hooks local to project`,
 		RunE: runInstall,
 	}
 
 	cmd.Flags().Bool("git", false, "Install git hooks only")
 	cmd.Flags().Bool("claude", false, "Install Claude Code hooks only")
+	cmd.Flags().Bool("codex", false, "Install Codex hooks only")
+	cmd.Flags().Bool("opencode", false, "Install OpenCode hooks only")
 	cmd.Flags().Bool("force", false, "Overwrite existing hooks")
-	cmd.Flags().Bool("local", false, "Install Claude hooks to project .claude/ instead of global")
+	cmd.Flags().Bool("local", false, "Install hooks to project instead of global")
 
 	return cmd
 }
@@ -102,21 +124,26 @@ func newUninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove Tasuku hooks",
-		Long: `Remove Tasuku hooks from git and/or Claude Code.
+		Long: `Remove Tasuku hooks from git and AI tools (Claude Code, Codex, OpenCode).
 
 By default, removes all hooks. Use flags to remove specific hooks only.
 
 Examples:
-  tk hooks uninstall                  # Remove all hooks
-  tk hooks uninstall --git            # Remove only git hooks
-  tk hooks uninstall --claude         # Remove Claude Code hooks (global)
-  tk hooks uninstall --claude --local # Remove Claude Code hooks (project)`,
+  tk hooks uninstall                     # Remove all hooks
+  tk hooks uninstall --git               # Remove only git hooks
+  tk hooks uninstall --claude            # Remove Claude Code hooks (global)
+  tk hooks uninstall --claude --local    # Remove Claude Code hooks (project)
+  tk hooks uninstall --codex             # Remove Codex hooks
+  tk hooks uninstall --opencode          # Remove OpenCode hooks (global)
+  tk hooks uninstall --opencode --local  # Remove OpenCode hooks (project)`,
 		RunE: runUninstall,
 	}
 
 	cmd.Flags().Bool("git", false, "Remove git hooks only")
 	cmd.Flags().Bool("claude", false, "Remove Claude Code hooks only")
-	cmd.Flags().Bool("local", false, "Remove Claude hooks from project .claude/ instead of global")
+	cmd.Flags().Bool("codex", false, "Remove Codex hooks only")
+	cmd.Flags().Bool("opencode", false, "Remove OpenCode hooks only")
+	cmd.Flags().Bool("local", false, "Remove hooks from project instead of global")
 
 	return cmd
 }
@@ -124,18 +151,17 @@ Examples:
 func runInstall(cmd *cobra.Command, args []string) error {
 	gitOnly, _ := cmd.Flags().GetBool("git")
 	claudeOnly, _ := cmd.Flags().GetBool("claude")
+	codexOnly, _ := cmd.Flags().GetBool("codex")
+	opencodeOnly, _ := cmd.Flags().GetBool("opencode")
 	force, _ := cmd.Flags().GetBool("force")
 	local, _ := cmd.Flags().GetBool("local")
 
-	// If neither specified, install all
-	installGit := !claudeOnly || gitOnly
-	installClaude := !gitOnly || claudeOnly
-
-	// If both flags given, install both
-	if gitOnly && claudeOnly {
-		installGit = true
-		installClaude = true
-	}
+	// Determine what to install based on flags
+	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly
+	installGit := !anySpecific || gitOnly
+	installClaude := !anySpecific || claudeOnly
+	installCodex := !anySpecific || codexOnly
+	installOpenCode := !anySpecific || opencodeOnly
 
 	var errors []string
 
@@ -151,6 +177,19 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if installCodex {
+		// Codex hooks are always global (no local option)
+		if err := installCodexHooks(force); err != nil {
+			errors = append(errors, fmt.Sprintf("codex: %v", err))
+		}
+	}
+
+	if installOpenCode {
+		if err := installOpenCodeHooks(force, local); err != nil {
+			errors = append(errors, fmt.Sprintf("opencode: %v", err))
+		}
+	}
+
 	if len(errors) > 0 {
 		return fmt.Errorf("some hooks failed to install:\n  %s", strings.Join(errors, "\n  "))
 	}
@@ -161,17 +200,16 @@ func runInstall(cmd *cobra.Command, args []string) error {
 func runUninstall(cmd *cobra.Command, args []string) error {
 	gitOnly, _ := cmd.Flags().GetBool("git")
 	claudeOnly, _ := cmd.Flags().GetBool("claude")
+	codexOnly, _ := cmd.Flags().GetBool("codex")
+	opencodeOnly, _ := cmd.Flags().GetBool("opencode")
 	local, _ := cmd.Flags().GetBool("local")
 
-	// If neither specified, uninstall all
-	uninstallGit := !claudeOnly || gitOnly
-	uninstallClaude := !gitOnly || claudeOnly
-
-	// If both flags given, uninstall both
-	if gitOnly && claudeOnly {
-		uninstallGit = true
-		uninstallClaude = true
-	}
+	// Determine what to uninstall based on flags
+	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly
+	uninstallGit := !anySpecific || gitOnly
+	uninstallClaude := !anySpecific || claudeOnly
+	uninstallCodex := !anySpecific || codexOnly
+	uninstallOpenCode := !anySpecific || opencodeOnly
 
 	var errors []string
 
@@ -184,6 +222,18 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	if uninstallClaude {
 		if err := uninstallClaudeHooks(local); err != nil {
 			errors = append(errors, fmt.Sprintf("claude: %v", err))
+		}
+	}
+
+	if uninstallCodex {
+		if err := uninstallCodexHooks(); err != nil {
+			errors = append(errors, fmt.Sprintf("codex: %v", err))
+		}
+	}
+
+	if uninstallOpenCode {
+		if err := uninstallOpenCodeHooks(local); err != nil {
+			errors = append(errors, fmt.Sprintf("opencode: %v", err))
 		}
 	}
 
@@ -308,6 +358,49 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return hookPromptCheck()
 	},
+}
+
+var codexNotifyCmd = &cobra.Command{
+	Use:   "codex-notify [event-json]",
+	Short: "Handle Codex notify callback",
+	Long: `Called by Codex when an agent turn completes.
+
+Codex sends a JSON payload as the first argument with:
+  - type: "agent-turn-complete"
+  - thread-id: session identifier
+  - turn-id: turn identifier
+  - cwd: working directory
+  - input-messages: user messages
+  - last-assistant-message: assistant response text
+
+This hook displays the same reminders as stop-reminder for session end.
+
+Examples:
+  tk hooks codex-notify '{"type":"agent-turn-complete",...}'`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return hookCodexNotify(args)
+	},
+}
+
+func hookCodexNotify(args []string) error {
+	// Codex passes JSON as first argument
+	// For now, we just run the stop reminder functionality
+	// Future: parse the JSON to extract context-specific info
+
+	if len(args) > 0 {
+		var event struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(args[0]), &event); err == nil {
+			// Only run on agent-turn-complete events
+			if event.Type != "agent-turn-complete" {
+				return nil
+			}
+		}
+	}
+
+	// Run the standard stop reminder
+	return hookStopReminder()
 }
 
 func hookStopReminder() error {

@@ -567,11 +567,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "archive":
 					_ = m.store.ArchiveTask(m.confirmTaskID, "")
 				case "bulk_archive":
-					// Archive all done tasks
+					// Collect done task IDs first to avoid iterating while modifying
+					var doneIDs []string
 					for id, t := range m.file.Tasks {
 						if t.Status == task.StatusDone {
-							_ = m.store.ArchiveTask(id, "")
+							doneIDs = append(doneIDs, id)
 						}
+					}
+					// Archive all collected tasks
+					for _, id := range doneIDs {
+						_ = m.store.ArchiveTask(id, "")
 					}
 				case "delete":
 					_ = m.store.DeleteTask(m.confirmTaskID)
@@ -936,6 +941,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) refresh() (tea.Model, tea.Cmd) {
+	// Save current selection before refresh
+	var selectedID string
+	var selectedIdx int
+	if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
+		selectedID = item.ID
+		selectedIdx = m.taskList.Index()
+	}
+
 	f, err := m.store.Read()
 	if err != nil {
 		m.err = err
@@ -943,7 +956,40 @@ func (m Model) refresh() (tea.Model, tea.Cmd) {
 	}
 	m.file = f
 	m.initTaskList()
+
+	// Restore selection if task still exists, otherwise maintain position
+	m.restoreSelection(selectedID, selectedIdx)
+
 	return m, nil
+}
+
+// restoreSelection tries to select a task by ID, or falls back to maintaining index position
+func (m *Model) restoreSelection(taskID string, previousIdx int) {
+	itemCount := len(m.taskList.Items())
+	if itemCount == 0 {
+		return
+	}
+
+	if taskID == "" {
+		// No previous selection, select first item
+		m.taskList.Select(0)
+		return
+	}
+
+	// Try to find and select the task by ID
+	for i, item := range m.taskList.Items() {
+		if ti, ok := item.(TaskItem); ok && ti.ID == taskID {
+			m.taskList.Select(i)
+			return
+		}
+	}
+
+	// Task no longer exists (deleted/archived), maintain position or go to last item
+	if previousIdx >= itemCount {
+		m.taskList.Select(itemCount - 1)
+	} else {
+		m.taskList.Select(previousIdx)
+	}
 }
 
 // View implements tea.Model
@@ -1026,13 +1072,10 @@ func (m Model) viewDashboard() string {
 }
 
 func (m Model) viewConfirmOverlay() string {
-	background := m.viewDashboard()
-
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ColorAmber).
-		Padding(1, 3).
-		Background(ColorBg)
+		Padding(1, 3)
 
 	titleStyle := lipgloss.NewStyle().
 		Foreground(ColorAmber).
@@ -1051,23 +1094,15 @@ func (m Model) viewConfirmOverlay() string {
 
 	modal := modalStyle.Render(modalContent)
 
-	// Center the modal on the screen
-	modalWidth := lipgloss.Width(modal)
-	modalHeight := lipgloss.Height(modal)
-	x := max((m.width-modalWidth)/2, 0)
-	y := max((m.height-modalHeight)/2, 0)
-
-	return placeOverlay(x, y, modal, background, m.width, m.height)
+	// Center the modal on screen using lipgloss.Place (handles ANSI correctly)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
 
 func (m Model) viewHelpOverlay() string {
-	background := m.viewDashboard()
-
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ColorAccent).
-		Padding(1, 3).
-		Background(ColorBg)
+		Padding(1, 3)
 
 	titleStyle := lipgloss.NewStyle().
 		Foreground(ColorAccent).
@@ -1109,57 +1144,8 @@ func (m Model) viewHelpOverlay() string {
 
 	modal := modalStyle.Render(helpContent)
 
-	// Center the modal on the screen
-	modalWidth := lipgloss.Width(modal)
-	modalHeight := lipgloss.Height(modal)
-	x := max((m.width-modalWidth)/2, 0)
-	y := max((m.height-modalHeight)/2, 0)
-
-	return placeOverlay(x, y, modal, background, m.width, m.height)
-}
-
-// placeOverlay places a foreground string over a background string at the given position
-func placeOverlay(x, y int, fg, bg string, width, height int) string {
-	bgLines := strings.Split(bg, "\n")
-	fgLines := strings.Split(fg, "\n")
-
-	// Ensure we have enough lines
-	for len(bgLines) < height {
-		bgLines = append(bgLines, "")
-	}
-
-	// Overlay foreground onto background
-	for i, fgLine := range fgLines {
-		bgY := y + i
-		if bgY < 0 || bgY >= len(bgLines) {
-			continue
-		}
-
-		bgLine := bgLines[bgY]
-		// Pad bgLine to be wide enough
-		for len(bgLine) < x+len(fgLine) {
-			bgLine += " "
-		}
-
-		// Replace portion of bgLine with fgLine
-		runes := []rune(bgLine)
-		fgRunes := []rune(fgLine)
-
-		// Build new line
-		var newLine []rune
-		for j := 0; j < len(runes) || j < x+len(fgRunes); j++ {
-			if j >= x && j < x+len(fgRunes) {
-				newLine = append(newLine, fgRunes[j-x])
-			} else if j < len(runes) {
-				newLine = append(newLine, runes[j])
-			} else {
-				newLine = append(newLine, ' ')
-			}
-		}
-		bgLines[bgY] = string(newLine)
-	}
-
-	return strings.Join(bgLines, "\n")
+	// Center the modal on screen using lipgloss.Place (handles ANSI correctly)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
 
 func (m Model) viewTaskDetail() string {

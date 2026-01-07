@@ -493,6 +493,153 @@ func TestFilterStateCheck(t *testing.T) {
 	}
 }
 
+func TestUpdate_DeleteTask(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	m, _ := New(s)
+	model := *m
+
+	// Find and select the ready task
+	for i, item := range model.taskList.Items() {
+		if ti, ok := item.(TaskItem); ok && ti.ID == "test-ready" {
+			model.taskList.Select(i)
+			break
+		}
+	}
+
+	// Press 'x' to trigger delete confirmation dialog
+	xMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}
+	newModel, _ := model.Update(xMsg)
+	confirmModel := newModel.(Model)
+
+	// Verify we're in confirmation view
+	if confirmModel.view != ViewConfirm {
+		t.Errorf("expected ViewConfirm, got %v", confirmModel.view)
+	}
+	if confirmModel.confirmAction != "delete" {
+		t.Errorf("expected confirmAction 'delete', got %v", confirmModel.confirmAction)
+	}
+	if confirmModel.confirmTaskID != "test-ready" {
+		t.Errorf("expected confirmTaskID 'test-ready', got %v", confirmModel.confirmTaskID)
+	}
+
+	// Press 'y' to confirm
+	yMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}}
+	finalModel, _ := confirmModel.Update(yMsg)
+	_ = finalModel.(Model)
+
+	// Verify task was deleted
+	f, _ := s.Read()
+	if _, exists := f.Tasks["test-ready"]; exists {
+		t.Error("expected task to be deleted from active tasks")
+	}
+}
+
+func TestUpdate_DeleteTaskCancel(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	m, _ := New(s)
+	model := *m
+
+	// Find and select the ready task
+	for i, item := range model.taskList.Items() {
+		if ti, ok := item.(TaskItem); ok && ti.ID == "test-ready" {
+			model.taskList.Select(i)
+			break
+		}
+	}
+
+	// Press 'x' to trigger delete confirmation dialog
+	xMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}}
+	newModel, _ := model.Update(xMsg)
+	confirmModel := newModel.(Model)
+
+	// Press 'n' to cancel
+	nMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}}
+	finalModel, _ := confirmModel.Update(nMsg)
+	updated := finalModel.(Model)
+
+	// Verify we returned to dashboard
+	if updated.view != ViewDashboard {
+		t.Errorf("expected ViewDashboard, got %v", updated.view)
+	}
+
+	// Verify task was NOT deleted
+	f, _ := s.Read()
+	if _, exists := f.Tasks["test-ready"]; !exists {
+		t.Error("expected task to still exist")
+	}
+}
+
+func TestRefresh_PreservesSelection(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	m, _ := New(s)
+	model := *m
+
+	// Select a specific task (not the first one)
+	for i, item := range model.taskList.Items() {
+		if ti, ok := item.(TaskItem); ok && ti.ID == "test-progress" {
+			model.taskList.Select(i)
+			break
+		}
+	}
+
+	// Trigger refresh
+	refreshedModel, _ := model.refresh()
+	updated := refreshedModel.(Model)
+
+	// Verify selection was preserved
+	if item, ok := updated.taskList.SelectedItem().(TaskItem); ok {
+		if item.ID != "test-progress" {
+			t.Errorf("expected selection to be preserved as 'test-progress', got %v", item.ID)
+		}
+	} else {
+		t.Error("expected a TaskItem to be selected after refresh")
+	}
+}
+
+func TestRefresh_HandlesMissingTask(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	m, _ := New(s)
+	model := *m
+
+	// Get initial item count
+	initialCount := len(model.taskList.Items())
+
+	// Select a task that will be deleted
+	for i, item := range model.taskList.Items() {
+		if ti, ok := item.(TaskItem); ok && ti.ID == "test-done" {
+			model.taskList.Select(i)
+			break
+		}
+	}
+
+	// Delete the task directly through the store
+	_ = s.DeleteTask("test-done")
+
+	// Trigger refresh
+	refreshedModel, _ := model.refresh()
+	updated := refreshedModel.(Model)
+
+	// Verify selection moved to a valid index
+	newCount := len(updated.taskList.Items())
+	if newCount != initialCount-1 {
+		t.Errorf("expected %d tasks after delete, got %d", initialCount-1, newCount)
+	}
+
+	// Selection should be at a valid index
+	selectedIdx := updated.taskList.Index()
+	if selectedIdx >= newCount {
+		t.Errorf("selection index %d is out of bounds for %d items", selectedIdx, newCount)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))

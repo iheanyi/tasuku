@@ -50,6 +50,25 @@ func GetTargets() []EditorTarget {
 		})
 	}
 
+	// Codex: detect via .codex/ or CODEX.md
+	// Codex uses ~/.codex/ globally, but for project rules we can use .codex/rules/
+	if dirExists(".codex") || fileExists("CODEX.md") {
+		targets = append(targets, EditorTarget{
+			Name:       "Codex",
+			RulesDir:   ".codex/rules/tasuku",
+			DetectDirs: []string{".codex", "CODEX.md"},
+		})
+	}
+
+	// OpenCode: detect via opencode.json or .opencode/
+	if fileExists("opencode.json") || dirExists(".opencode") {
+		targets = append(targets, EditorTarget{
+			Name:       "OpenCode",
+			RulesDir:   ".opencode/rules/tasuku",
+			DetectDirs: []string{"opencode.json", ".opencode"},
+		})
+	}
+
 	return targets
 }
 

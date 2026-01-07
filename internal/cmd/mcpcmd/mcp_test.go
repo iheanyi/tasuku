@@ -79,8 +79,8 @@ func TestGetSupportedAITools(t *testing.T) {
 
 	// Test local tools
 	localTools := getSupportedAITools(true)
-	if len(localTools) != 2 {
-		t.Errorf("expected 2 local tools, got %d", len(localTools))
+	if len(localTools) != 3 {
+		t.Errorf("expected 3 local tools, got %d", len(localTools))
 	}
 	// Check Claude Code (project) - should detect via .claude/ OR CLAUDE.md
 	if localTools[0].Name != "Claude Code (project)" {
@@ -104,6 +104,13 @@ func TestGetSupportedAITools(t *testing.T) {
 	}
 	if localTools[1].DetectPaths[0] != ".cursorrules" || localTools[1].DetectPaths[1] != ".cursor" {
 		t.Errorf("expected DetectPaths ['.cursorrules', '.cursor'], got %v", localTools[1].DetectPaths)
+	}
+	// Check OpenCode (project) - should detect via opencode.json
+	if localTools[2].Name != "OpenCode (project)" {
+		t.Errorf("expected 'OpenCode (project)', got %s", localTools[2].Name)
+	}
+	if localTools[2].MCPKey != "mcp" {
+		t.Errorf("expected MCPKey 'mcp', got %s", localTools[2].MCPKey)
 	}
 }
 

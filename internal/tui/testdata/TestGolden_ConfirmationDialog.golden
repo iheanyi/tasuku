@@ -1,23 +1,24 @@
-Ready: 2  In Progress: 1  Blocked: 1  Done: 1                                                 
-Progress: 1/5 ███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    
-                                                                                              
-  Tasks (Done)                                                                                
-                                                                                              
-                                                                                              
-  1 item                                                                                      
-                  ╭──────────────────────────────────────────╮                                                                                        
-> ✓ · deploy-stagi│                                          │                                
-  Deploy to stagin│                  Confirm                 │                                
-                  │                                          │                                
-                  │   Archive task 'deploy-staging'? (y/n)   │                                
-                  │                                          │                                
-                  │         y: confirm  n/esc: cancel        │                                
-                  │                                          │                                
-                  ╰──────────────────────────────────────────╯                                                                                        
-                                                                                              
-                                                                                              
-  ↑/k up • ↓/j down • / filter • q quit • ? more                                              
-n:new  e:edit  s:start  d:done  P:pause  b:block  u:unblock  x:delete  t:timer  a:archive     
-0-4:status  p:priority  N:notes  L:learnings  D:decisions  /:filter  r:refresh  ?:help  q:quit
-
-
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                  ╭──────────────────────────────────────────╮                  
+                  │                                          │                  
+                  │                  Confirm                 │                  
+                  │                                          │                  
+                  │   Archive task 'deploy-staging'? (y/n)   │                  
+                  │                                          │                  
+                  │         y: confirm  n/esc: cancel        │                  
+                  │                                          │                  
+                  ╰──────────────────────────────────────────╯                  
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                

@@ -19,7 +19,7 @@ tasuku/
 │   │   └── v4/          # V4 Markdown-based storage implementation
 │   ├── task/            # Task domain logic
 │   ├── http/            # HTTP REST API server
-│   ├── mcp/             # MCP server for Claude Code integration
+│   ├── mcp/             # MCP server for AI tools (Claude Code, Cursor, Codex, OpenCode)
 │   └── tui/             # Terminal UI (bubble tea)
 ├── .tasuku/             # V4 directory-based storage (default)
 │   ├── tasks/           # Individual task Markdown files
@@ -78,10 +78,14 @@ tk serve http              # Start HTTP REST API on :3000
 tk serve http --port 8080  # Start HTTP on custom port
 
 # Hooks
-tk hooks install           # Install git pre-commit/post-commit hooks
-tk hooks uninstall         # Remove Tasuku git hooks
-tk hooks plan-sync plan.md # Extract tasks from plan file (uses nudge rule)
-tk hooks session           # Display context summary
+tk hooks install              # Install all hooks (git + AI tools)
+tk hooks install --claude     # Install Claude Code hooks only
+tk hooks install --codex      # Install Codex hooks only
+tk hooks install --opencode   # Install OpenCode hooks only
+tk hooks install --local      # Install to project instead of global
+tk hooks uninstall            # Remove all Tasuku hooks
+tk hooks plan-sync plan.md    # Extract tasks from plan file (uses nudge rule)
+tk hooks session              # Display context summary
 
 # Health & Diagnostics
 tk health                  # Project health check with recommendations
@@ -272,7 +276,7 @@ go tool cover -html=coverage.out
 | Interface | Users | Description |
 |-----------|-------|-------------|
 | **CLI** | Humans in terminal | `tk task list`, `tk learn "insight"` |
-| **MCP** | AI agents (Claude Code, etc.) | `tk_list`, `tk_learn` tools |
+| **MCP** | AI agents (Claude Code, Cursor, Codex, OpenCode) | `tk_list`, `tk_learn` tools |
 | **TUI** | Humans who prefer visual interfaces | Interactive terminal UI (`tk ui`) |
 | **Skills** | AI agents (slash commands) | `/tasuku-list`, `/tasuku-learn` |
 
@@ -378,7 +382,7 @@ Launch the TUI with `tk ui`. The following keybindings are available:
 tk serve --port 3000
 ```
 
-Or via stdio (for Claude Code):
+Or via stdio (for AI tools like Claude Code, Cursor, Codex, OpenCode):
 ```bash
 tk serve --stdio
 ```
@@ -578,7 +582,13 @@ This ensures important work is tracked persistently and visible to future sessio
 
 ## Session Start/End Behaviors
 
-Claude Code hooks automatically integrate Tasuku into your workflow:
+AI tool hooks automatically integrate Tasuku into your workflow:
+
+**Supported AI Tools:**
+- **Claude Code**: Full hooks support (SessionStart, Stop, PreCompact, SubagentStop, etc.)
+- **Cursor**: MCP server + rules sync (no hooks, uses Claude Code-style skills)
+- **Codex**: MCP server + notify hook (agent-turn-complete)
+- **OpenCode**: MCP server + plugin hooks (session.created, session.idle, todo.updated)
 
 ### At Session Start (SessionStart hook)
 The `tk hooks session` command runs automatically and displays:
@@ -613,8 +623,36 @@ tk hooks stop-reminder  # Check for reminders before exiting
 
 Install hooks with:
 ```bash
-tk hooks install --claude  # Adds SessionStart and Stop hooks
+tk hooks install              # Install all hooks (git + AI tools)
+tk hooks install --claude     # Claude Code hooks only
+tk hooks install --codex      # Codex hooks only
+tk hooks install --opencode   # OpenCode hooks only
+tk hooks install --local      # Project-local instead of global
 ```
+
+### MCP Server Installation
+
+Configure MCP server for AI tools:
+```bash
+tk mcp install                # Auto-detect and install to all AI tools
+tk mcp install --tool claude  # Claude Code only
+tk mcp install --tool cursor  # Cursor only
+tk mcp install --tool codex   # Codex only
+tk mcp install --tool opencode # OpenCode only
+tk mcp install --local        # Project-local config
+```
+
+**Configuration files by tool:**
+- Claude Code: `~/.claude.json` or `./.claude.json` (local)
+- Cursor: `~/.cursor/mcp.json` or `./.cursor/mcp.json` (local)
+- Codex: `~/.codex/config.toml` (TOML format)
+- OpenCode: `~/.config/opencode/opencode.json` or `./opencode.json` (local)
+
+**Detection signals:**
+- Claude Code: `.claude/` directory or `CLAUDE.md` file
+- Cursor: `.cursor/` directory or `.cursorrules` file
+- Codex: `.codex/` directory or `CODEX.md` file
+- OpenCode: `.opencode/` directory or `opencode.json` file
 
 ## Future Enhancements (Planned)
 
@@ -631,7 +669,7 @@ tk hooks install --claude  # Adds SessionStart and Stop hooks
   - If Grove not available → native `git worktree add` for basic isolation
   - Print tip: "Install Grove for automatic dev server management"
 - `tk done <id>` can optionally clean up worktree/stop Grove server
-- Detection: Check Claude/Cursor MCP settings for Grove config, or probe `grove_list`
+- Detection: Check Claude/Cursor/Codex/OpenCode MCP settings for Grove config, or probe `grove_list`
 
 ### "Never/Always" Learning Detection
 - Detect phrases like "Never do X" or "Always use Y" in agent interactions
