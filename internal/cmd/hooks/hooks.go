@@ -754,7 +754,7 @@ func hookPromptCheck() error {
 	}
 
 	// Skip very short prompts (likely follow-ups or confirmations)
-	if len(userPrompt) < 20 {
+	if len(userPrompt) < 15 {
 		return nil
 	}
 
@@ -771,48 +771,320 @@ func hookPromptCheck() error {
 		return nil
 	}
 
-	// PRIORITY: Check for rule patterns in user prompts
-	// Users often give instructions like "always do X" or "never do Y"
-	if task.IsRuleLearning(userPrompt) && looksLikeInstruction(userPrompt) {
-		// Extract the rule-like portion of the message
-		rulePortion := extractRulePortion(userPrompt)
-		if rulePortion != "" {
-			// Check if we already have a similar learning
-			if !hasSimilarLearning(f.Context.Learnings, rulePortion) {
-				fmt.Println("📝 RULE DETECTED in your message:")
-				displayRulePortion := rulePortion
-				if len(displayRulePortion) > 80 {
-					displayRulePortion = displayRulePortion[:77] + "..."
+	// Track what we've output to avoid too much noise
+	outputCount := 0
+	const maxOutputs = 2 // Limit to avoid overwhelming the user
+
+	// === 1. SESSION CONTINUITY DETECTION ===
+	// When user says "continue", "resume", etc., show in-progress tasks with notes
+	if outputCount < maxOutputs && detectSessionContinuity(promptLower) {
+		inProgressTasks := getInProgressTasks(f)
+		if len(inProgressTasks) > 0 {
+			fmt.Println("🔄 Continuing session - in-progress tasks:")
+			for _, item := range inProgressTasks {
+				fmt.Printf("   - %s: %s\n", item.id, truncateString(item.task.Description, 50))
+				// Show most recent note if available
+				if notes := f.Context.Notes[item.id]; len(notes) > 0 {
+					lastNote := notes[len(notes)-1]
+					fmt.Printf("     Last note: %s\n", truncateString(lastNote.Text, 60))
 				}
-				fmt.Printf("   \"%s\"\n", displayRulePortion)
-				fmt.Println()
-				fmt.Println("   Record this as a project rule:")
-				fmt.Printf("   → tk learn \"%s\"\n", escapeForShell(rulePortion))
-				fmt.Println()
 			}
+			fmt.Println()
+			outputCount++
 		}
 	}
 
+	// === 2. DECISION/LEARNING LOOKUP ===
+	// Surface relevant decisions/learnings when user asks questions
+	if outputCount < maxOutputs && looksLikeQuestion(promptLower) {
+		// Search decisions for relevant matches
+		relevantDecisions := findRelevantDecisions(f.Context.Decisions, promptLower)
+		if len(relevantDecisions) > 0 {
+			fmt.Println("📚 Related decisions found:")
+			for _, d := range relevantDecisions {
+				fmt.Printf("   - %s: Chose %s\n", d.ID, truncateString(d.Chose, 40))
+				if d.Because != "" {
+					fmt.Printf("     Because: %s\n", truncateString(d.Because, 50))
+				}
+			}
+			fmt.Println()
+			outputCount++
+		}
+
+		// Search learnings for relevant matches
+		relevantLearnings := findRelevantLearnings(f.Context.Learnings, promptLower)
+		if outputCount < maxOutputs && len(relevantLearnings) > 0 {
+			fmt.Println("💡 Related learnings found:")
+			for _, l := range relevantLearnings {
+				fmt.Printf("   - %s\n", truncateString(l.Text, 70))
+			}
+			fmt.Println()
+			outputCount++
+		}
+	}
+
+	// === 3. RULE PATTERN DETECTION ===
+	// Users often give instructions like "always do X" or "never do Y"
+	if outputCount < maxOutputs && task.IsRuleLearning(userPrompt) && looksLikeInstruction(userPrompt) {
+		rulePortion := extractRulePortion(userPrompt)
+		if rulePortion != "" && !hasSimilarLearning(f.Context.Learnings, rulePortion) {
+			fmt.Println("📝 RULE DETECTED in your message:")
+			fmt.Printf("   \"%s\"\n", truncateString(rulePortion, 80))
+			fmt.Println()
+			fmt.Println("   Record this as a project rule:")
+			fmt.Printf("   → tk learn \"%s\"\n", escapeForShell(rulePortion))
+			fmt.Println()
+			outputCount++
+		}
+	}
+
+	// === 4. EXPLICIT TASK ID REFERENCE ===
 	// Check for explicit task ID references (e.g., "work on fix-auth-bug")
 	for id, t := range f.Tasks {
 		if strings.Contains(promptLower, strings.ToLower(id)) {
-			// Found task reference - show context
 			fmt.Printf("📋 Task referenced: %s\n", id)
 			fmt.Printf("   Status: %s\n", t.Status)
-			desc := t.Description
-			if len(desc) > 50 {
-				desc = desc[:47] + "..."
-			}
-			fmt.Printf("   %s\n", desc)
+			fmt.Printf("   %s\n", truncateString(t.Description, 50))
 			if t.Status == task.StatusReady {
 				fmt.Printf("   → Consider: tk task start %s\n", id)
 			}
 			fmt.Println()
-			return nil
+			return nil // Task ID reference is definitive, stop processing
 		}
 	}
 
-	// Keywords that suggest significant work that should be tracked
+	// === 5. RELATED TASK SURFACING ===
+	// Find tasks by keyword matching (not exact ID match)
+	if outputCount < maxOutputs {
+		relatedTasks := findRelatedTasks(f.Tasks, promptLower)
+		if len(relatedTasks) > 0 {
+			fmt.Println("📋 Related tasks found:")
+			for _, item := range relatedTasks {
+				statusIcon := getStatusIcon(item.task.Status)
+				fmt.Printf("   %s %s: %s\n", statusIcon, item.id, truncateString(item.task.Description, 45))
+			}
+			fmt.Println()
+			outputCount++
+		}
+	}
+
+	// === 6. BUG REPORT DETECTION ===
+	// Detect bug descriptions and prompt to create task
+	if outputCount < maxOutputs && detectBugReport(promptLower) {
+		// Check if there's already a similar bug task
+		if !hasRelatedBugTask(f.Tasks, promptLower) {
+			fmt.Println("🐛 This sounds like a bug report.")
+			fmt.Println("   Track it:")
+			fmt.Println("   → tk task add \"description\" --tag bug --priority high")
+			fmt.Println()
+			outputCount++
+		}
+	}
+
+	// === 7. SIGNIFICANT WORK DETECTION ===
+	// Suggest creating a task for significant work
+	if outputCount < maxOutputs && detectSignificantWork(promptLower) {
+		hasInProgress := false
+		for _, t := range f.Tasks {
+			if t.Status == task.StatusInProgress {
+				hasInProgress = true
+				break
+			}
+		}
+		if !hasInProgress {
+			fmt.Println("💡 This looks like significant work.")
+			fmt.Println("   Consider creating a task to track it:")
+			fmt.Println("   → tk task add \"description\" --priority high")
+			fmt.Println()
+		}
+	}
+
+	return nil
+}
+
+// taskWithID pairs a task with its ID for sorting/display
+type taskWithID struct {
+	id   string
+	task task.Task
+}
+
+// detectSessionContinuity checks if user wants to continue previous work
+func detectSessionContinuity(prompt string) bool {
+	continuityPatterns := []string{
+		"continue", "resume", "pick up", "where we left",
+		"keep working", "back to", "let's continue",
+		"continuing", "picking up", "get back to",
+	}
+	for _, pattern := range continuityPatterns {
+		if strings.Contains(prompt, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// getInProgressTasks returns all in-progress tasks
+func getInProgressTasks(f *task.File) []taskWithID {
+	var result []taskWithID
+	for id, t := range f.Tasks {
+		if t.Status == task.StatusInProgress {
+			result = append(result, taskWithID{id: id, task: t})
+		}
+	}
+	return result
+}
+
+// looksLikeQuestion checks if the prompt is asking a question
+func looksLikeQuestion(prompt string) bool {
+	questionIndicators := []string{
+		"how do", "how should", "how can", "how does",
+		"what is", "what are", "what should", "what's the",
+		"why do", "why does", "why is", "why are",
+		"which", "should i", "should we", "can i", "can we",
+		"is there", "are there", "do we", "does the",
+		"?",
+	}
+	for _, indicator := range questionIndicators {
+		if strings.Contains(prompt, indicator) {
+			return true
+		}
+	}
+	return false
+}
+
+// findRelevantDecisions finds decisions matching the prompt keywords
+func findRelevantDecisions(decisions []task.Decision, prompt string) []task.Decision {
+	promptWords := extractKeywords(prompt)
+	if len(promptWords) < 2 {
+		return nil
+	}
+
+	var relevant []task.Decision
+	for _, d := range decisions {
+		// Build searchable text from decision
+		searchText := strings.ToLower(d.ID + " " + d.Chose + " " + d.Because + " " + strings.Join(d.Over, " "))
+		decisionWords := extractKeywords(searchText)
+
+		// Check for significant overlap (at least 2 matching keywords)
+		overlap := countOverlap(promptWords, decisionWords)
+		if overlap >= 2 {
+			relevant = append(relevant, d)
+		}
+	}
+
+	// Limit results
+	if len(relevant) > 3 {
+		relevant = relevant[:3]
+	}
+	return relevant
+}
+
+// findRelevantLearnings finds learnings matching the prompt keywords
+func findRelevantLearnings(learnings []task.Learning, prompt string) []task.Learning {
+	promptWords := extractKeywords(prompt)
+	if len(promptWords) < 2 {
+		return nil
+	}
+
+	var relevant []task.Learning
+	for _, l := range learnings {
+		learningWords := extractKeywords(strings.ToLower(l.Text))
+
+		// Check for significant overlap (at least 2 matching keywords)
+		overlap := countOverlap(promptWords, learningWords)
+		if overlap >= 2 {
+			relevant = append(relevant, l)
+		}
+	}
+
+	// Limit results
+	if len(relevant) > 3 {
+		relevant = relevant[:3]
+	}
+	return relevant
+}
+
+// findRelatedTasks finds tasks matching the prompt keywords (not exact ID match)
+func findRelatedTasks(tasks map[string]task.Task, prompt string) []taskWithID {
+	promptWords := extractKeywords(prompt)
+	if len(promptWords) < 2 {
+		return nil
+	}
+
+	var related []taskWithID
+	for id, t := range tasks {
+		// Skip done tasks
+		if t.Status == task.StatusDone {
+			continue
+		}
+
+		// Build searchable text from task
+		searchText := strings.ToLower(id + " " + t.Description)
+		taskWords := extractKeywords(searchText)
+
+		// Check for significant overlap (at least 2 matching keywords)
+		overlap := countOverlap(promptWords, taskWords)
+		if overlap >= 2 {
+			related = append(related, taskWithID{id: id, task: t})
+		}
+	}
+
+	// Limit results
+	if len(related) > 3 {
+		related = related[:3]
+	}
+	return related
+}
+
+// detectBugReport checks if the prompt describes a bug
+func detectBugReport(prompt string) bool {
+	bugIndicators := []string{
+		"bug", "broken", "crash", "crashes", "crashing",
+		"error", "errors", "failing", "fails", "failed",
+		"not working", "doesn't work", "doesn't work",
+		"issue", "problem", "wrong", "incorrect",
+		"unexpected", "weird behavior", "strange behavior",
+	}
+	for _, indicator := range bugIndicators {
+		if strings.Contains(prompt, indicator) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasRelatedBugTask checks if there's already a similar bug task
+func hasRelatedBugTask(tasks map[string]task.Task, prompt string) bool {
+	promptWords := extractKeywords(prompt)
+	if len(promptWords) < 2 {
+		return false
+	}
+
+	for _, t := range tasks {
+		// Check if task has bug tag or bug-like keywords in description
+		hasBugTag := false
+		for _, tag := range t.Tags {
+			if tag == "bug" {
+				hasBugTag = true
+				break
+			}
+		}
+		if !hasBugTag && !isBugFixTask(t.Description) {
+			continue
+		}
+
+		// Check keyword overlap
+		taskWords := extractKeywords(strings.ToLower(t.Description))
+		overlap := countOverlap(promptWords, taskWords)
+		if overlap >= 2 {
+			return true
+		}
+	}
+	return false
+}
+
+// detectSignificantWork checks if prompt suggests significant work
+func detectSignificantWork(prompt string) bool {
 	workKeywords := []string{
 		"implement", "add feature", "build", "create new",
 		"fix bug", "fix the", "debug", "resolve issue",
@@ -820,38 +1092,39 @@ func hookPromptCheck() error {
 		"set up", "configure", "integrate",
 		"add support for", "enable",
 	}
-
-	// Check if prompt suggests significant work
-	suggestsWork := false
 	for _, kw := range workKeywords {
-		if strings.Contains(promptLower, kw) {
-			suggestsWork = true
-			break
+		if strings.Contains(prompt, kw) {
+			return true
 		}
 	}
+	return false
+}
 
-	if !suggestsWork {
-		return nil
+// getStatusIcon returns an icon for the task status
+func getStatusIcon(status task.Status) string {
+	switch status {
+	case task.StatusReady:
+		return "○"
+	case task.StatusInProgress:
+		return "●"
+	case task.StatusBlocked:
+		return "⊘"
+	case task.StatusDone:
+		return "✓"
+	default:
+		return "?"
 	}
+}
 
-	// Check if there's already an in-progress task
-	hasInProgress := false
-	for _, t := range f.Tasks {
-		if t.Status == task.StatusInProgress {
-			hasInProgress = true
-			break
-		}
+// truncateString truncates a string to maxLen with ellipsis
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
 	}
-
-	// If significant work requested and no task in progress, suggest creating one
-	if !hasInProgress {
-		fmt.Println("💡 This looks like significant work.")
-		fmt.Println("   Consider creating a task to track it:")
-		fmt.Println("   → tk task add \"description\" --priority high")
-		fmt.Println()
+	if maxLen <= 3 {
+		return s[:maxLen]
 	}
-
-	return nil
+	return s[:maxLen-3] + "..."
 }
 
 // looksLikeInstruction checks if a message looks like an instruction to an agent

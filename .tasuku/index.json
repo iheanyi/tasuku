@@ -351,6 +351,46 @@
       "file": "tasks/pr-tests.md",
       "updated_at": "2026-01-06T02:03:49.269492Z"
     },
+    "prompt-bug-detection": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-bug-detection.md",
+      "updated_at": "2026-01-07T21:27:54.967788Z"
+    },
+    "prompt-decision-lookup": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-decision-lookup.md",
+      "updated_at": "2026-01-07T21:27:54.580557Z"
+    },
+    "prompt-session-continuity": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-session-continuity.md",
+      "updated_at": "2026-01-07T21:27:54.845867Z"
+    },
+    "prompt-task-surfacing": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-task-surfacing.md",
+      "updated_at": "2026-01-07T21:27:54.744199Z"
+    },
     "release-completions": {
       "status": "done",
       "priority": 2,
@@ -611,5 +651,5 @@
   "archived_count": 68,
   "learnings_count": 14,
   "decisions_count": 9,
-  "updated_at": "2026-01-07T18:31:47.680021Z"
+  "updated_at": "2026-01-07T21:27:54.968365Z"
 }
