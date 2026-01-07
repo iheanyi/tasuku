@@ -138,9 +138,21 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	for _, tool := range tools {
 		var settings map[string]interface{}
 
-		if _, err := os.Stat(tool.SettingsPath); os.IsNotExist(err) {
-			// For local installs, create the file if it doesn't exist
-			if local {
+		// Check if tool is installed (via DetectPath) or settings file exists
+		toolInstalled := false
+		if tool.DetectPath != "" {
+			if _, err := os.Stat(tool.DetectPath); err == nil {
+				toolInstalled = true
+			}
+		}
+		settingsExist := false
+		if _, err := os.Stat(tool.SettingsPath); err == nil {
+			settingsExist = true
+		}
+
+		if !settingsExist {
+			// Create settings file if: local install, OR tool is detected as installed
+			if local || toolInstalled {
 				settings = make(map[string]interface{})
 			} else {
 				continue
@@ -152,11 +164,8 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			}
 
 			if err := json.Unmarshal(data, &settings); err != nil {
-				if strings.Contains(tool.Name, "Cursor") || local {
-					settings = make(map[string]interface{})
-				} else {
-					continue
-				}
+				// Reset to empty if JSON is invalid
+				settings = make(map[string]interface{})
 			}
 		}
 
@@ -309,21 +318,24 @@ type AITool struct {
 	Name         string
 	SettingsPath string
 	MCPKey       string
+	DetectPath   string // Path to check if tool is installed (directory or file)
 }
 
 func getSupportedAITools(local bool) []AITool {
 	if local {
 		// Local installation only targets project-level .claude.json
 		return []AITool{
-			{"Claude Code (project)", ".claude.json", "mcpServers"},
+			{"Claude Code (project)", ".claude.json", "mcpServers", ""},
 		}
 	}
 
 	// Global installation targets user-level config files
 	home, _ := os.UserHomeDir()
 	return []AITool{
-		{"Claude Code", home + "/.claude.json", "mcpServers"},
-		{"Cursor", home + "/.cursor/mcp.json", "mcpServers"},
-		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers"},
+		// Claude Code: detect by ~/.claude/ directory, config at ~/.claude.json
+		{"Claude Code", home + "/.claude.json", "mcpServers", home + "/.claude"},
+		// Cursor: detect by ~/.cursor/ directory
+		{"Cursor", home + "/.cursor/mcp.json", "mcpServers", home + "/.cursor"},
+		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers", home + "/Library/Application Support/Cursor"},
 	}
 }
