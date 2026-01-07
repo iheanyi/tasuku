@@ -40,7 +40,7 @@ Subcommands:
 var Cmd = newRulesCmd()
 
 func newSyncCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Sync learnings and decisions to editor rules",
 		Long: `Sync all Tasuku learnings and decisions to detected editor rules directories.
@@ -50,20 +50,27 @@ This creates or updates:
   - .claude/rules/tasuku/learnings-<scope>.md (scoped learnings with paths frontmatter)
   - .claude/rules/tasuku/decisions.md (all decisions)
 
-Same structure for Cursor in .cursor/rules/tasuku/.
+Same structure for Cursor (.cursor/rules/tasuku/), Codex (.codex/rules/tasuku/),
+and OpenCode (.opencode/rules/tasuku/).
 
 Path-scoped learnings are written to separate files with YAML frontmatter
 containing the 'paths' field, which editors use for conditional application.
 
 Examples:
   tk rules sync                    # Sync to all detected editors
+  tk rules sync --tool claude      # Sync only to Claude Code
+  tk rules sync --tool cursor      # Sync only to Cursor
   tk learn "insight" && tk rules sync  # Add and sync`,
 		RunE: runSync,
 	}
+
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode")
+
+	return cmd
 }
 
 func newCleanCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "clean",
 		Short: "Remove Tasuku-generated rules files",
 		Long: `Remove all Tasuku-generated files from editor rules directories.
@@ -71,10 +78,20 @@ func newCleanCmd() *cobra.Command {
 This removes files from:
   - .claude/rules/tasuku/
   - .cursor/rules/tasuku/
+  - .codex/rules/tasuku/
+  - .opencode/rules/tasuku/
 
-The source learnings and decisions in .tasuku/ are preserved.`,
+The source learnings and decisions in .tasuku/ are preserved.
+
+Examples:
+  tk rules clean                # Clean all detected editors
+  tk rules clean --tool claude  # Clean only Claude Code rules`,
 		RunE: runClean,
 	}
+
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode")
+
+	return cmd
 }
 
 func newStatusCmd() *cobra.Command {
@@ -93,7 +110,14 @@ func runSync(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	results, err := rules.Sync(f.Context.Learnings, f.Context.Decisions)
+	toolFilter, _ := cmd.Flags().GetString("tool")
+
+	var results []rules.SyncResult
+	if toolFilter != "" {
+		results, err = rules.SyncToTool(f.Context.Learnings, f.Context.Decisions, toolFilter)
+	} else {
+		results, err = rules.Sync(f.Context.Learnings, f.Context.Decisions)
+	}
 	if err != nil {
 		return err
 	}
@@ -116,7 +140,16 @@ func runSync(cmd *cobra.Command, args []string) error {
 }
 
 func runClean(cmd *cobra.Command, args []string) error {
-	removed, err := rules.Clean()
+	toolFilter, _ := cmd.Flags().GetString("tool")
+
+	var removed []string
+	var err error
+
+	if toolFilter != "" {
+		removed, err = rules.CleanTool(toolFilter)
+	} else {
+		removed, err = rules.Clean()
+	}
 	if err != nil {
 		return err
 	}

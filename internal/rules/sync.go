@@ -97,7 +97,7 @@ func HasSyncedRules() bool {
 func Sync(learnings []task.Learning, decisions []task.Decision) ([]SyncResult, error) {
 	targets := GetTargets()
 	if len(targets) == 0 {
-		return nil, fmt.Errorf("no supported editors detected (need .claude/ or .cursor/)")
+		return nil, fmt.Errorf("no supported editors detected (need .claude/, .cursor/, .codex/, or .opencode/)")
 	}
 
 	results := make([]SyncResult, 0, len(targets))
@@ -107,6 +107,70 @@ func Sync(learnings []task.Learning, decisions []task.Decision) ([]SyncResult, e
 	}
 
 	return results, nil
+}
+
+// SyncToTool synchronizes learnings and decisions to a specific tool.
+// Tool names: "claude", "cursor", "codex", "opencode"
+func SyncToTool(learnings []task.Learning, decisions []task.Decision, tool string) ([]SyncResult, error) {
+	// Normalize tool name
+	toolLower := strings.ToLower(tool)
+
+	// Map tool aliases to canonical names
+	toolMap := map[string]string{
+		"claude":     "Claude Code",
+		"claude-code": "Claude Code",
+		"claudecode": "Claude Code",
+		"cursor":     "Cursor",
+		"codex":      "Codex",
+		"opencode":   "OpenCode",
+		"open-code":  "OpenCode",
+	}
+
+	targetName, ok := toolMap[toolLower]
+	if !ok {
+		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode)", tool)
+	}
+
+	// Get the specific target configuration (even if not detected)
+	target := getTargetByName(targetName)
+	if target == nil {
+		return nil, fmt.Errorf("tool %s not detected in current directory", targetName)
+	}
+
+	result := syncToTarget(*target, learnings, decisions)
+	return []SyncResult{result}, nil
+}
+
+// getTargetByName returns a target by its canonical name, creating the config even if not detected.
+func getTargetByName(name string) *EditorTarget {
+	switch name {
+	case "Claude Code":
+		return &EditorTarget{
+			Name:       "Claude Code",
+			RulesDir:   ".claude/rules/tasuku",
+			DetectDirs: []string{".claude", "CLAUDE.md"},
+		}
+	case "Cursor":
+		return &EditorTarget{
+			Name:       "Cursor",
+			RulesDir:   ".cursor/rules/tasuku",
+			DetectDirs: []string{".cursor", ".cursorrules"},
+		}
+	case "Codex":
+		return &EditorTarget{
+			Name:       "Codex",
+			RulesDir:   ".codex/rules/tasuku",
+			DetectDirs: []string{".codex", "CODEX.md"},
+		}
+	case "OpenCode":
+		return &EditorTarget{
+			Name:       "OpenCode",
+			RulesDir:   ".opencode/rules/tasuku",
+			DetectDirs: []string{"opencode.json", ".opencode"},
+		}
+	default:
+		return nil
+	}
 }
 
 // SyncToTarget syncs to a specific editor target.
@@ -290,22 +354,61 @@ func Clean() ([]string, error) {
 
 	removed := []string{}
 	for _, target := range targets {
-		if dirExists(target.RulesDir) {
-			entries, _ := os.ReadDir(target.RulesDir)
-			for _, entry := range entries {
-				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-					path := filepath.Join(target.RulesDir, entry.Name())
-					if err := os.Remove(path); err == nil {
-						removed = append(removed, path)
-					}
-				}
-			}
-			// Try to remove empty directory
-			os.Remove(target.RulesDir)
-		}
+		cleaned := cleanTarget(target)
+		removed = append(removed, cleaned...)
 	}
 
 	return removed, nil
+}
+
+// CleanTool removes Tasuku-generated rules files from a specific tool.
+func CleanTool(tool string) ([]string, error) {
+	// Normalize tool name
+	toolLower := strings.ToLower(tool)
+
+	// Map tool aliases to canonical names
+	toolMap := map[string]string{
+		"claude":      "Claude Code",
+		"claude-code": "Claude Code",
+		"claudecode":  "Claude Code",
+		"cursor":      "Cursor",
+		"codex":       "Codex",
+		"opencode":    "OpenCode",
+		"open-code":   "OpenCode",
+	}
+
+	targetName, ok := toolMap[toolLower]
+	if !ok {
+		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode)", tool)
+	}
+
+	target := getTargetByName(targetName)
+	if target == nil {
+		return nil, nil
+	}
+
+	return cleanTarget(*target), nil
+}
+
+// cleanTarget removes rules files from a single target.
+func cleanTarget(target EditorTarget) []string {
+	removed := []string{}
+
+	if dirExists(target.RulesDir) {
+		entries, _ := os.ReadDir(target.RulesDir)
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+				path := filepath.Join(target.RulesDir, entry.Name())
+				if err := os.Remove(path); err == nil {
+					removed = append(removed, path)
+				}
+			}
+		}
+		// Try to remove empty directory
+		os.Remove(target.RulesDir)
+	}
+
+	return removed
 }
 
 // Helper functions
