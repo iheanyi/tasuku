@@ -1214,6 +1214,9 @@ func (s *Server) handleDone(args map[string]interface{}) (interface{}, error) {
 		return nil, err
 	}
 
+	// Get the task description for analysis
+	completedTask := f.Tasks[id]
+
 	// Find tasks that were blocked by this task and are now unblocked
 	var nowUnblocked []string
 	for taskID, t := range f.Tasks {
@@ -1255,8 +1258,17 @@ func (s *Server) handleDone(args map[string]interface{}) (interface{}, error) {
 		hints = append(hints, "This task has notes - consider if any insights should be recorded as learnings with tk_learn.")
 	}
 
-	// Reflection prompt - always shown for significant tasks
-	hints = append(hints, "REFLECT: Did completing this task involve decisions (tk_decide) or reveal learnings (tk_learn) worth preserving?")
+	// PRIORITY: Strong learning prompt for bug-fix tasks
+	if isBugFixTaskDescription(completedTask.Description) || isBugFixTaskDescription(id) {
+		result["is_bug_fix"] = true
+		hints = append(hints, "🎯 BUG FIX COMPLETED! MANDATORY: Record what you learned with tk_learn:")
+		hints = append(hints, "  → Root cause: tk_learn \"The bug was caused by...\"")
+		hints = append(hints, "  → Prevention rule: tk_learn \"Never X\" or \"Always Y\"")
+		hints = append(hints, "  ⚠️ Skipping this means the same bug WILL happen again!")
+	} else {
+		// Reflection prompt - always shown for non-bug-fix tasks
+		hints = append(hints, "REFLECT: Did completing this task involve decisions (tk_decide) or reveal learnings (tk_learn) worth preserving?")
+	}
 
 	// Suggest archiving if appropriate
 	hints = append(hints, "Consider archiving with tk_archive if this task is fully verified and no longer needs visibility.")
@@ -1266,6 +1278,24 @@ func (s *Server) handleDone(args map[string]interface{}) (interface{}, error) {
 	}
 
 	return result, nil
+}
+
+// isBugFixTaskDescription checks if a task description indicates bug fix work
+func isBugFixTaskDescription(description string) bool {
+	desc := strings.ToLower(description)
+
+	bugKeywords := []string{
+		"fix", "bug", "debug", "resolve", "repair",
+		"patch", "hotfix", "error", "issue", "problem",
+		"broken", "crash", "failing", "failed",
+	}
+
+	for _, kw := range bugKeywords {
+		if strings.Contains(desc, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) handleBlock(args map[string]interface{}) (interface{}, error) {

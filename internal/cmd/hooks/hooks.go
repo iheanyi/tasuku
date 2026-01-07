@@ -565,6 +565,7 @@ func hookPreCompact() error {
 }
 
 // hookTodoCheck analyzes TodoWrite output and suggests persisting project-level items
+// Also detects completed bug fixes and prompts for learnings
 func hookTodoCheck() error {
 	// Get TodoWrite input from environment (set by Claude Code hook)
 	toolInput := os.Getenv("TOOL_INPUT")
@@ -604,9 +605,17 @@ func hookTodoCheck() error {
 		}
 	}
 
+	// Track completed bug fixes for learning prompt
+	var completedBugFixes []string
+
 	// Analyze each todo for project-level indicators
 	var suggestions []string
 	for _, todo := range input.Todos {
+		// Check for completed bug fixes - prompt for learnings
+		if todo.Status == "completed" && isBugFixTask(todo.Content) {
+			completedBugFixes = append(completedBugFixes, todo.Content)
+		}
+
 		if shouldPersistTask(todo.Content) {
 			// Check if similar task already exists
 			id := generateID(todo.Content)
@@ -618,26 +627,64 @@ func hookTodoCheck() error {
 		}
 	}
 
-	if len(suggestions) == 0 {
-		return nil
+	// PRIORITY: Prompt for learnings after bug fixes
+	// This is the most important prompt - capture insights immediately!
+	if len(completedBugFixes) > 0 {
+		fmt.Println("🎯 BUG FIX COMPLETED - RECORD YOUR LEARNINGS NOW!")
+		fmt.Println()
+		for _, fix := range completedBugFixes {
+			desc := fix
+			if len(desc) > 60 {
+				desc = desc[:57] + "..."
+			}
+			fmt.Printf("   ✓ %s\n", desc)
+		}
+		fmt.Println()
+		fmt.Println("📝 MANDATORY: Document what you learned:")
+		fmt.Println("   → What was the root cause? tk learn \"cause\"")
+		fmt.Println("   → What rule prevents this? tk learn \"Never X\" or \"Always Y\"")
+		fmt.Println("   → Any gotchas discovered? tk learn \"insight\"")
+		fmt.Println()
+		fmt.Println("⚠️  If you skip this, the same bug WILL happen again!")
+		fmt.Println()
 	}
 
-	// Output suggestions
-	fmt.Println("💡 Some TodoWrite items look project-level:")
-	for _, s := range suggestions {
-		desc := s
-		if len(desc) > 60 {
-			desc = desc[:57] + "..."
+	// Secondary: suggest persisting project-level tasks
+	if len(suggestions) > 0 {
+		fmt.Println("💡 Some TodoWrite items look project-level:")
+		for _, s := range suggestions {
+			desc := s
+			if len(desc) > 60 {
+				desc = desc[:57] + "..."
+			}
+			fmt.Printf("   → %s\n", desc)
 		}
-		fmt.Printf("   → %s\n", desc)
+		fmt.Println()
+		fmt.Println("Consider persisting to Tasuku:")
+		fmt.Println("   tk task add \"description\" --priority high")
+		fmt.Println()
+		fmt.Println("Project-level tasks survive across sessions and help future agents!")
 	}
-	fmt.Println()
-	fmt.Println("Consider persisting to Tasuku:")
-	fmt.Println("   tk task add \"description\" --priority high")
-	fmt.Println()
-	fmt.Println("Project-level tasks survive across sessions and help future agents!")
 
 	return nil
+}
+
+// isBugFixTask checks if a task description indicates bug fix work
+func isBugFixTask(description string) bool {
+	desc := strings.ToLower(description)
+
+	bugKeywords := []string{
+		"fix", "bug", "debug", "resolve", "repair",
+		"patch", "hotfix", "error", "issue", "problem",
+		"broken", "crash", "failing", "failed",
+	}
+
+	for _, kw := range bugKeywords {
+		if strings.Contains(desc, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 // hookSubagentDone prompts for insights after subagent completion

@@ -141,6 +141,98 @@ func TestHandleToolCall_StartDone(t *testing.T) {
 	}
 }
 
+func TestHandleToolCall_DoneBugFix(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a bug-fix task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Fix overlay rendering bug",
+		"id":          "fix-overlay",
+	})
+
+	// Start and complete it
+	server.HandleToolCall("tk_start", map[string]interface{}{
+		"id": "fix-overlay",
+	})
+
+	result, err := server.HandleToolCall("tk_done", map[string]interface{}{
+		"id": "fix-overlay",
+	})
+	if err != nil {
+		t.Fatalf("done error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+
+	// Should detect as bug fix
+	if r["is_bug_fix"] != true {
+		t.Errorf("expected is_bug_fix=true for bug fix task")
+	}
+
+	// Should have hints including bug-fix specific prompts
+	hints, ok := r["hints"].([]string)
+	if !ok {
+		t.Fatal("expected hints to be []string")
+	}
+
+	foundBugFixHint := false
+	for _, h := range hints {
+		if strings.Contains(h, "BUG FIX COMPLETED") {
+			foundBugFixHint = true
+			break
+		}
+	}
+	if !foundBugFixHint {
+		t.Errorf("expected bug fix learning prompt in hints, got: %v", hints)
+	}
+}
+
+func TestHandleToolCall_DoneNonBugFix(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a regular task (not bug-fix)
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Add logout button",
+		"id":          "add-logout",
+	})
+
+	// Start and complete it
+	server.HandleToolCall("tk_start", map[string]interface{}{
+		"id": "add-logout",
+	})
+
+	result, err := server.HandleToolCall("tk_done", map[string]interface{}{
+		"id": "add-logout",
+	})
+	if err != nil {
+		t.Fatalf("done error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+
+	// Should NOT be detected as bug fix
+	if r["is_bug_fix"] == true {
+		t.Errorf("expected is_bug_fix to NOT be set for non-bug-fix task")
+	}
+
+	// Should have hints with REFLECT prompt instead
+	hints, ok := r["hints"].([]string)
+	if !ok {
+		t.Fatal("expected hints to be []string")
+	}
+
+	foundReflect := false
+	for _, h := range hints {
+		if strings.Contains(h, "REFLECT") {
+			foundReflect = true
+			break
+		}
+	}
+	if !foundReflect {
+		t.Errorf("expected REFLECT prompt in hints for non-bug-fix task, got: %v", hints)
+	}
+}
+
 func TestHandleToolCall_Learn(t *testing.T) {
 	server, _ := setupTestServer(t)
 

@@ -537,6 +537,57 @@ Check if the new feature should trigger or be triggered by:
 ### 6. Skills (Optional)
 If the feature is frequently used, consider adding a skill (slash command).
 
+## Mandatory Learning Documentation
+
+**CRITICAL: Document learnings IMMEDIATELY when they occur, not at session end.**
+
+### When to Record Learnings (MANDATORY)
+
+Record a learning using `tk_learn` or `tk learn` **IMMEDIATELY** after ANY of these events:
+
+1. **Bug Fix Completed**: After fixing ANY bug, record:
+   - What the bug was
+   - Why it happened (root cause)
+   - The rule to prevent it ("Never X" or "Always Y")
+
+2. **Gotcha Discovered**: When you discover unexpected behavior:
+   - API that doesn't work as documented
+   - Edge case that causes failures
+   - Implicit assumptions in code
+
+3. **Pattern Identified**: When you notice a recurring issue:
+   - Same type of bug appearing multiple times
+   - Code smell that leads to problems
+   - Anti-pattern in the codebase
+
+4. **Workaround Required**: When standard approach doesn't work:
+   - Library limitation requiring different approach
+   - Framework quirk needing special handling
+
+### Learning Format
+
+Use "Never" or "Always" prefixes for rules that should prevent future bugs:
+
+```bash
+# Good - actionable rule
+tk learn "Never manually manipulate ANSI-styled strings with rune operations. Use lipgloss.Width/Height/Place which handle escape sequences correctly."
+
+# Good - specific gotcha
+tk learn "Always collect map keys into a slice before iterating if you'll modify the map during iteration."
+
+# Bad - too vague
+tk learn "Be careful with strings"
+```
+
+### Enforcement
+
+**This is not optional.** If you fix a bug and don't record a learning, you are:
+1. Allowing the same bug to happen again
+2. Wasting future debugging time
+3. Failing to build institutional knowledge
+
+The `tk_health` command will warn about sessions with bug fixes but no new learnings.
+
 ## Agent Task Management
 
 When working on this codebase, follow these guidelines for task tracking:
