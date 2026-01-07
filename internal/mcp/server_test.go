@@ -176,9 +176,9 @@ func TestHandleToolCall_Decide(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	r := result.(map[string]string)
+	r := result.(map[string]interface{})
 	if r["status"] != "recorded" {
-		t.Errorf("expected status 'recorded', got %s", r["status"])
+		t.Errorf("expected status 'recorded', got %v", r["status"])
 	}
 }
 

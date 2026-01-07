@@ -1308,6 +1308,17 @@ func (s *Server) handleLearn(args map[string]interface{}) (interface{}, error) {
 	if scope != "" {
 		result["scope"] = scope
 	}
+
+	// Auto-sync to editor rules if targets exist
+	if targets := rules.GetTargets(); len(targets) > 0 {
+		f, readErr := s.store.Read()
+		if readErr == nil {
+			if _, syncErr := rules.Sync(f.Context.Learnings, f.Context.Decisions); syncErr == nil {
+				result["synced_to"] = len(targets)
+			}
+		}
+	}
+
 	return result, nil
 }
 
@@ -1319,8 +1330,8 @@ func (s *Server) handleDecide(args map[string]interface{}) (interface{}, error) 
 	var over []string
 	if o, ok := args["over"].([]interface{}); ok {
 		for _, v := range o {
-			if s, ok := v.(string); ok {
-				over = append(over, s)
+			if str, ok := v.(string); ok {
+				over = append(over, str)
 			}
 		}
 	}
@@ -1337,7 +1348,19 @@ func (s *Server) handleDecide(args map[string]interface{}) (interface{}, error) 
 		return nil, err
 	}
 
-	return map[string]string{"id": id, "status": "recorded"}, nil
+	result := map[string]interface{}{"id": id, "status": "recorded"}
+
+	// Auto-sync to editor rules if targets exist
+	if targets := rules.GetTargets(); len(targets) > 0 {
+		f, readErr := s.store.Read()
+		if readErr == nil {
+			if _, syncErr := rules.Sync(f.Context.Learnings, f.Context.Decisions); syncErr == nil {
+				result["synced_to"] = len(targets)
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func (s *Server) handleNote(args map[string]interface{}) (interface{}, error) {
@@ -1407,9 +1430,8 @@ func (s *Server) handleContext(args map[string]interface{}) (interface{}, error)
 
 	// Build enhanced response
 	result := map[string]interface{}{
-		"tasks":     f.Tasks,
-		"context":   f.Context,
-		"version":   f.Version,
+		"tasks":   f.Tasks,
+		"version": f.Version,
 		"task_counts": map[string]int{
 			"ready":       statusCounts["ready"],
 			"in_progress": statusCounts["in_progress"],
@@ -1417,6 +1439,21 @@ func (s *Server) handleContext(args map[string]interface{}) (interface{}, error)
 			"done":        statusCounts["done"],
 			"total":       len(f.Tasks),
 		},
+	}
+
+	// Check if rules sync is active - if so, skip learnings to avoid duplication
+	// (Claude Code auto-loads from .claude/rules/)
+	targets := rules.GetTargets()
+	if len(targets) > 0 {
+		// Rules sync is active - only include decisions, learnings are auto-loaded
+		result["context"] = map[string]interface{}{
+			"decisions": f.Context.Decisions,
+		}
+		result["rules_sync_active"] = true
+		result["rules_sync_note"] = "Learnings omitted - auto-loaded from editor rules directories"
+	} else {
+		// No rules sync - include full context
+		result["context"] = f.Context
 	}
 
 	if len(suggestions) > 0 {
