@@ -76,16 +76,22 @@ Supported tools:
   - Claude Code (~/.claude.json or ./.claude.json with --local)
   - Cursor (~/.cursor/mcp.json)
 
+Detection signals (local install):
+  - Claude Code: .claude/ directory OR CLAUDE.md file
+  - Cursor: .cursorrules file OR .cursor/ directory
+
 The configuration will be added to existing settings without
 overwriting other MCP servers or configurations.
 
-Use --local to install to project-level .claude.json instead of global.
-Use --force to reinstall even if already configured.`,
+Use --local to install to project-level config instead of global.
+Use --force to reinstall even if already configured.
+Use --tool to target a specific tool (claude, cursor).`,
 		RunE: runInstall,
 	}
 
 	cmd.Flags().Bool("force", false, "Force reinstall even if already configured")
-	cmd.Flags().Bool("local", false, "Install to project-level .claude.json")
+	cmd.Flags().Bool("local", false, "Install to project-level config")
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor")
 
 	return cmd
 }
@@ -125,6 +131,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 func runInstall(cmd *cobra.Command, args []string) error {
 	force, _ := cmd.Flags().GetBool("force")
 	local, _ := cmd.Flags().GetBool("local")
+	toolFilter, _ := cmd.Flags().GetString("tool")
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -132,6 +139,23 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	tools := getSupportedAITools(local)
+
+	// Filter tools if --tool is specified
+	if toolFilter != "" {
+		toolFilter = strings.ToLower(toolFilter)
+		filtered := []AITool{}
+		for _, tool := range tools {
+			toolNameLower := strings.ToLower(tool.Name)
+			if strings.Contains(toolNameLower, toolFilter) {
+				filtered = append(filtered, tool)
+			}
+		}
+		if len(filtered) == 0 {
+			return fmt.Errorf("unknown tool: %s (valid: claude, cursor)", toolFilter)
+		}
+		tools = filtered
+	}
+
 	installedTo := []string{}
 	alreadyInstalled := []string{}
 	reinstalled := []string{}
@@ -139,11 +163,12 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	for _, tool := range tools {
 		var settings map[string]interface{}
 
-		// Check if tool is installed (via DetectPath) or settings file exists
+		// Check if tool is installed (via any DetectPath) or settings file exists
 		toolInstalled := false
-		if tool.DetectPath != "" {
-			if _, err := os.Stat(tool.DetectPath); err == nil {
+		for _, detectPath := range tool.DetectPaths {
+			if _, err := os.Stat(detectPath); err == nil {
 				toolInstalled = true
+				break
 			}
 		}
 		settingsExist := false
@@ -328,16 +353,17 @@ type AITool struct {
 	Name         string
 	SettingsPath string
 	MCPKey       string
-	DetectPath   string // Path to check if tool is installed (directory or file)
+	DetectPaths  []string // Paths to check if tool is installed (any match = installed)
 }
 
 func getSupportedAITools(local bool) []AITool {
 	if local {
 		// Local installation targets project-level config files
-		// Detect Claude Code by .claude/ directory, Cursor by .cursorrules file
+		// Detect Claude Code by .claude/ directory OR CLAUDE.md file
+		// Detect Cursor by .cursorrules file OR .cursor/ directory
 		return []AITool{
-			{"Claude Code (project)", ".claude.json", "mcpServers", ".claude"},
-			{"Cursor (project)", ".cursor/mcp.json", "mcpServers", ".cursorrules"},
+			{"Claude Code (project)", ".claude.json", "mcpServers", []string{".claude", "CLAUDE.md"}},
+			{"Cursor (project)", ".cursor/mcp.json", "mcpServers", []string{".cursorrules", ".cursor"}},
 		}
 	}
 
@@ -345,9 +371,9 @@ func getSupportedAITools(local bool) []AITool {
 	home, _ := os.UserHomeDir()
 	return []AITool{
 		// Claude Code: detect by ~/.claude/ directory, config at ~/.claude.json
-		{"Claude Code", home + "/.claude.json", "mcpServers", home + "/.claude"},
+		{"Claude Code", home + "/.claude.json", "mcpServers", []string{home + "/.claude"}},
 		// Cursor: detect by ~/.cursor/ directory
-		{"Cursor", home + "/.cursor/mcp.json", "mcpServers", home + "/.cursor"},
-		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers", home + "/Library/Application Support/Cursor"},
+		{"Cursor", home + "/.cursor/mcp.json", "mcpServers", []string{home + "/.cursor"}},
+		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers", []string{home + "/Library/Application Support/Cursor"}},
 	}
 }
