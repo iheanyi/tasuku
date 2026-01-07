@@ -63,9 +63,9 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 	cmd.AddCommand(preCompactCmd)
 	cmd.AddCommand(syncCmd)
 	cmd.AddCommand(planSyncCmd)
-	cmd.AddCommand(todoCheckCmd)
+	cmd.AddCommand(newTodoCheckCmd())
 	cmd.AddCommand(subagentDoneCmd)
-	cmd.AddCommand(promptCheckCmd)
+	cmd.AddCommand(newPromptCheckCmd())
 	cmd.AddCommand(codexNotifyCmd)
 
 	return cmd
@@ -296,26 +296,76 @@ Examples:
 	},
 }
 
-var todoCheckCmd = &cobra.Command{
-	Use:   "todo-check",
-	Short: "Check if TodoWrite items should persist to Tasuku",
-	Long: `Called by Claude Code PostToolUse hook after TodoWrite is used.
+func newTodoCheckCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "todo-check",
+		Short: "Check if TodoWrite items should persist to Tasuku",
+		Long: `Called by Claude Code PostToolUse hook after tool use.
 
-Analyzes the todos that were just written and suggests persisting
-project-level tasks to Tasuku:
-  - Features, bugs, refactors → suggest adding to tk
-  - Implementation steps → keep in TodoWrite only
+Analyzes tool output and suggests actions:
+  - TodoWrite: Persist project-level tasks to Tasuku
+  - Bash (tests): Prompt to track test failures
+  - Bash (git): Link commits to tasks
 
-This bridges session-level tracking (TodoWrite) with project-level
-persistence (Tasuku) automatically.
+Features (all enabled by default):
+  - bugfix_learning: Prompt for learnings after bug fixes
+  - project_task: Suggest persisting project-level tasks
+  - test_failure: Detect test failures and suggest tracking
+  - git_commit: Link commits to related tasks
 
-The hook receives TodoWrite JSON via TOOL_INPUT environment variable.
+Configuration:
+  --quiet           Minimal output mode
+  --disable=X,Y     Disable specific features
+  --list-features   Show available features
+
+The hook receives tool info via TOOL_NAME and TOOL_INPUT environment variables.
 
 Examples:
-  tk hooks todo-check   # Analyze TodoWrite output`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return hookTodoCheck()
-	},
+  tk hooks todo-check                           # Default (all features)
+  tk hooks todo-check --quiet                   # Minimal output
+  tk hooks todo-check --disable=test_failure    # Skip test detection
+  tk hooks todo-check --list-features           # Show features`,
+		RunE: runTodoCheck,
+	}
+
+	cmd.Flags().Bool("quiet", false, "Minimal output mode")
+	cmd.Flags().String("disable", "", "Comma-separated features to disable")
+	cmd.Flags().Bool("list-features", false, "List available features")
+
+	return cmd
+}
+
+var todoCheckFeatures = []string{
+	"bugfix_learning",
+	"project_task",
+	"test_failure",
+	"git_commit",
+}
+
+var todoCheckQuietFeatures = map[string]bool{
+	"bugfix_learning": true, // Keep in quiet mode
+	"project_task":    false,
+	"test_failure":    true, // Keep in quiet mode
+	"git_commit":      false,
+}
+
+func runTodoCheck(cmd *cobra.Command, args []string) error {
+	listFeatures, _ := cmd.Flags().GetBool("list-features")
+	if listFeatures {
+		fmt.Println("Available todo-check features:")
+		for _, f := range todoCheckFeatures {
+			fmt.Printf("  - %s\n", f)
+		}
+		return nil
+	}
+
+	quiet, _ := cmd.Flags().GetBool("quiet")
+	disableStr, _ := cmd.Flags().GetString("disable")
+
+	disabled := parseDisabledFeatures(disableStr)
+	config := buildFeatureConfig(todoCheckFeatures, todoCheckQuietFeatures, quiet, disabled)
+
+	return hookTodoCheck(config)
 }
 
 var subagentDoneCmd = &cobra.Command{
@@ -339,25 +389,145 @@ Examples:
 	},
 }
 
-var promptCheckCmd = &cobra.Command{
-	Use:   "prompt-check",
-	Short: "Detect task-related intent in user prompts",
-	Long: `Called by Claude Code UserPromptSubmit hook when user sends a message.
+func newPromptCheckCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "prompt-check",
+		Short: "Detect task-related intent in user prompts",
+		Long: `Called by Claude Code UserPromptSubmit hook when user sends a message.
 
-Analyzes the user's prompt to detect task-related intent:
-  - "implement X" / "fix bug Y" → suggest creating a task if none exists
-  - References to existing task IDs → show task context
-  - Work that should be tracked → gentle reminder about task creation
+Analyzes the user's prompt to detect task-related intent and surface context.
 
-This helps ensure significant work gets tracked in Tasuku from the start.
+Features (all enabled by default):
+  Context surfacing:
+  - session_continuity: Show in-progress tasks on "continue"/"resume"
+  - decision_lookup:    Surface related decisions for questions
+  - learning_lookup:    Surface related learnings for questions
+  - task_reference:     Show context when task ID mentioned
+  - task_surfacing:     Find related tasks by keyword matching
+
+  Nudges:
+  - rule_detection:     Detect never/always patterns to record
+  - bug_detection:      Prompt to track bug reports
+  - work_detection:     Suggest creating task for significant work
+  - stuck_detection:    Offer help when user seems stuck
+  - shipping_check:     Pre-ship checklist on deploy/release
+  - learning_capture:   Capture "TIL"/"I learned" as learnings
+  - decision_capture:   Prompt to record "X or Y" decisions
+  - scope_warning:      Warn about scope expansion mid-task
+
+Configuration:
+  --quiet           Minimal output (context only, no nudges)
+  --disable=X,Y     Disable specific features
+  --list-features   Show available features
 
 The hook receives the user prompt via USER_PROMPT environment variable.
 
 Examples:
-  tk hooks prompt-check   # Analyze user prompt for task intent`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return hookPromptCheck()
-	},
+  tk hooks prompt-check                              # Default (all features)
+  tk hooks prompt-check --quiet                      # Context only, no nudges
+  tk hooks prompt-check --disable=shipping_check     # Skip shipping prompts
+  tk hooks prompt-check --list-features              # Show features`,
+		RunE: runPromptCheck,
+	}
+
+	cmd.Flags().Bool("quiet", false, "Minimal output mode (context surfacing only)")
+	cmd.Flags().String("disable", "", "Comma-separated features to disable")
+	cmd.Flags().Bool("list-features", false, "List available features")
+
+	return cmd
+}
+
+var promptCheckFeatures = []string{
+	// Context surfacing
+	"session_continuity",
+	"decision_lookup",
+	"learning_lookup",
+	"task_reference",
+	"task_surfacing",
+	// Nudges
+	"rule_detection",
+	"bug_detection",
+	"work_detection",
+	"stuck_detection",
+	"shipping_check",
+	"learning_capture",
+	"decision_capture",
+	"scope_warning",
+}
+
+// Features kept in quiet mode (context surfacing only)
+var promptCheckQuietFeatures = map[string]bool{
+	"session_continuity": true,
+	"decision_lookup":    true,
+	"learning_lookup":    true,
+	"task_reference":     true,
+	"task_surfacing":     true,
+	"rule_detection":     true, // Rules are important enough to keep
+	"bug_detection":      false,
+	"work_detection":     false,
+	"stuck_detection":    false,
+	"shipping_check":     false,
+	"learning_capture":   true, // Direct capture is low noise
+	"decision_capture":   false,
+	"scope_warning":      false,
+}
+
+func runPromptCheck(cmd *cobra.Command, args []string) error {
+	listFeatures, _ := cmd.Flags().GetBool("list-features")
+	if listFeatures {
+		fmt.Println("Available prompt-check features:")
+		fmt.Println("\nContext surfacing:")
+		for _, f := range []string{"session_continuity", "decision_lookup", "learning_lookup", "task_reference", "task_surfacing"} {
+			fmt.Printf("  - %s\n", f)
+		}
+		fmt.Println("\nNudges:")
+		for _, f := range []string{"rule_detection", "bug_detection", "work_detection", "stuck_detection", "shipping_check", "learning_capture", "decision_capture", "scope_warning"} {
+			fmt.Printf("  - %s\n", f)
+		}
+		return nil
+	}
+
+	quiet, _ := cmd.Flags().GetBool("quiet")
+	disableStr, _ := cmd.Flags().GetString("disable")
+
+	disabled := parseDisabledFeatures(disableStr)
+	config := buildFeatureConfig(promptCheckFeatures, promptCheckQuietFeatures, quiet, disabled)
+
+	return hookPromptCheck(config)
+}
+
+// featureConfig holds enabled/disabled state for each feature
+type featureConfig map[string]bool
+
+// parseDisabledFeatures parses comma-separated feature names
+func parseDisabledFeatures(s string) map[string]bool {
+	disabled := make(map[string]bool)
+	if s == "" {
+		return disabled
+	}
+	for _, f := range strings.Split(s, ",") {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			disabled[f] = true
+		}
+	}
+	return disabled
+}
+
+// buildFeatureConfig creates a feature config based on quiet mode and disabled features
+func buildFeatureConfig(allFeatures []string, quietFeatures map[string]bool, quiet bool, disabled map[string]bool) featureConfig {
+	config := make(featureConfig)
+	for _, f := range allFeatures {
+		enabled := true
+		if quiet {
+			enabled = quietFeatures[f]
+		}
+		if disabled[f] {
+			enabled = false
+		}
+		config[f] = enabled
+	}
+	return config
 }
 
 var codexNotifyCmd = &cobra.Command{
@@ -564,16 +734,34 @@ func hookPreCompact() error {
 	return nil
 }
 
-// hookTodoCheck analyzes TodoWrite output and suggests persisting project-level items
-// Also detects completed bug fixes and prompts for learnings
-func hookTodoCheck() error {
-	// Get TodoWrite input from environment (set by Claude Code hook)
+// hookTodoCheck analyzes tool output and suggests actions
+// Handles TodoWrite (task persistence) and Bash (test failures, git commits)
+func hookTodoCheck(config featureConfig) error {
+	toolName := os.Getenv("TOOL_NAME")
 	toolInput := os.Getenv("TOOL_INPUT")
-	if toolInput == "" {
-		// No input, nothing to check
+	toolOutput := os.Getenv("TOOL_OUTPUT")
+
+	if toolInput == "" && toolOutput == "" {
 		return nil
 	}
 
+	switch toolName {
+	case "TodoWrite":
+		return handleTodoWriteCheck(config, toolInput)
+	case "Bash":
+		return handleBashCheck(config, toolInput, toolOutput)
+	default:
+		// For backwards compatibility, assume TodoWrite if no TOOL_NAME
+		if toolInput != "" {
+			return handleTodoWriteCheck(config, toolInput)
+		}
+	}
+
+	return nil
+}
+
+// handleTodoWriteCheck analyzes TodoWrite output for project-level items and bug fixes
+func handleTodoWriteCheck(config featureConfig, toolInput string) error {
 	// Parse the TodoWrite JSON
 	var input struct {
 		Todos []struct {
@@ -584,7 +772,6 @@ func hookTodoCheck() error {
 	}
 
 	if err := json.Unmarshal([]byte(toolInput), &input); err != nil {
-		// Not valid JSON or wrong format, skip silently
 		return nil
 	}
 
@@ -607,66 +794,177 @@ func hookTodoCheck() error {
 
 	// Track completed bug fixes for learning prompt
 	var completedBugFixes []string
-
-	// Analyze each todo for project-level indicators
 	var suggestions []string
+
 	for _, todo := range input.Todos {
 		// Check for completed bug fixes - prompt for learnings
-		if todo.Status == "completed" && isBugFixTask(todo.Content) {
+		if config["bugfix_learning"] && todo.Status == "completed" && isBugFixTask(todo.Content) {
 			completedBugFixes = append(completedBugFixes, todo.Content)
 		}
 
-		if shouldPersistTask(todo.Content) {
-			// Check if similar task already exists
+		if config["project_task"] && shouldPersistTask(todo.Content) {
 			id := generateID(todo.Content)
 			if existingTasks != nil && existingTasks[id] {
-				continue // Already tracked
+				continue
 			}
-
 			suggestions = append(suggestions, todo.Content)
 		}
 	}
 
-	// PRIORITY: Prompt for learnings after bug fixes
-	// This is the most important prompt - capture insights immediately!
+	// Prompt for learnings after bug fixes
 	if len(completedBugFixes) > 0 {
 		fmt.Println("🎯 BUG FIX COMPLETED - RECORD YOUR LEARNINGS NOW!")
 		fmt.Println()
 		for _, fix := range completedBugFixes {
-			desc := fix
-			if len(desc) > 60 {
-				desc = desc[:57] + "..."
-			}
-			fmt.Printf("   ✓ %s\n", desc)
+			fmt.Printf("   ✓ %s\n", truncateString(fix, 60))
 		}
 		fmt.Println()
-		fmt.Println("📝 MANDATORY: Document what you learned:")
+		fmt.Println("📝 Document what you learned:")
 		fmt.Println("   → What was the root cause? tk learn \"cause\"")
 		fmt.Println("   → What rule prevents this? tk learn \"Never X\" or \"Always Y\"")
-		fmt.Println("   → Any gotchas discovered? tk learn \"insight\"")
-		fmt.Println()
-		fmt.Println("⚠️  If you skip this, the same bug WILL happen again!")
 		fmt.Println()
 	}
 
-	// Secondary: suggest persisting project-level tasks
+	// Suggest persisting project-level tasks
 	if len(suggestions) > 0 {
 		fmt.Println("💡 Some TodoWrite items look project-level:")
 		for _, s := range suggestions {
-			desc := s
-			if len(desc) > 60 {
-				desc = desc[:57] + "..."
-			}
-			fmt.Printf("   → %s\n", desc)
+			fmt.Printf("   → %s\n", truncateString(s, 60))
 		}
 		fmt.Println()
-		fmt.Println("Consider persisting to Tasuku:")
-		fmt.Println("   tk task add \"description\" --priority high")
-		fmt.Println()
-		fmt.Println("Project-level tasks survive across sessions and help future agents!")
+		fmt.Println("Consider: tk task add \"description\" --priority high")
 	}
 
 	return nil
+}
+
+// handleBashCheck analyzes Bash command output for test failures and git commits
+func handleBashCheck(config featureConfig, toolInput, toolOutput string) error {
+	// Parse command from input
+	var bashInput struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal([]byte(toolInput), &bashInput); err != nil {
+		return nil
+	}
+
+	command := strings.ToLower(bashInput.Command)
+	outputLower := strings.ToLower(toolOutput)
+
+	// === TEST FAILURE DETECTION ===
+	if config["test_failure"] && isTestCommand(command) {
+		if detectTestFailure(outputLower) {
+			fmt.Println("🔴 TEST FAILURE DETECTED")
+			fmt.Println()
+			fmt.Println("   Track the fix:")
+			fmt.Println("   → tk task add \"Fix failing tests\" --tag bug --priority high")
+			fmt.Println()
+			fmt.Println("   Or if you just fixed it, record what you learned:")
+			fmt.Println("   → tk learn \"root cause or pattern\"")
+			fmt.Println()
+		}
+	}
+
+	// === GIT COMMIT TASK LINKING ===
+	if config["git_commit"] && isGitCommitCommand(command) {
+		handleGitCommitLink(toolOutput)
+	}
+
+	return nil
+}
+
+// isTestCommand checks if a command is running tests
+func isTestCommand(command string) bool {
+	testPatterns := []string{
+		"go test", "npm test", "yarn test", "pnpm test",
+		"pytest", "python -m pytest", "python3 -m pytest",
+		"jest", "vitest", "mocha", "cargo test", "mix test",
+		"rspec", "bundle exec rspec", "rails test",
+		"make test", "make check",
+	}
+	for _, pattern := range testPatterns {
+		if strings.Contains(command, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectTestFailure checks test output for failure indicators
+func detectTestFailure(output string) bool {
+	failurePatterns := []string{
+		"fail", "failed", "failure", "error:",
+		"panic:", "assertion failed", "expected",
+		"not equal", "mismatch", "exception",
+		"exit status 1", "exit code 1",
+		"tests failed", "test failed",
+	}
+	for _, pattern := range failurePatterns {
+		if strings.Contains(output, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// isGitCommitCommand checks if a command is a git commit
+func isGitCommitCommand(command string) bool {
+	return strings.Contains(command, "git commit")
+}
+
+// handleGitCommitLink suggests linking commits to tasks
+func handleGitCommitLink(output string) {
+	// Check if Tasuku is initialized
+	s := store.DefaultStorageWithWarning()
+	if !s.Exists() {
+		return
+	}
+
+	f, err := s.Read()
+	if err != nil {
+		return
+	}
+
+	// Find in-progress tasks
+	var inProgress []taskWithID
+	for id, t := range f.Tasks {
+		if t.Status == task.StatusInProgress {
+			inProgress = append(inProgress, taskWithID{id: id, task: t})
+		}
+	}
+
+	if len(inProgress) == 0 {
+		return
+	}
+
+	// Check if commit message already references a task
+	outputLower := strings.ToLower(output)
+	for _, item := range inProgress {
+		if strings.Contains(outputLower, strings.ToLower(item.id)) {
+			// Already references task
+			fmt.Printf("📝 Commit references task: %s\n", item.id)
+			fmt.Println("   Mark as done?")
+			fmt.Printf("   → tk task done %s\n", item.id)
+			fmt.Println()
+			return
+		}
+	}
+
+	// Suggest linking to in-progress task
+	if len(inProgress) == 1 {
+		item := inProgress[0]
+		fmt.Printf("📝 Commit may relate to: %s\n", item.id)
+		fmt.Printf("   %s\n", truncateString(item.task.Description, 50))
+		fmt.Println("   Mark as done?")
+		fmt.Printf("   → tk task done %s\n", item.id)
+		fmt.Println()
+	} else if len(inProgress) > 1 {
+		fmt.Printf("📝 %d tasks in progress - consider marking one done:\n", len(inProgress))
+		for _, item := range inProgress {
+			fmt.Printf("   → tk task done %s\n", item.id)
+		}
+		fmt.Println()
+	}
 }
 
 // isBugFixTask checks if a task description indicates bug fix work
@@ -746,7 +1044,7 @@ func hookSubagentDone() error {
 }
 
 // hookPromptCheck analyzes user prompts for task-related intent and rule patterns
-func hookPromptCheck() error {
+func hookPromptCheck(config featureConfig) error {
 	// Get user prompt from environment (set by Claude Code hook)
 	userPrompt := os.Getenv("USER_PROMPT")
 	if userPrompt == "" {
@@ -776,14 +1074,12 @@ func hookPromptCheck() error {
 	const maxOutputs = 2 // Limit to avoid overwhelming the user
 
 	// === 1. SESSION CONTINUITY DETECTION ===
-	// When user says "continue", "resume", etc., show in-progress tasks with notes
-	if outputCount < maxOutputs && detectSessionContinuity(promptLower) {
+	if config["session_continuity"] && outputCount < maxOutputs && detectSessionContinuity(promptLower) {
 		inProgressTasks := getInProgressTasks(f)
 		if len(inProgressTasks) > 0 {
 			fmt.Println("🔄 Continuing session - in-progress tasks:")
 			for _, item := range inProgressTasks {
 				fmt.Printf("   - %s: %s\n", item.id, truncateString(item.task.Description, 50))
-				// Show most recent note if available
 				if notes := f.Context.Notes[item.id]; len(notes) > 0 {
 					lastNote := notes[len(notes)-1]
 					fmt.Printf("     Last note: %s\n", truncateString(lastNote.Text, 60))
@@ -794,10 +1090,8 @@ func hookPromptCheck() error {
 		}
 	}
 
-	// === 2. DECISION/LEARNING LOOKUP ===
-	// Surface relevant decisions/learnings when user asks questions
-	if outputCount < maxOutputs && looksLikeQuestion(promptLower) {
-		// Search decisions for relevant matches
+	// === 2. DECISION LOOKUP ===
+	if config["decision_lookup"] && outputCount < maxOutputs && looksLikeQuestion(promptLower) {
 		relevantDecisions := findRelevantDecisions(f.Context.Decisions, promptLower)
 		if len(relevantDecisions) > 0 {
 			fmt.Println("📚 Related decisions found:")
@@ -810,10 +1104,12 @@ func hookPromptCheck() error {
 			fmt.Println()
 			outputCount++
 		}
+	}
 
-		// Search learnings for relevant matches
+	// === 3. LEARNING LOOKUP ===
+	if config["learning_lookup"] && outputCount < maxOutputs && looksLikeQuestion(promptLower) {
 		relevantLearnings := findRelevantLearnings(f.Context.Learnings, promptLower)
-		if outputCount < maxOutputs && len(relevantLearnings) > 0 {
+		if len(relevantLearnings) > 0 {
 			fmt.Println("💡 Related learnings found:")
 			for _, l := range relevantLearnings {
 				fmt.Printf("   - %s\n", truncateString(l.Text, 70))
@@ -823,9 +1119,8 @@ func hookPromptCheck() error {
 		}
 	}
 
-	// === 3. RULE PATTERN DETECTION ===
-	// Users often give instructions like "always do X" or "never do Y"
-	if outputCount < maxOutputs && task.IsRuleLearning(userPrompt) && looksLikeInstruction(userPrompt) {
+	// === 4. RULE PATTERN DETECTION ===
+	if config["rule_detection"] && outputCount < maxOutputs && task.IsRuleLearning(userPrompt) && looksLikeInstruction(userPrompt) {
 		rulePortion := extractRulePortion(userPrompt)
 		if rulePortion != "" && !hasSimilarLearning(f.Context.Learnings, rulePortion) {
 			fmt.Println("📝 RULE DETECTED in your message:")
@@ -838,24 +1133,46 @@ func hookPromptCheck() error {
 		}
 	}
 
-	// === 4. EXPLICIT TASK ID REFERENCE ===
-	// Check for explicit task ID references (e.g., "work on fix-auth-bug")
-	for id, t := range f.Tasks {
-		if strings.Contains(promptLower, strings.ToLower(id)) {
-			fmt.Printf("📋 Task referenced: %s\n", id)
-			fmt.Printf("   Status: %s\n", t.Status)
-			fmt.Printf("   %s\n", truncateString(t.Description, 50))
-			if t.Status == task.StatusReady {
-				fmt.Printf("   → Consider: tk task start %s\n", id)
-			}
+	// === 5. DIRECT LEARNING CAPTURE ===
+	// Detect "TIL", "I learned", "note to self" patterns
+	if config["learning_capture"] && outputCount < maxOutputs && detectLearningIntent(promptLower) {
+		learningContent := extractLearningContent(userPrompt)
+		if learningContent != "" && !hasSimilarLearning(f.Context.Learnings, learningContent) {
+			fmt.Println("💡 Capture this learning?")
+			fmt.Printf("   → tk learn \"%s\"\n", escapeForShell(learningContent))
 			fmt.Println()
-			return nil // Task ID reference is definitive, stop processing
+			outputCount++
 		}
 	}
 
-	// === 5. RELATED TASK SURFACING ===
-	// Find tasks by keyword matching (not exact ID match)
-	if outputCount < maxOutputs {
+	// === 6. DECISION POINT DETECTION ===
+	// Detect "should we use X or Y" comparison patterns
+	if config["decision_capture"] && outputCount < maxOutputs && detectDecisionPoint(promptLower) {
+		fmt.Println("🤔 This looks like a decision point.")
+		fmt.Println("   After deciding, record it:")
+		fmt.Println("   → tk decide --id <name> --chose \"X\" --over \"Y\" --because \"reason\"")
+		fmt.Println()
+		outputCount++
+	}
+
+	// === 7. EXPLICIT TASK ID REFERENCE ===
+	if config["task_reference"] {
+		for id, t := range f.Tasks {
+			if strings.Contains(promptLower, strings.ToLower(id)) {
+				fmt.Printf("📋 Task referenced: %s\n", id)
+				fmt.Printf("   Status: %s\n", t.Status)
+				fmt.Printf("   %s\n", truncateString(t.Description, 50))
+				if t.Status == task.StatusReady {
+					fmt.Printf("   → Consider: tk task start %s\n", id)
+				}
+				fmt.Println()
+				return nil // Task ID reference is definitive
+			}
+		}
+	}
+
+	// === 8. RELATED TASK SURFACING ===
+	if config["task_surfacing"] && outputCount < maxOutputs {
 		relatedTasks := findRelatedTasks(f.Tasks, promptLower)
 		if len(relatedTasks) > 0 {
 			fmt.Println("📋 Related tasks found:")
@@ -868,10 +1185,49 @@ func hookPromptCheck() error {
 		}
 	}
 
-	// === 6. BUG REPORT DETECTION ===
-	// Detect bug descriptions and prompt to create task
-	if outputCount < maxOutputs && detectBugReport(promptLower) {
-		// Check if there's already a similar bug task
+	// === 9. SCOPE WARNING ===
+	// Warn about scope expansion when there's an in-progress task
+	if config["scope_warning"] && outputCount < maxOutputs && detectScopeExpansion(promptLower) {
+		inProgress := getInProgressTasks(f)
+		if len(inProgress) > 0 {
+			currentTask := inProgress[0]
+			// Check if new work seems unrelated to current task
+			if !isRelatedWork(promptLower, currentTask.task.Description) {
+				fmt.Println("⚠️  Scope expansion detected.")
+				fmt.Printf("   Currently working on: %s\n", currentTask.id)
+				fmt.Println("   Create separate task for new work?")
+				fmt.Println("   → tk task add \"description\" --priority normal")
+				fmt.Println()
+				outputCount++
+			}
+		}
+	}
+
+	// === 10. STUCK/FRUSTRATION DETECTION ===
+	if config["stuck_detection"] && outputCount < maxOutputs && detectStuckPattern(promptLower) {
+		fmt.Println("🤔 Sounds like you're stuck. Options:")
+		fmt.Println("   → Search learnings: tk find \"keyword\"")
+		fmt.Println("   → Track blocker: tk task add \"...\" --tag blocker")
+		fmt.Println("   → Break it down: tk task add \"...\" --parent <current-task>")
+		fmt.Println()
+		outputCount++
+	}
+
+	// === 11. SHIPPING/DEPLOYMENT CHECKPOINT ===
+	if config["shipping_check"] && outputCount < maxOutputs && detectShippingIntent(promptLower) {
+		warnings := checkPreShipState(f)
+		if len(warnings) > 0 {
+			fmt.Println("🚀 Pre-ship checklist:")
+			for _, w := range warnings {
+				fmt.Printf("   ⚠️  %s\n", w)
+			}
+			fmt.Println()
+			outputCount++
+		}
+	}
+
+	// === 12. BUG REPORT DETECTION ===
+	if config["bug_detection"] && outputCount < maxOutputs && detectBugReport(promptLower) {
 		if !hasRelatedBugTask(f.Tasks, promptLower) {
 			fmt.Println("🐛 This sounds like a bug report.")
 			fmt.Println("   Track it:")
@@ -881,9 +1237,8 @@ func hookPromptCheck() error {
 		}
 	}
 
-	// === 7. SIGNIFICANT WORK DETECTION ===
-	// Suggest creating a task for significant work
-	if outputCount < maxOutputs && detectSignificantWork(promptLower) {
+	// === 13. SIGNIFICANT WORK DETECTION ===
+	if config["work_detection"] && outputCount < maxOutputs && detectSignificantWork(promptLower) {
 		hasInProgress := false
 		for _, t := range f.Tasks {
 			if t.Status == task.StatusInProgress {
@@ -900,6 +1255,160 @@ func hookPromptCheck() error {
 	}
 
 	return nil
+}
+
+// detectLearningIntent checks if user is sharing a learning
+func detectLearningIntent(prompt string) bool {
+	learningPatterns := []string{
+		"til ", "til:", "i learned", "i just learned",
+		"note to self", "good to know", "remember that",
+		"found out that", "discovered that", "realized that",
+		"turns out", "apparently ", "interesting:",
+	}
+	for _, pattern := range learningPatterns {
+		if strings.Contains(prompt, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractLearningContent extracts the learning from a prompt
+func extractLearningContent(prompt string) string {
+	// Try to extract content after learning indicators
+	indicators := []string{
+		"til ", "til:", "i learned that ", "i just learned that ",
+		"note to self: ", "good to know: ", "remember that ",
+		"found out that ", "discovered that ", "realized that ",
+		"turns out ", "apparently ",
+	}
+	lower := strings.ToLower(prompt)
+	for _, ind := range indicators {
+		if idx := strings.Index(lower, ind); idx != -1 {
+			content := prompt[idx+len(ind):]
+			content = strings.TrimSpace(content)
+			// Take first sentence
+			if endIdx := strings.IndexAny(content, ".!?"); endIdx != -1 {
+				content = content[:endIdx+1]
+			}
+			if len(content) > 10 && len(content) < 200 {
+				return content
+			}
+		}
+	}
+	return ""
+}
+
+// detectDecisionPoint checks if user is comparing options
+func detectDecisionPoint(prompt string) bool {
+	decisionPatterns := []string{
+		" or ", "should we use", "should i use",
+		"which is better", "comparing", "trade-off",
+		"pros and cons", "versus", " vs ",
+		"what's the best way", "best approach",
+		"deciding between", "choice between",
+	}
+	for _, pattern := range decisionPatterns {
+		if strings.Contains(prompt, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectScopeExpansion checks if user is adding new work
+func detectScopeExpansion(prompt string) bool {
+	expansionPatterns := []string{
+		"also add", "also implement", "also fix",
+		"can you also", "while you're at it",
+		"another thing", "one more thing",
+		"additionally", "in addition",
+		"let's also", "we should also",
+	}
+	for _, pattern := range expansionPatterns {
+		if strings.Contains(prompt, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// isRelatedWork checks if new work relates to current task
+func isRelatedWork(newWork, currentTaskDesc string) bool {
+	newWords := extractKeywords(newWork)
+	currentWords := extractKeywords(strings.ToLower(currentTaskDesc))
+	overlap := countOverlap(newWords, currentWords)
+	return overlap >= 2
+}
+
+// detectStuckPattern checks if user expresses frustration or being stuck
+func detectStuckPattern(prompt string) bool {
+	stuckPatterns := []string{
+		"stuck", "frustrated", "frustrating",
+		"can't figure", "cannot figure", "don't understand",
+		"keeps failing", "keep getting", "still getting",
+		"no idea", "not sure why", "don't know why",
+		"help me understand", "what am i missing",
+		"i give up", "this is hard",
+	}
+	for _, pattern := range stuckPatterns {
+		if strings.Contains(prompt, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectShippingIntent checks if user wants to ship/deploy
+func detectShippingIntent(prompt string) bool {
+	shippingPatterns := []string{
+		"ship it", "ship this", "let's ship",
+		"deploy", "release", "push to prod",
+		"merge to main", "merge to master",
+		"we're done", "looks good to ship",
+		"ready to release", "time to deploy",
+	}
+	for _, pattern := range shippingPatterns {
+		if strings.Contains(prompt, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkPreShipState checks for issues before shipping
+func checkPreShipState(f *task.File) []string {
+	var warnings []string
+
+	// Check for in-progress tasks
+	var inProgressCount int
+	for _, t := range f.Tasks {
+		if t.Status == task.StatusInProgress {
+			inProgressCount++
+		}
+	}
+	if inProgressCount > 0 {
+		warnings = append(warnings, fmt.Sprintf("%d task(s) still in_progress", inProgressCount))
+	}
+
+	// Check for running timers
+	var timerCount int
+	for _, t := range f.Tasks {
+		if t.IsTimerRunning() {
+			timerCount++
+		}
+	}
+	if timerCount > 0 {
+		warnings = append(warnings, fmt.Sprintf("%d timer(s) still running", timerCount))
+	}
+
+	// Check for uncommitted changes (if in git repo)
+	if out, err := execCommand("git", "status", "--porcelain"); err == nil && len(strings.TrimSpace(out)) > 0 {
+		lineCount := len(strings.Split(strings.TrimSpace(out), "\n"))
+		warnings = append(warnings, fmt.Sprintf("%d uncommitted file(s)", lineCount))
+	}
+
+	return warnings
 }
 
 // taskWithID pairs a task with its ID for sorting/display
