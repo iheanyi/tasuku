@@ -79,14 +79,25 @@ func TestGetSupportedAITools(t *testing.T) {
 
 	// Test local tools
 	localTools := getSupportedAITools(true)
-	if len(localTools) != 1 {
-		t.Errorf("expected 1 local tool, got %d", len(localTools))
+	if len(localTools) != 2 {
+		t.Errorf("expected 2 local tools, got %d", len(localTools))
 	}
+	// Check Claude Code (project)
 	if localTools[0].Name != "Claude Code (project)" {
 		t.Errorf("expected 'Claude Code (project)', got %s", localTools[0].Name)
 	}
 	if localTools[0].SettingsPath != ".claude.json" {
 		t.Errorf("expected '.claude.json', got %s", localTools[0].SettingsPath)
+	}
+	if localTools[0].DetectPath != ".claude" {
+		t.Errorf("expected DetectPath '.claude', got %s", localTools[0].DetectPath)
+	}
+	// Check Cursor (project)
+	if localTools[1].Name != "Cursor (project)" {
+		t.Errorf("expected 'Cursor (project)', got %s", localTools[1].Name)
+	}
+	if localTools[1].DetectPath != ".cursorrules" {
+		t.Errorf("expected DetectPath '.cursorrules', got %s", localTools[1].DetectPath)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -151,8 +152,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		}
 
 		if !settingsExist {
-			// Create settings file if: local install, OR tool is detected as installed
-			if local || toolInstalled {
+			// Create settings file only if tool is detected as installed
+			// For local: .claude/ must exist in project
+			// For global: ~/.claude/ or ~/.cursor/ must exist
+			if toolInstalled {
 				settings = make(map[string]interface{})
 			} else {
 				continue
@@ -197,6 +200,13 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		realPath := tool.SettingsPath
 		if info, err := os.Lstat(tool.SettingsPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
 			realPath, _ = os.Readlink(tool.SettingsPath)
+		}
+
+		// Create parent directory if needed (e.g., .cursor/ for .cursor/mcp.json)
+		if dir := filepath.Dir(realPath); dir != "." {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				continue
+			}
 		}
 
 		if err := os.WriteFile(realPath, newData, 0644); err != nil {
@@ -323,9 +333,11 @@ type AITool struct {
 
 func getSupportedAITools(local bool) []AITool {
 	if local {
-		// Local installation only targets project-level .claude.json
+		// Local installation targets project-level config files
+		// Detect Claude Code by .claude/ directory, Cursor by .cursorrules file
 		return []AITool{
-			{"Claude Code (project)", ".claude.json", "mcpServers", ""},
+			{"Claude Code (project)", ".claude.json", "mcpServers", ".claude"},
+			{"Cursor (project)", ".cursor/mcp.json", "mcpServers", ".cursorrules"},
 		}
 	}
 
