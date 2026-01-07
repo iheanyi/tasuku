@@ -136,21 +136,27 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	reinstalled := []string{}
 
 	for _, tool := range tools {
-		if _, err := os.Stat(tool.SettingsPath); os.IsNotExist(err) {
-			continue
-		}
-
-		data, err := os.ReadFile(tool.SettingsPath)
-		if err != nil {
-			continue
-		}
-
 		var settings map[string]interface{}
-		if err := json.Unmarshal(data, &settings); err != nil {
-			if strings.Contains(tool.Name, "Cursor") {
+
+		if _, err := os.Stat(tool.SettingsPath); os.IsNotExist(err) {
+			// For local installs, create the file if it doesn't exist
+			if local {
 				settings = make(map[string]interface{})
 			} else {
 				continue
+			}
+		} else {
+			data, err := os.ReadFile(tool.SettingsPath)
+			if err != nil {
+				continue
+			}
+
+			if err := json.Unmarshal(data, &settings); err != nil {
+				if strings.Contains(tool.Name, "Cursor") || local {
+					settings = make(map[string]interface{})
+				} else {
+					continue
+				}
 			}
 		}
 
