@@ -64,15 +64,17 @@ export const TasukuPlugin = async ({ project, client, $, directory }) => {
       }
     },
 
-    // Check TodoWrite output for project-level tasks
+    // Check TodoWrite output for project-level tasks and completed bug fixes
     'todo.updated': async (event) => {
-      // Only run if there are pending or in_progress items
       if (!event.todos || event.todos.length === 0) return;
 
-      const hasPendingWork = event.todos.some(t =>
-        t.status === 'pending' || t.status === 'in_progress'
+      // Run todo check for:
+      // 1. Completed bug fixes (to prompt for learnings)
+      // 2. Project-level tasks that should be persisted
+      const hasRelevantItems = event.todos.some(t =>
+        t.status === 'completed' || t.status === 'pending' || t.status === 'in_progress'
       );
-      if (!hasPendingWork) return;
+      if (!hasRelevantItems) return;
 
       // Run todo check (it reads from environment)
       process.env.TOOL_INPUT = JSON.stringify({ todos: event.todos });
