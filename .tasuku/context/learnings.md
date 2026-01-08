@@ -42,3 +42,7 @@ In BubbleTea TUIs, always save both the selected item ID AND index before refres
 ## ebc542 - 2026-01-07T18:49:25Z
 For terminal UI overlays/modals, use lipgloss.Place() to center content on a clean screen rather than trying to composite foreground over background. Manual overlay compositing breaks with styled text.
 
+## 68d5cd - 2026-01-07T23:45:30Z
+scope: *.md
+Always audit CLI command documentation (README.md, CLAUDE.md) when adding new commands or changing command signatures. Shortcut commands like `tk learn` should be documented alongside their full forms (`tk learning add`).
+

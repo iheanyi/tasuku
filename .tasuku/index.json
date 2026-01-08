@@ -361,6 +361,27 @@
       "file": "tasks/prompt-bug-detection.md",
       "updated_at": "2026-01-07T21:27:54.967788Z"
     },
+    "prompt-check-config": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks",
+        "config"
+      ],
+      "file": "tasks/prompt-check-config.md",
+      "updated_at": "2026-01-07T22:07:35.320393Z"
+    },
+    "prompt-decision-capture": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-decision-capture.md",
+      "updated_at": "2026-01-07T22:07:35.349Z"
+    },
     "prompt-decision-lookup": {
       "status": "done",
       "priority": 1,
@@ -371,6 +392,26 @@
       "file": "tasks/prompt-decision-lookup.md",
       "updated_at": "2026-01-07T21:27:54.580557Z"
     },
+    "prompt-learning-capture": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-learning-capture.md",
+      "updated_at": "2026-01-07T22:07:35.342497Z"
+    },
+    "prompt-scope-warning": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-scope-warning.md",
+      "updated_at": "2026-01-07T22:07:35.356441Z"
+    },
     "prompt-session-continuity": {
       "status": "done",
       "priority": 1,
@@ -380,6 +421,26 @@
       ],
       "file": "tasks/prompt-session-continuity.md",
       "updated_at": "2026-01-07T21:27:54.845867Z"
+    },
+    "prompt-shipping-check": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-shipping-check.md",
+      "updated_at": "2026-01-07T22:07:35.3366Z"
+    },
+    "prompt-stuck-detection": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/prompt-stuck-detection.md",
+      "updated_at": "2026-01-07T22:07:35.330698Z"
     },
     "prompt-task-surfacing": {
       "status": "done",
@@ -472,6 +533,70 @@
       "parent_id": "audit-test-1",
       "file": "tasks/third-test-task.md",
       "updated_at": "2026-01-06T05:19:27.315294Z"
+    },
+    "todo-check-bash": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks"
+      ],
+      "file": "tasks/todo-check-bash.md",
+      "updated_at": "2026-01-07T22:07:35.362738Z"
+    },
+    "update-claudemd-complete-cli-com": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "docs"
+      ],
+      "file": "tasks/update-claudemd-complete-cli-com.md",
+      "updated_at": "2026-01-07T23:38:02.206466Z"
+    },
+    "update-claudemd-complete-mcp-too": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "docs"
+      ],
+      "file": "tasks/update-claudemd-complete-mcp-too.md",
+      "updated_at": "2026-01-07T23:38:02.133323Z"
+    },
+    "update-claudemd-document-hooks-p": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "docs"
+      ],
+      "file": "tasks/update-claudemd-document-hooks-p.md",
+      "updated_at": "2026-01-07T23:38:02.265055Z"
+    },
+    "update-claudemd-fix-future-enhan": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "docs"
+      ],
+      "file": "tasks/update-claudemd-fix-future-enhan.md",
+      "updated_at": "2026-01-07T23:38:02.075247Z"
+    },
+    "update-readmemd-document-new-hoo": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "docs"
+      ],
+      "file": "tasks/update-readmemd-document-new-hoo.md",
+      "updated_at": "2026-01-07T23:38:02.387295Z"
+    },
+    "update-readmemd-fix-wrong-comman": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "docs"
+      ],
+      "file": "tasks/update-readmemd-fix-wrong-comman.md",
+      "updated_at": "2026-01-07T23:38:02.325304Z"
     },
     "ux-list-owner-filter": {
       "status": "done",
@@ -649,7 +774,7 @@
     }
   },
   "archived_count": 68,
-  "learnings_count": 14,
+  "learnings_count": 15,
   "decisions_count": 9,
-  "updated_at": "2026-01-07T21:27:54.968365Z"
+  "updated_at": "2026-01-07T23:38:02.387573Z"
 }
