@@ -134,14 +134,20 @@ tk task list --format json    # Output as JSON
 | Command | Description |
 |---------|-------------|
 | `tk learn "insight"` | Record a learning |
-| `tk learn "insight" --permanent` | Record and append to context file |
-| `tk learnings` | List all recorded learnings |
-| `tk unlearn <index or text>` | Remove a learning |
-| `tk promote <index or text>` | Move learning to permanent documentation |
-| `tk promote 1 --to AGENTS.md` | Promote to specific file |
+| `tk learning list` | List all recorded learnings |
+| `tk learning rules` | List "never/always" rule learnings |
+| `tk learning remove <id>` | Remove a learning |
+| `tk learning promote <id>` | Move learning to permanent documentation |
+| `tk learning promote <id> --to AGENTS.md` | Promote to specific file |
 | `tk decide --id <id> --chose X --over Y,Z --because "reason"` | Record a decision |
+| `tk decision list` | List all decisions |
+| `tk decision remove <id>` | Remove a decision |
 | `tk note add <task-id> "note"` | Add a note to a task |
+| `tk note list` | List all notes |
+| `tk note list --task <id>` | List notes for a task |
 | `tk context show` | Output full context as JSON |
+| `tk rules sync` | Sync learnings/decisions to editor rules |
+| `tk rules status` | Show rules sync status |
 
 ### Server & Integration
 
@@ -166,9 +172,9 @@ tk task list --format json    # Output as JSON
 All list commands support the `--format` flag:
 
 ```bash
-tk list --format table  # Default, human-readable
-tk list --format json   # JSON output
-tk list --format yaml   # YAML output
+tk task list --format table  # Default, human-readable
+tk task list --format json   # JSON output
+tk task list --format yaml   # YAML output
 ```
 
 ## Shell Completion
@@ -314,16 +320,16 @@ Tasuku can auto-detect your AI tool context file and promote learnings there:
 
 ```bash
 # List learnings
-tk learnings
+tk learning list
 
-# Promote learning #2 to auto-detected context file
-tk promote 2
+# Promote a learning to auto-detected context file
+tk learning promote <learning-id>
 
 # Promote to a specific file
-tk promote 2 --to .cursorrules
+tk learning promote <learning-id> --to .cursorrules
 
-# Keep in .tasuku.json after promoting
-tk promote 2 --keep
+# Keep in Tasuku after promoting
+tk learning promote <learning-id> --keep
 ```
 
 **Auto-detected context files** (in priority order):
@@ -563,6 +569,44 @@ tk hooks uninstall --claude
 
 # Remove project-level Claude hooks
 tk hooks uninstall --claude --local
+```
+
+### Hook Configuration
+
+Hooks support `--quiet`, `--disable`, and `--list-features` flags for customization:
+
+```bash
+# List available features
+tk hooks prompt-check --list-features
+tk hooks todo-check --list-features
+
+# Quiet mode (reduced output)
+tk hooks prompt-check --quiet
+
+# Disable specific features
+tk hooks prompt-check --disable=shipping_check,scope_warning
+tk hooks todo-check --disable=test_failure
+```
+
+**prompt-check features:**
+- Context surfacing: `session_continuity`, `decision_lookup`, `learning_lookup`, `task_reference`, `task_surfacing`
+- Nudges: `rule_detection`, `bug_detection`, `work_detection`, `stuck_detection`, `shipping_check`, `learning_capture`, `decision_capture`, `scope_warning`
+
+**todo-check features:**
+- `bugfix_learning`, `project_task`, `test_failure`, `git_commit`
+
+### Hook Version Tracking
+
+Hooks include version tracking to notify you when updates are available:
+
+```bash
+# At session start, if hooks are outdated:
+# ⬆️  Hooks outdated (global): v0.6.0 → v0.6.1
+#    Run: tk hooks install --force
+
+# Update hooks
+tk hooks install --force
+tk hooks install --force --local  # For project-local hooks
 ```
 
 ## Data Format

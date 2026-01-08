@@ -57,25 +57,88 @@ tasuku/
 tk init                    # Create .tasuku/ directory (V4 Markdown)
 
 # Task Management (noun-verb style)
-tk task list               # List all tasks
+tk task list               # List all tasks (aliases: tk t ls, tk tasks)
 tk task list --tree        # Show hierarchical subtask view
+tk task list --status ready  # Filter by status
+tk task list --tag backend   # Filter by tag
 tk task add "description"  # Add a task
 tk task add "desc" --parent <id>  # Add subtask
+tk task add "desc" --id my-id     # Custom task ID
+tk task add "desc" --priority high --tag feature  # With priority/tags
 tk task start <id>         # Mark task in_progress
+tk task start <id> --unblock      # Clear blockers and start
 tk task done <id>          # Mark task complete
+tk task done <id1> <id2>   # Complete multiple tasks
+tk task pause <id>         # Revert in_progress → ready
 tk task block <id> --by <other>   # Mark blocked
+tk task unblock <id>       # Remove all blockers
+tk task unblock <id> --from <blocker>  # Remove specific blocker
 tk task show <id>          # Show task details
+tk task edit <id> "new desc"      # Update description
 tk task delete <id>        # Delete a task
+tk task priority <id> high # Set priority (critical/high/normal/low/backlog)
+tk task ready              # List tasks ready to work on (sorted by priority)
+tk task find "query"       # Search across tasks, notes, learnings, decisions
+tk task deps <id>          # Show task dependency tree
+tk task stats              # Show task statistics and progress
 
-# Context
-tk learn "insight"         # Add a learning
-tk decide <id> --chose X --over Y,Z --because "reason"
+# Ownership & Claims (multi-agent coordination)
+tk task owner <id> "name"  # Set task owner
+tk task owner <id>         # Clear owner
+tk task claim <id> agent-1 # Claim for exclusive work
+tk task release <id>       # Release claimed task
+tk task who                # Show who has claimed what
+
+# Tags & Custom Fields
+tk task tag add <id> bug   # Add tag
+tk task tag remove <id> bug  # Remove tag
+tk task field set <id> estimate 2h   # Set custom field
+tk task field remove <id> estimate   # Remove field
+
+# Time Tracking
+tk task timer start <id>   # Start timer
+tk task timer stop <id>    # Stop timer, record elapsed
+tk task timer status       # Show running timers
+
+# Archiving
+tk task archive add <id>   # Archive a done task
+tk task archive list       # List archived tasks
+tk task archive restore <id>  # Restore archived task
+tk task archive all --older-than 7d  # Bulk archive old done tasks
+
+# Context & Learnings
+tk learn "insight"         # Add a learning (shortcut)
+tk learning list           # List all learnings
+tk learning promote <id>   # Promote to permanent docs
+tk learning remove <id>    # Remove a learning
+tk learning rules          # List never/always rule learnings
+tk decide --id auth --chose JWT --over "sessions,OAuth" --because "reason"
+tk decision list           # List all decisions
+tk decision remove <id>    # Remove a decision
+tk note add <task-id> "note"  # Add note to task
+tk note list               # List all notes
+tk note list --task <id>   # List notes for task
+tk note remove <task-id> <note-id>  # Remove a note
 tk context show            # Dump full context (for agent consumption)
+tk suggest "description"   # Check if task should persist to tk
+
+# Rules Sync (for Claude Code, Cursor)
+tk rules sync              # Sync learnings/decisions to editor rules
+tk rules sync --tool claude  # Sync to specific tool only
+tk rules status            # Show sync status
+tk rules clean             # Remove Tasuku-generated rules
 
 # Server
 tk serve mcp               # Start MCP server (for AI tools)
 tk serve http              # Start HTTP REST API on :3000
 tk serve http --port 8080  # Start HTTP on custom port
+
+# MCP Configuration
+tk mcp install             # Auto-detect and install to all AI tools
+tk mcp install --tool claude  # Install to Claude Code only
+tk mcp install --tool cursor  # Install to Cursor only
+tk mcp install --local     # Project-local config
+tk mcp uninstall           # Remove MCP configuration
 
 # Hooks
 tk hooks install              # Install all hooks (git + AI tools)
@@ -83,13 +146,21 @@ tk hooks install --claude     # Install Claude Code hooks only
 tk hooks install --codex      # Install Codex hooks only
 tk hooks install --opencode   # Install OpenCode hooks only
 tk hooks install --local      # Install to project instead of global
+tk hooks install --force      # Reinstall/update hooks
 tk hooks uninstall            # Remove all Tasuku hooks
-tk hooks plan-sync plan.md    # Extract tasks from plan file (uses nudge rule)
 tk hooks session              # Display context summary
+tk hooks stop-reminder        # Check for running timers/in-progress
+tk hooks plan-sync plan.md    # Extract tasks from plan file
+tk hooks prompt-check         # Detect task intent in prompts
+tk hooks todo-check           # Check if TodoWrite items should persist
+tk hooks pre-compact          # Capture insights before compaction
+tk hooks subagent-done        # Capture insights from subagent
 
-# Health & Diagnostics
+# UI & Diagnostics
+tk ui                      # Launch terminal user interface
 tk health                  # Project health check with recommendations
 tk doctor                  # Diagnose MCP and CLI setup
+tk validate                # Validate storage for correctness
 
 # Migration
 tk migrate v3              # Migrate from .tasuku.json to .tasuku/ (JSON)
@@ -180,8 +251,8 @@ Single `.tasuku.json` file with all data in one place. Supported for backwards c
 
 ### We dogfood tasuku while building it
 
-1. Tasks are tracked in `.tasuku/` at repo root (V3 format)
-2. Use `tk` commands (once built) or edit JSON files directly
+1. Tasks are tracked in `.tasuku/` at repo root (V4 Markdown format)
+2. Use `tk` commands or edit Markdown files directly
 3. Every PR should update task status
 
 ### Branching
@@ -310,6 +381,9 @@ This ensures agents can do everything humans can do (and vice versa), which is t
 | `tk_edit` | `tk task edit` | Update task description |
 | `tk_delete` | `tk task delete` | Permanently delete a task |
 | `tk_priority` | `tk task priority` | Set priority (critical/high/normal/low/backlog) |
+| `tk_ready` | `tk task ready` | List tasks ready to work on (sorted by priority) |
+| `tk_deps` | `tk task deps` | Show task dependency tree |
+| `tk_stats` | `tk task stats` | Show task statistics and progress |
 | **Blocking & Dependencies** |||
 | `tk_block` | `tk task block` | Mark task as blocked by others |
 | `tk_unblock` | `tk task unblock` | Remove blockers (all or specific) |
@@ -317,12 +391,13 @@ This ensures agents can do everything humans can do (and vice versa), which is t
 | `tk_owner` | `tk task owner` | Set or clear task owner |
 | `tk_claim` | `tk task claim` | Claim task for exclusive agent work |
 | `tk_release` | `tk task release` | Release claimed task |
+| `tk_who` | `tk task who` | Show tasks claimed by each owner/agent |
 | **Context & Search** |||
 | `tk_context` | `tk context show` | Get full context for agent consumption |
 | `tk_find` | `tk task find` | Search across tasks, notes, learnings, decisions |
 | `tk_learn` | `tk learn` | Add a learning to context |
 | `tk_decide` | `tk decide` | Record an architectural decision |
-| `tk_note` | `tk note` | Add a note to a task |
+| `tk_note` | `tk note add` | Add a note to a task |
 | **Tags & Custom Fields** |||
 | `tk_tag_add` | `tk task tag add` | Add tag to a task |
 | `tk_tag_remove` | `tk task tag remove` | Remove tag from a task |
@@ -336,10 +411,24 @@ This ensures agents can do everything humans can do (and vice versa), which is t
 | `tk_archive` | `tk task archive add` | Archive a done task |
 | `tk_archive_restore` | `tk task archive restore` | Restore archived task |
 | `tk_archive_list` | `tk task archive list` | List archived tasks |
+| `tk_archive_all` | `tk task archive all` | Archive all done tasks older than duration |
+| **Learning Management** |||
+| `tk_learning_list` | `tk learning list` | List all learnings |
+| `tk_learning_promote` | `tk learning promote` | Promote learning to permanent docs |
+| `tk_learning_remove` | `tk learning remove` | Remove a learning |
+| `tk_learning_rules` | `tk learning rules` | List rule learnings (never/always patterns) |
+| **Decision Management** |||
+| `tk_decision_list` | `tk decision list` | List all decisions |
+| `tk_decision_remove` | `tk decision remove` | Remove a decision |
+| **Note Management** |||
+| `tk_note_list` | `tk note list` | List notes for a task or all notes |
+| `tk_note_remove` | `tk note remove` | Remove a note |
 | **Agent Workflow** |||
 | `tk_suggest` | `tk suggest` | Analyze if a task should persist to tk or stay session-only |
 | **Health & Diagnostics** |||
 | `tk_health` | `tk health` | Project health check with recommendations |
+| **Rules Sync** |||
+| `tk_rules_sync` | `tk rules sync` | Sync learnings/decisions to editor rules directories |
 
 ### TUI Keybindings Reference
 
@@ -705,11 +794,70 @@ tk mcp install --local        # Project-local config
 - Codex: `.codex/` directory or `CODEX.md` file
 - OpenCode: `.opencode/` directory or `opencode.json` file
 
+### Hook Features & Configuration
+
+Tasuku hooks are configurable with `--quiet`, `--disable`, and `--list-features` flags.
+
+#### prompt-check Features
+
+The `prompt-check` hook runs on `UserPromptSubmit` and analyzes user messages.
+
+**Context Surfacing** (surfaces relevant info):
+| Feature | Description |
+|---------|-------------|
+| `session_continuity` | Shows in-progress tasks when user says "continue"/"resume" |
+| `decision_lookup` | Surfaces related decisions when asking questions |
+| `learning_lookup` | Surfaces related learnings when asking questions |
+| `task_reference` | Shows task context when task ID is mentioned |
+| `task_surfacing` | Finds related tasks by keyword matching |
+
+**Nudges** (prompts for action):
+| Feature | Description |
+|---------|-------------|
+| `rule_detection` | Detects "Never X"/"Always Y" patterns, suggests `tk learn` |
+| `bug_detection` | Prompts to track bug reports with `tk task add --tag bug` |
+| `work_detection` | Suggests creating task for significant work requests |
+| `stuck_detection` | Offers help when user seems stuck/frustrated |
+| `shipping_check` | Pre-ship checklist on deploy/release mentions |
+| `learning_capture` | Captures "TIL"/"I learned" as learnings |
+| `decision_capture` | Prompts to record "X or Y" decision points |
+| `scope_warning` | Warns about scope expansion mid-task |
+
+```bash
+tk hooks prompt-check --list-features     # List all features
+tk hooks prompt-check --quiet             # Context only, no nudges
+tk hooks prompt-check --disable=shipping_check,scope_warning
+```
+
+#### todo-check Features
+
+The `todo-check` hook runs on `PostToolUse` for TodoWrite and Bash commands.
+
+| Feature | Description |
+|---------|-------------|
+| `bugfix_learning` | Prompts for learnings after bug fix tasks complete |
+| `project_task` | Suggests persisting project-level tasks to tk |
+| `test_failure` | Detects test failures, suggests tracking |
+| `git_commit` | Links git commits to related in-progress tasks |
+
+```bash
+tk hooks todo-check --list-features       # List all features
+tk hooks todo-check --quiet               # Minimal output
+tk hooks todo-check --disable=test_failure,git_commit
+```
+
+#### Hook Version Tracking
+
+Hooks include version tracking to alert when updates are available:
+- Version is written to `.claude/.tasuku-hooks-version` on install
+- SessionStart checks installed vs current version
+- Shows update prompt: "⬆️ Hooks outdated: v0.6.0 → v0.6.1"
+- Update with: `tk hooks install --force` (or `--force --local`)
+
 ## Future Enhancements (Planned)
 
 ### Git/GitHub Integration
-- **Task-branch linking**: `tk start` could auto-create feature branches
-- **PR generation**: `tk pr` to create PR from task details
+- **Task-branch linking**: `tk start <id> --branch` could auto-create feature branches
 - **CI integration**: GitHub Actions webhook to mark tasks done on PR merge
 
 ### Grove Integration (Worktree Management)
@@ -722,10 +870,19 @@ tk mcp install --local        # Project-local config
 - `tk done <id>` can optionally clean up worktree/stop Grove server
 - Detection: Check Claude/Cursor/Codex/OpenCode MCP settings for Grove config, or probe `grove_list`
 
-### "Never/Always" Learning Detection
-- Detect phrases like "Never do X" or "Always use Y" in agent interactions
-- Auto-suggest promoting these as permanent learnings
-- Hook into agent conversations to capture institutional knowledge
+## Recently Completed Features
+
+### PR Generation (v0.5.0)
+- `tk pr create` - Create PRs linked to tasks
+- `tk pr create --task <id>` - Auto-populate PR from task details
+- `tk pr create --task <id> --done` - Create PR and mark task done
+- `tk pr list` - List open PRs
+
+### "Never/Always" Learning Detection (v0.6.0)
+- `prompt-check` hook detects rule patterns in user messages
+- Auto-suggests `tk learn` for "Never X" or "Always Y" statements
+- Surfaces related learnings when asking questions
+- Rule detection from conversation context (not just direct statements)
 
 ## Learnings
 
