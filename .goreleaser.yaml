@@ -20,7 +20,8 @@ builds:
     goos:
       - linux
       - darwin
-      - windows
+      # Windows excluded: syscall.Flock not available (Unix-only)
+      # Add Windows support later with platform-specific locking
     goarch:
       - amd64
       - arm64
@@ -34,9 +35,6 @@ archives:
   - id: default
     format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
 
 checksum:
   name_template: "checksums.txt"
