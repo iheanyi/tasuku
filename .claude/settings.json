@@ -1,0 +1,74 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "tk hooks plan-sync \"$PLAN_FILE\" --dry-run # tasuku-hook",
+            "type": "command"
+          }
+        ],
+        "matcher": "ExitPlanMode"
+      },
+      {
+        "hooks": [
+          {
+            "command": "tk hooks todo-check # tasuku-hook",
+            "type": "command"
+          }
+        ],
+        "matcher": "TodoWrite"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "tk hooks pre-compact # tasuku-hook",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "tk hooks session # tasuku-hook",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "tk hooks stop-reminder # tasuku-hook",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "tk hooks subagent-done # tasuku-hook",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "tk hooks prompt-check # tasuku-hook",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
