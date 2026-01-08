@@ -46,3 +46,6 @@ For terminal UI overlays/modals, use lipgloss.Place() to center content on a cle
 scope: *.md
 Always audit CLI command documentation (README.md, CLAUDE.md) when adding new commands or changing command signatures. Shortcut commands like `tk learn` should be documented alongside their full forms (`tk learning add`).
 
+## 2543ae - 2026-01-08T01:12:45Z
+syscall.Flock (file locking) is Unix-only. Windows builds will fail if using it directly. Either use build tags with platform-specific implementations or exclude Windows from build targets.
+
