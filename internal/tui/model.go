@@ -67,6 +67,11 @@ type Model struct {
 	sortMode     SortMode     // current sort mode
 	statusFilter StatusFilter // current status filter
 
+	// Async state
+	loading         bool   // true if an action is in progress
+	lastSelectedID  string // ID selected before refresh
+	lastSelectedIdx int    // Index selected before refresh
+
 	// Markdown renderer for rich content
 	mdRenderer *glamour.TermRenderer
 
@@ -126,7 +131,7 @@ func prioritySymbolPlain(priority int) string {
 }
 
 func (i TaskItem) Description() string {
-	desc := lipgloss.Truncate(i.Task.Description, 60, "...")
+	desc := safeTruncate(i.Task.Description, 60)
 
 	var extras []string
 	if len(i.Task.Tags) > 0 {
@@ -243,13 +248,96 @@ func highlightMatches(text string, matches []int, baseStyle, matchStyle lipgloss
 	return result.String()
 }
 
+// TasksLoadedMsg carries the loaded file
+type TasksLoadedMsg struct {
+	File *task.File
+	Err  error
+}
+
+// ActionMsg carries the result of an action
+type ActionMsg struct {
+	Err error
+}
+
+// Command constructors
+func loadTasksCmd(s store.Storage) tea.Cmd {
+	return func() tea.Msg {
+		f, err := s.Read()
+		return TasksLoadedMsg{File: f, Err: err}
+	}
+}
+
+func setStatusCmd(s store.Storage, id string, status task.Status) tea.Cmd {
+	return func() tea.Msg {
+		return ActionMsg{Err: s.SetStatus(id, status)}
+	}
+}
+
+func archiveTaskCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionMsg{Err: s.ArchiveTask(id, "")}
+	}
+}
+
+func bulkArchiveCmd(s store.Storage, doneIDs []string) tea.Cmd {
+	return func() tea.Msg {
+		for _, id := range doneIDs {
+			if err := s.ArchiveTask(id, ""); err != nil {
+				return ActionMsg{Err: err}
+			}
+		}
+		return ActionMsg{Err: nil}
+	}
+}
+
+func deleteTaskCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionMsg{Err: s.DeleteTask(id)}
+	}
+}
+
+func addTaskCmd(s store.Storage, id, desc string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionMsg{Err: s.AddTask(id, desc)}
+	}
+}
+
+func setDescriptionCmd(s store.Storage, id, desc string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionMsg{Err: s.SetDescription(id, desc)}
+	}
+}
+
+func startTimerCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionMsg{Err: s.StartTimer(id)}
+	}
+}
+
+func stopTimerCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := s.StopTimer(id)
+		return ActionMsg{Err: err}
+	}
+}
+
+func unblockTaskCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		_ = s.UnblockTask(id)
+		return ActionMsg{Err: s.SetStatus(id, task.StatusReady)}
+	}
+}
+
+func pauseTaskCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		// Best effort stop timer
+		s.StopTimerIfRunning(id)
+		return ActionMsg{Err: s.SetStatus(id, task.StatusReady)}
+	}
+}
+
 // New creates a new TUI model
 func New(s store.Storage) (*Model, error) {
-	f, err := s.Read()
-	if err != nil {
-		return nil, err
-	}
-
 	// Initialize progress bar with theme colors
 	prog := progress.New(
 		progress.WithScaledGradient(string(ColorMuted), string(ColorAccent)),
@@ -264,14 +352,20 @@ func New(s store.Storage) (*Model, error) {
 
 	m := &Model{
 		store:      s,
-		file:       f,
+		file:       task.NewFile(), // Start empty
 		view:       ViewDashboard,
 		progress:   prog,
 		mdRenderer: mdRenderer,
+		loading:    true, // Start in loading state
 	}
 
-	m.initTaskList()
+	// We don't load synchronously anymore. Init() will trigger the load.
 	return m, nil
+}
+
+// Init implements tea.Model
+func (m Model) Init() tea.Cmd {
+	return loadTasksCmd(m.store)
 }
 
 func (m *Model) initTaskList() {
@@ -393,9 +487,16 @@ func (m *Model) getListTitle() string {
 	return title
 }
 
-// Init implements tea.Model
-func (m Model) Init() tea.Cmd {
-	return nil
+// safeTruncate truncates a string to maxLen runes to handle multi-byte chars safely.
+func safeTruncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= maxLen {
+		return s
+	}
+	return string(r[:maxLen-3]) + "..."
 }
 
 // KeyMap defines the key bindings
@@ -551,38 +652,67 @@ func (m Model) countDoneTasks() int {
 	return count
 }
 
+// runAction executes a command and sets loading state
+func (m *Model) runAction(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	m.loading = true
+	return m, cmd
+}
+
 // Update implements tea.Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	// Handle Async Messages
+	case TasksLoadedMsg:
+		m.loading = false
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.file = msg.File
+		m.initTaskList()
+		m.restoreSelection(m.lastSelectedID, m.lastSelectedIdx)
+		return m, nil
+
+	case ActionMsg:
+		if msg.Err != nil {
+			m.loading = false
+			m.err = msg.Err
+			return m, nil
+		}
+		// Action success, refresh data
+		return m.refresh()
+
 	case tea.KeyMsg:
 		// Handle confirmation dialog
 		if m.view == ViewConfirm {
 			switch {
 			case key.Matches(msg, keys.ConfirmYes):
 				// Execute the confirmed action
-				switch m.confirmAction {
+				m.view = ViewDashboard
+				action := m.confirmAction
+				id := m.confirmTaskID
+				
+				// Reset confirm state
+				m.confirmAction = ""
+				m.confirmTaskID = ""
+				m.confirmMessage = ""
+
+				switch action {
 				case "archive":
-					_ = m.store.ArchiveTask(m.confirmTaskID, "")
+					return m.runAction(archiveTaskCmd(m.store, id))
 				case "bulk_archive":
-					// Collect done task IDs first to avoid iterating while modifying
+					// Collect done task IDs
 					var doneIDs []string
 					for id, t := range m.file.Tasks {
 						if t.Status == task.StatusDone {
 							doneIDs = append(doneIDs, id)
 						}
 					}
-					// Archive all collected tasks
-					for _, id := range doneIDs {
-						_ = m.store.ArchiveTask(id, "")
-					}
+					return m.runAction(bulkArchiveCmd(m.store, doneIDs))
 				case "delete":
-					_ = m.store.DeleteTask(m.confirmTaskID)
+					return m.runAction(deleteTaskCmd(m.store, id))
 				}
-				m.view = ViewDashboard
-				m.confirmAction = ""
-				m.confirmTaskID = ""
-				m.confirmMessage = ""
-				return m.refresh()
+				return m, nil
 
 			case key.Matches(msg, keys.ConfirmNo), key.Matches(msg, keys.Back):
 				// Cancel the action
@@ -601,16 +731,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.String() == "ctrl+s" || (msg.Type == tea.KeyEnter && msg.Alt) {
 				// Create the task
 				desc := strings.TrimSpace(m.createInput.Value())
-				if desc != "" {
-					id := generateTaskID(desc)
-					if err := m.store.AddTask(id, desc); err != nil {
-						m.err = err
-					}
-				}
-				// Reset and return to dashboard
 				m.createInput.Reset()
 				m.view = ViewDashboard
-				return m.refresh()
+				if desc != "" {
+					id := generateTaskID(desc)
+					return m.runAction(addTaskCmd(m.store, id, desc))
+				}
+				return m, nil
 			}
 			if msg.Type == tea.KeyEsc {
 				// Cancel creation
@@ -630,16 +757,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.String() == "ctrl+s" || (msg.Type == tea.KeyEnter && msg.Alt) {
 				// Update the task description
 				desc := strings.TrimSpace(m.editInput.Value())
-				if desc != "" && m.editTaskID != "" {
-					if err := m.store.SetDescription(m.editTaskID, desc); err != nil {
-						m.err = err
-					}
-				}
-				// Reset and return to dashboard
+				id := m.editTaskID
 				m.editInput.Reset()
 				m.editTaskID = ""
 				m.view = ViewDashboard
-				return m.refresh()
+				if desc != "" && id != "" {
+					return m.runAction(setDescriptionCmd(m.store, id, desc))
+				}
+				return m, nil
 			}
 			if msg.Type == tea.KeyEsc {
 				// Cancel editing
@@ -676,14 +801,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.Refresh):
-			f, err := m.store.Read()
-			if err != nil {
-				m.err = err
-				return m, nil
-			}
-			m.file = f
-			m.initTaskList()
-			return m, nil
+			return m.refresh()
 
 		case key.Matches(msg, keys.Help):
 			if m.view == ViewHelp {
@@ -723,8 +841,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusReady {
-						_ = m.store.SetStatus(item.ID, task.StatusInProgress)
-						return m.refresh()
+						return m.runAction(setStatusCmd(m.store, item.ID, task.StatusInProgress))
 					}
 				}
 			}
@@ -733,8 +850,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusInProgress {
-						_ = m.store.SetStatus(item.ID, task.StatusDone)
-						return m.refresh()
+						return m.runAction(setStatusCmd(m.store, item.ID, task.StatusDone))
 					}
 				}
 			}
@@ -743,11 +859,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.IsTimerRunning() {
-						_, _ = m.store.StopTimer(item.ID)
+						return m.runAction(stopTimerCmd(m.store, item.ID))
 					} else {
-						_ = m.store.StartTimer(item.ID)
+						return m.runAction(startTimerCmd(m.store, item.ID))
 					}
-					return m.refresh()
 				}
 			}
 
@@ -885,8 +1000,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusReady || item.Task.Status == task.StatusInProgress {
-						_ = m.store.SetStatus(item.ID, task.StatusBlocked)
-						return m.refresh()
+						return m.runAction(setStatusCmd(m.store, item.ID, task.StatusBlocked))
 					}
 				}
 			}
@@ -896,10 +1010,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusBlocked {
-						// Unblock by setting to ready
-						_ = m.store.UnblockTask(item.ID)
-						_ = m.store.SetStatus(item.ID, task.StatusReady)
-						return m.refresh()
+						return m.runAction(unblockTaskCmd(m.store, item.ID))
 					}
 				}
 			}
@@ -909,12 +1020,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusInProgress {
-						// Stop timer if running
-						if item.Task.IsTimerRunning() {
-							_, _ = m.store.StopTimer(item.ID)
-						}
-						_ = m.store.SetStatus(item.ID, task.StatusReady)
-						return m.refresh()
+						return m.runAction(pauseTaskCmd(m.store, item.ID))
 					}
 				}
 			}
@@ -937,27 +1043,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) refresh() (tea.Model, tea.Cmd) {
+func (m *Model) refresh() (tea.Model, tea.Cmd) {
 	// Save current selection before refresh
-	var selectedID string
-	var selectedIdx int
 	if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
-		selectedID = item.ID
-		selectedIdx = m.taskList.Index()
+		m.lastSelectedID = item.ID
+		m.lastSelectedIdx = m.taskList.Index()
+	} else {
+		m.lastSelectedID = ""
+		m.lastSelectedIdx = 0
 	}
 
-	f, err := m.store.Read()
-	if err != nil {
-		m.err = err
-		return m, nil
-	}
-	m.file = f
-	m.initTaskList()
-
-	// Restore selection if task still exists, otherwise maintain position
-	m.restoreSelection(selectedID, selectedIdx)
-
-	return m, nil
+	m.loading = true
+	return m, loadTasksCmd(m.store)
 }
 
 // restoreSelection tries to select a task by ID, or falls back to maintaining index position

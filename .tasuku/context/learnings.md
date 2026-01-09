@@ -49,3 +49,7 @@ Always audit CLI command documentation (README.md, CLAUDE.md) when adding new co
 ## 2543ae - 2026-01-08T01:12:45Z
 syscall.Flock (file locking) is Unix-only. Windows builds will fail if using it directly. Either use build tags with platform-specific implementations or exclude Windows from build targets.
 
+## 11dde3 - 2026-01-09T03:04:19Z
+scope: internal/tui/**
+When refactoring TUI code, verify all helper methods are preserved during block replacements.
+

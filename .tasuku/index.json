@@ -83,10 +83,10 @@
       "updated_at": "2026-01-05T04:46:28.278787Z"
     },
     "fix-tui-string-truncation-for-an": {
-      "status": "ready",
+      "status": "done",
       "priority": 2,
       "file": "tasks/fix-tui-string-truncation-for-an.md",
-      "updated_at": "2026-01-09T02:39:16.233324Z"
+      "updated_at": "2026-01-09T03:03:43.575896Z"
     },
     "github-actions-ci": {
       "status": "done",
@@ -313,10 +313,10 @@
       "updated_at": "2026-01-06T04:53:57.198036Z"
     },
     "optimize-storage-interface-for-g": {
-      "status": "ready",
+      "status": "done",
       "priority": 1,
       "file": "tasks/optimize-storage-interface-for-g.md",
-      "updated_at": "2026-01-09T02:39:11.192827Z"
+      "updated_at": "2026-01-09T03:03:38.546656Z"
     },
     "optimizedistinctunitsofwork": {
       "status": "done",
@@ -465,10 +465,10 @@
       "updated_at": "2026-01-07T21:27:54.744199Z"
     },
     "refactor-tui-to-use-nonblocking": {
-      "status": "ready",
+      "status": "done",
       "priority": 1,
       "file": "tasks/refactor-tui-to-use-nonblocking.md",
-      "updated_at": "2026-01-09T02:39:06.160536Z"
+      "updated_at": "2026-01-09T03:03:33.510305Z"
     },
     "release-completions": {
       "status": "done",
@@ -792,7 +792,7 @@
     }
   },
   "archived_count": 68,
-  "learnings_count": 16,
+  "learnings_count": 17,
   "decisions_count": 9,
-  "updated_at": "2026-01-09T02:39:16.234126Z"
+  "updated_at": "2026-01-09T03:03:43.576247Z"
 }

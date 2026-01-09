@@ -111,6 +111,25 @@ func (t Task) CurrentDuration() time.Duration {
 	return total
 }
 
+// TaskMeta contains lightweight task metadata for list views.
+type TaskMeta struct {
+	ID          string   `json:"id"`
+	Status      Status   `json:"status"`
+	Description string   `json:"description"`
+	Priority    int      `json:"priority"`
+	BlockedBy   []string `json:"blocked_by,omitempty"`
+	Owner       *string  `json:"owner,omitempty"`
+	ParentID    *string  `json:"parent_id,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+// TaskFilter defines criteria for filtering tasks in ListTasks.
+type TaskFilter struct {
+	Status *Status
+	Tag    *string
+	Owner  *string
+}
+
 // Task represents a single task.
 type Task struct {
 	Status      Status     `json:"status"`
