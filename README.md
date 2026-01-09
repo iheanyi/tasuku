@@ -341,17 +341,31 @@ tk learning promote <learning-id> --keep
 
 If none exist, defaults to creating `CLAUDE.md`.
 
-## AI Tool Integration (Claude, Gemini, Cursor)
+## AI Tool Integration
 
-Tasuku includes an MCP (Model Context Protocol) server for seamless integration with AI tools like Claude Code, Gemini, and Cursor.
+Tasuku includes an MCP (Model Context Protocol) server for seamless integration with AI coding tools.
+
+**Supported tools:**
+- Claude Code
+- Cursor
+- Codex (OpenAI)
+- OpenCode
+- Gemini
+- Any MCP-compatible agent
 
 ### Install the MCP server
 
 ```bash
-tk mcp install
+tk mcp install              # Auto-detect and install to all tools
+tk mcp install --tool claude   # Claude Code only
+tk mcp install --tool cursor   # Cursor only
+tk mcp install --tool codex    # Codex only
+tk mcp install --tool opencode # OpenCode only
 ```
 
-This adds Tasuku to your tool's settings (e.g., `~/.claude.json` or `.gemini/mcp.json`). Restart your tool to activate.
+This adds Tasuku to your tool's settings. Restart your tool to activate.
+
+> **Note:** The MCP server provides all 44 tools to any MCP-compatible agent. Skills (below) are an additional layer for Claude Code that provide guided workflows, but agents without skills support have full access via MCP tools.
 
 ### Available MCP Tools
 
@@ -402,9 +416,12 @@ Once installed, the agent has access to these tools:
 - `tk_archive`, `tk_archive_list`, `tk_archive_restore` - Archive management
 - `tk_archive_all` - Archive all done tasks older than a duration
 
-### Slash Command Skills
+**Rules Sync:**
+- `tk_rules_sync` - Sync learnings/decisions to editor rules directories
 
-Install slash command skills for quick access to common operations:
+### Slash Command Skills (Claude Code)
+
+Claude Code supports slash command skills for guided workflows:
 
 ```bash
 tk skills install           # Install to current project (.claude/skills/)
