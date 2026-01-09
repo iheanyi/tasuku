@@ -13,6 +13,19 @@ export const TasukuPlugin = async ({ project, client, $, directory }) => {
     }
   };
 
+  // Helper to send notifications (nudges)
+  const notify = (msg) => {
+    // CRITICAL: Always log to the session so the AGENT sees the nudge (Autonomy)
+    client.app.log('info', msg);
+
+    // Also notify the HUMAN (Visibility)
+    if (client.app.notify) {
+      client.app.notify(msg);
+    } else if (client.app.toast) {
+      client.app.toast(msg);
+    }
+  };
+
   return {
     // Show context summary when session starts
     'session.created': async (event) => {
@@ -46,20 +59,41 @@ export const TasukuPlugin = async ({ project, client, $, directory }) => {
       process.env.TOOL_INPUT = JSON.stringify({ todos: event.todos });
       const output = await tk('hooks', 'todo-check');
       if (output.trim()) {
-        client.app.log('info', output);
+        notify(output);
       }
     },
 
-    // Prompt for insights after significant exploration
+    // Check tool execution for Bash (tests/git) and Task (subagents)
     'tool.execute.after': async (event) => {
-      // Only trigger for exploration-type tools
-      const explorationTools = ['search', 'read', 'glob', 'grep', 'bash'];
-      if (!explorationTools.some(t => event.tool?.toLowerCase().includes(t))) {
+      const tool = event.tool?.toLowerCase();
+      if (!tool) return;
+
+      // Handle Bash checks (tests, git)
+      if (tool === 'bash') {
+        process.env.TOOL_NAME = 'Bash';
+        process.env.TOOL_INPUT = JSON.stringify(event.input || {});
+        process.env.TOOL_OUTPUT = event.output || '';
+        const output = await tk('hooks', 'todo-check');
+        if (output.trim()) notify(output);
         return;
       }
 
-      // Don't spam - only prompt occasionally
-      // (OpenCode will handle deduplication internally)
+      // Handle Subagent completion
+      if (tool === 'task') {
+        process.env.SUBAGENT_TYPE = event.input?.subagent_type || 'general';
+        const output = await tk('hooks', 'subagent-done');
+        if (output.trim()) notify(output);
+        return;
+      }
+    },
+
+    // Check user prompts for context surfacing and nudges
+    'message.created': async (event) => {
+      if (event.role === 'user') {
+        process.env.USER_PROMPT = event.content;
+        const output = await tk('hooks', 'prompt-check');
+        if (output.trim()) notify(output);
+      }
     },
   };
 };
