@@ -259,8 +259,21 @@ func runDoctor() error {
 			continue
 		}
 
-		configuredPath, _ := tasukuConfig["command"].(string)
-		configuredArgs, _ := tasukuConfig["args"].([]interface{})
+		var configuredPath string
+		var configuredArgs []interface{}
+
+		// Handle command as string (Claude/Cursor) or array (OpenCode)
+		if cmdStr, ok := tasukuConfig["command"].(string); ok {
+			configuredPath = cmdStr
+			configuredArgs, _ = tasukuConfig["args"].([]interface{})
+		} else if cmdArr, ok := tasukuConfig["command"].([]interface{}); ok && len(cmdArr) > 0 {
+			if pathStr, ok := cmdArr[0].(string); ok {
+				configuredPath = pathStr
+			}
+			if len(cmdArr) > 1 {
+				configuredArgs = cmdArr[1:]
+			}
+		}
 
 		// Check if path matches current executable
 		if configuredPath != executable {
@@ -356,10 +369,10 @@ func runDoctor() error {
 			"task timer":    {"tk_timer_start", "tk_timer_stop", "tk_timer_status"},
 			"task archive":  {"tk_archive", "tk_archive_restore", "tk_archive_list", "tk_archive_all"},
 			// Context commands
-			"learn":         {"tk_learn"},
-			"decide":        {"tk_decide"},
-			"note":          {"tk_note"},
-			"context show":  {"tk_context"},
+			"learn":        {"tk_learn"},
+			"decide":       {"tk_decide"},
+			"note":         {"tk_note"},
+			"context show": {"tk_context"},
 			// Learning management
 			"learning list":    {"tk_learning_list"},
 			"learning promote": {"tk_learning_promote"},
@@ -585,23 +598,29 @@ type AITool struct {
 
 func getSupportedAITools() []AITool {
 	home, _ := os.UserHomeDir()
+	configDir := home + "/.config"
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		configDir = xdg
+	}
+
 	return []AITool{
 		{"Claude Code", home + "/.claude.json", "mcpServers"},
 		{"Cursor", home + "/.cursor/mcp.json", "mcpServers"},
 		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers"},
+		{"OpenCode", configDir + "/opencode/opencode.json", "mcp"},
 	}
 }
 
 // HealthReport represents the project health check result
 type HealthReport struct {
-	HealthScore   int            `json:"health_score" yaml:"health_score"`
-	HealthStatus  string         `json:"health_status" yaml:"health_status"`
-	TaskCounts    map[string]int `json:"task_counts" yaml:"task_counts"`
-	PriorityCounts map[string]int `json:"priority_counts" yaml:"priority_counts"`
-	Issues        HealthIssues   `json:"issues" yaml:"issues"`
-	Recommendations []string     `json:"recommendations" yaml:"recommendations"`
-	LearningsCount int           `json:"learnings_count" yaml:"learnings_count"`
-	DecisionsCount int           `json:"decisions_count" yaml:"decisions_count"`
+	HealthScore     int            `json:"health_score" yaml:"health_score"`
+	HealthStatus    string         `json:"health_status" yaml:"health_status"`
+	TaskCounts      map[string]int `json:"task_counts" yaml:"task_counts"`
+	PriorityCounts  map[string]int `json:"priority_counts" yaml:"priority_counts"`
+	Issues          HealthIssues   `json:"issues" yaml:"issues"`
+	Recommendations []string       `json:"recommendations" yaml:"recommendations"`
+	LearningsCount  int            `json:"learnings_count" yaml:"learnings_count"`
+	DecisionsCount  int            `json:"decisions_count" yaml:"decisions_count"`
 }
 
 // HealthIssues represents issues found in the health check

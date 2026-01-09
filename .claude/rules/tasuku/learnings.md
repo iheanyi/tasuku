@@ -8,6 +8,7 @@ _Auto-synced from .tasuku/context/learnings.md_
 - Never manually manipulate ANSI-styled strings with rune/character operations. ANSI escape codes (e.g., \x1b[31m) are counted as characters, corrupting position calculations. Always use lipgloss.Place(), lipgloss.Width(), lipgloss.Height() which properly handle escape sequences.
 - Never iterate over a map while modifying it (e.g., archiving tasks while looping over m.file.Tasks). Always collect IDs/keys first into a slice, then iterate over the slice to perform modifications.
 - In BubbleTea TUIs, always save both the selected item ID AND index before refresh/reinitializing lists. After refresh, restore by ID first (item may have moved), fall back to index position (item may be deleted), or clamp to list bounds.
+- Always use `tk list` to verify task IDs before calling `tk done`, as the ID might differ from the description slug or be truncated.
 
 ## Insights
 

@@ -49,3 +49,6 @@ Always audit CLI command documentation (README.md, CLAUDE.md) when adding new co
 ## 2543ae - 2026-01-08T01:12:45Z
 syscall.Flock (file locking) is Unix-only. Windows builds will fail if using it directly. Either use build tags with platform-specific implementations or exclude Windows from build targets.
 
+## f11dfa - 2026-01-09T03:36:44Z
+Always use `tk list` to verify task IDs before calling `tk done`, as the ID might differ from the description slug or be truncated.
+

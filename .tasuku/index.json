@@ -82,6 +82,17 @@
       "file": "tasks/fix-ci.md",
       "updated_at": "2026-01-05T04:46:28.278787Z"
     },
+    "fix-empty-toolexecuteafter-hook": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "opencode",
+        "hooks",
+        "bug"
+      ],
+      "file": "tasks/fix-empty-toolexecuteafter-hook.md",
+      "updated_at": "2026-01-09T03:36:44.311629Z"
+    },
     "fix-tui-string-truncation-for-an": {
       "status": "ready",
       "priority": 2,
@@ -109,6 +120,17 @@
       "status": "done",
       "file": "tasks/hooks-tests.md",
       "updated_at": "2026-01-06T02:03:48.688906Z"
+    },
+    "implement-missing-opencode-hooks": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "opencode",
+        "hooks",
+        "feature"
+      ],
+      "file": "tasks/implement-missing-opencode-hooks.md",
+      "updated_at": "2026-01-09T03:30:39.044692Z"
     },
     "learning-tests": {
       "status": "done",
@@ -792,7 +814,7 @@
     }
   },
   "archived_count": 68,
-  "learnings_count": 16,
+  "learnings_count": 17,
   "decisions_count": 9,
-  "updated_at": "2026-01-09T02:39:16.234126Z"
+  "updated_at": "2026-01-09T03:41:13.186369Z"
 }

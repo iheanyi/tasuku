@@ -126,7 +126,7 @@ func prioritySymbolPlain(priority int) string {
 }
 
 func (i TaskItem) Description() string {
-	desc := lipgloss.Truncate(i.Task.Description, 60, "...")
+	desc := safeTruncate(i.Task.Description, 60)
 
 	var extras []string
 	if len(i.Task.Tags) > 0 {
@@ -139,6 +139,19 @@ func (i TaskItem) Description() string {
 		desc += " " + strings.Join(extras, " ")
 	}
 	return desc
+}
+
+// safeTruncate truncates a string to maxLen runes to handle multi-byte chars safely.
+// NOTE: Only use on raw strings BEFORE lipgloss styling. Does not handle ANSI sequences.
+func safeTruncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= maxLen {
+		return s
+	}
+	return string(r[:maxLen-3]) + "..."
 }
 
 func (i TaskItem) FilterValue() string {
