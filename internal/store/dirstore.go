@@ -796,6 +796,15 @@ func (s *DirStore) StartTimer(id string) error {
 	})
 }
 
+// StartTimerAt starts a timer at a specific time (for testing).
+func (s *DirStore) StartTimerAt(id string, at time.Time) error {
+	return s.updateTask(id, func(t *task.Task) error {
+		t.TimerStart = &at
+		t.UpdatedAt = time.Now().UTC()
+		return nil
+	})
+}
+
 // StopTimer stops a running timer.
 func (s *DirStore) StopTimer(id string) (time.Duration, error) {
 	var elapsed time.Duration

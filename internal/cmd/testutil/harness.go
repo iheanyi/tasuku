@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -262,6 +263,11 @@ func (h *Harness) AddDecision(id, chose string, over []string, because string) e
 // AddNote adds a note to a task.
 func (h *Harness) AddNote(taskID, text string) (string, error) {
 	return h.store.AddNote(taskID, text)
+}
+
+// StartTimerAt starts a timer on a task at a specific time (for testing stale timers).
+func (h *Harness) StartTimerAt(taskID string, at time.Time) error {
+	return h.store.StartTimerAt(taskID, at)
 }
 
 // AssertTaskStatus asserts that a task has the expected status.

@@ -32,6 +32,34 @@ func TestSessionCmd(t *testing.T) {
 	h.AssertOutputContains("Decisions:")
 }
 
+func TestSessionCmdStaleTimerWarning(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add a task with a stale timer (started 5 hours ago)
+	h.AddTaskWithStatus("stale-timer-task", "Task with stale timer", task.StatusInProgress)
+	staleTime := time.Now().Add(-5 * time.Hour)
+	h.StartTimerAt("stale-timer-task", staleTime)
+
+	err := h.Execute(Cmd, "session")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Stale timers")
+	h.AssertOutputContains("stale-timer-task")
+	h.AssertOutputContains("tk task timer stop")
+}
+
+func TestSessionCmdNoStaleTimerWarning(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add a task with a recent timer (started 1 hour ago - not stale)
+	h.AddTaskWithStatus("recent-timer-task", "Task with recent timer", task.StatusInProgress)
+	recentTime := time.Now().Add(-1 * time.Hour)
+	h.StartTimerAt("recent-timer-task", recentTime)
+
+	err := h.Execute(Cmd, "session")
+	h.AssertNoError(err)
+	h.AssertOutputNotContains("Stale timers")
+}
+
 func TestSessionCmdNoStorage(t *testing.T) {
 	// Create temp dir without tasuku storage
 	tempDir, _ := os.MkdirTemp("", "tasuku-test-nostorage-*")

@@ -1931,6 +1931,25 @@ func hookSession() error {
 		fmt.Printf("\nActive rules: %d (run 'tk learning rules' to see all)\n", len(rules))
 	}
 
+	// Check for stale timers (running 4+ hours)
+	const staleTimerThreshold = 4 * time.Hour
+	var staleTimers []string
+	for id, t := range f.Tasks {
+		if t.TimerStart != nil {
+			elapsed := time.Since(*t.TimerStart)
+			if elapsed >= staleTimerThreshold {
+				staleTimers = append(staleTimers, fmt.Sprintf("%s (%s)", id, elapsed.Round(time.Minute)))
+			}
+		}
+	}
+	if len(staleTimers) > 0 {
+		fmt.Printf("\n⚠️  Stale timers (running %s+):\n", staleTimerThreshold)
+		for _, s := range staleTimers {
+			fmt.Printf("   - %s\n", s)
+		}
+		fmt.Println("   Stop with: tk task timer stop <id>")
+	}
+
 	if highestPriority != nil {
 		t := f.Tasks[*highestPriority]
 		fmt.Printf("\nNext task: %s\n  %s\n", *highestPriority, t.Description)
