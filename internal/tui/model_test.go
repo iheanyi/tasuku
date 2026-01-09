@@ -38,22 +38,38 @@ func setupTestStore(t *testing.T) (*store.Store, func()) {
 	return s, cleanup
 }
 
-func TestNew(t *testing.T) {
-	s, cleanup := setupTestStore(t)
-	defer cleanup()
-
+// newTestModel creates a new Model and processes the initial async load.
+// This simulates what tea.NewProgram does: call New(), then Init(), then Update(initMsg).
+func newTestModel(t *testing.T, s store.Storage) Model {
+	t.Helper()
 	m, err := New(s)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	if m.view != ViewDashboard {
-		t.Errorf("expected initial view to be ViewDashboard, got %v", m.view)
+	// Process the Init command to load tasks
+	cmd := m.Init()
+	if cmd != nil {
+		msg := cmd()
+		newModel, _ := m.Update(msg)
+		return newModel.(Model)
+	}
+	return *m
+}
+
+func TestNew(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	model := newTestModel(t, s)
+
+	if model.view != ViewDashboard {
+		t.Errorf("expected initial view to be ViewDashboard, got %v", model.view)
 	}
 
 	// Should have 3 tasks in the list
-	if len(m.taskList.Items()) != 3 {
-		t.Errorf("expected 3 tasks in list, got %d", len(m.taskList.Items()))
+	if len(model.taskList.Items()) != 3 {
+		t.Errorf("expected 3 tasks in list, got %d", len(model.taskList.Items()))
 	}
 }
 
@@ -76,11 +92,11 @@ func TestUpdate_EnterTaskDetail(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
+	model := newTestModel(t, s)
 
 	// Press enter to view task detail
 	msg := tea.KeyMsg{Type: tea.KeyEnter}
-	newModel, _ := m.Update(msg)
+	newModel, _ := model.Update(msg)
 	updated := newModel.(Model)
 
 	if updated.view != ViewTaskDetail {
@@ -96,15 +112,14 @@ func TestUpdate_BackFromDetail(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
+	model := newTestModel(t, s)
 	// Modify the model to be in detail view
-	detailModel := *m
-	detailModel.view = ViewTaskDetail
-	detailModel.selected = "test-ready"
+	model.view = ViewTaskDetail
+	model.selected = "test-ready"
 
 	// Press escape to go back
 	msg := tea.KeyMsg{Type: tea.KeyEsc}
-	newModel, _ := detailModel.Update(msg)
+	newModel, _ := model.Update(msg)
 	updated := newModel.(Model)
 
 	if updated.view != ViewDashboard {
@@ -116,8 +131,7 @@ func TestUpdate_FilteringMode(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Simulate entering filter mode by pressing '/'
 	// The list handles '/' internally to enter filter mode
@@ -152,8 +166,7 @@ func TestUpdate_StartTask(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Find and select the ready task
 	for i, item := range model.taskList.Items() {
@@ -163,13 +176,28 @@ func TestUpdate_StartTask(t *testing.T) {
 		}
 	}
 
-	// Press 's' to start the task
+	// Press 's' to start the task - this returns an async command
 	sMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}}
-	newModel, _ := model.Update(sMsg)
-	_ = newModel.(Model)
+	newModel, cmd := model.Update(sMsg)
+	model = newModel.(Model)
+
+	// Execute the async command and process result
+	if cmd != nil {
+		msg := cmd()
+		newModel, _ = model.Update(msg)
+		// Process the subsequent load command if ActionResultMsg
+		if _, ok := msg.(ActionResultMsg); ok {
+			loadCmd := loadTasksCmd(s)
+			loadMsg := loadCmd()
+			newModel, _ = newModel.(Model).Update(loadMsg)
+		}
+	}
 
 	// Verify task status changed
-	f, _ := s.Read()
+	f, err := s.Read()
+	if err != nil {
+		t.Fatalf("failed to read store: %v", err)
+	}
 	if f.Tasks["test-ready"].Status != task.StatusInProgress {
 		t.Errorf("expected task to be in_progress, got %v", f.Tasks["test-ready"].Status)
 	}
@@ -179,8 +207,7 @@ func TestUpdate_DoneTask(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Find and select the in-progress task
 	for i, item := range model.taskList.Items() {
@@ -190,13 +217,28 @@ func TestUpdate_DoneTask(t *testing.T) {
 		}
 	}
 
-	// Press 'd' to mark done
+	// Press 'd' to mark done - this returns an async command
 	dMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}}
-	newModel, _ := model.Update(dMsg)
-	_ = newModel.(Model)
+	newModel, cmd := model.Update(dMsg)
+	model = newModel.(Model)
+
+	// Execute the async command and process result
+	if cmd != nil {
+		msg := cmd()
+		newModel, _ = model.Update(msg)
+		// Process the subsequent load command if ActionResultMsg
+		if _, ok := msg.(ActionResultMsg); ok {
+			loadCmd := loadTasksCmd(s)
+			loadMsg := loadCmd()
+			_, _ = newModel.(Model).Update(loadMsg)
+		}
+	}
 
 	// Verify task status changed
-	f, _ := s.Read()
+	f, err := s.Read()
+	if err != nil {
+		t.Fatalf("failed to read store: %v", err)
+	}
 	if f.Tasks["test-progress"].Status != task.StatusDone {
 		t.Errorf("expected task to be done, got %v", f.Tasks["test-progress"].Status)
 	}
@@ -206,8 +248,7 @@ func TestUpdate_ArchiveTask(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Find and select the done task
 	for i, item := range model.taskList.Items() {
@@ -233,13 +274,27 @@ func TestUpdate_ArchiveTask(t *testing.T) {
 		t.Errorf("expected confirmTaskID 'test-done', got %v", confirmModel.confirmTaskID)
 	}
 
-	// Press 'y' to confirm
+	// Press 'y' to confirm - this returns an async command
 	yMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}}
-	finalModel, _ := confirmModel.Update(yMsg)
-	_ = finalModel.(Model)
+	finalModel, cmd := confirmModel.Update(yMsg)
+	model = finalModel.(Model)
+
+	// Execute the async command and process result
+	if cmd != nil {
+		msg := cmd()
+		finalModel, _ = model.Update(msg)
+		if _, ok := msg.(ActionResultMsg); ok {
+			loadCmd := loadTasksCmd(s)
+			loadMsg := loadCmd()
+			_, _ = finalModel.(Model).Update(loadMsg)
+		}
+	}
 
 	// Verify task was archived
-	f, _ := s.Read()
+	f, err := s.Read()
+	if err != nil {
+		t.Fatalf("failed to read store: %v", err)
+	}
 	if _, exists := f.Tasks["test-done"]; exists {
 		t.Error("expected task to be removed from active tasks")
 	}
@@ -252,8 +307,7 @@ func TestUpdate_ArchiveTaskCancel(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Find and select the done task
 	for i, item := range model.taskList.Items() {
@@ -282,7 +336,10 @@ func TestUpdate_ArchiveTaskCancel(t *testing.T) {
 	}
 
 	// Verify task was NOT archived
-	f, _ := s.Read()
+	f, err := s.Read()
+	if err != nil {
+		t.Fatalf("failed to read store: %v", err)
+	}
 	if _, exists := f.Tasks["test-done"]; !exists {
 		t.Error("expected task to still be in active tasks")
 	}
@@ -292,14 +349,16 @@ func TestUpdate_BulkArchive(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Count done tasks before
 	doneCount := 0
-	f, _ := s.Read()
-	for _, task := range f.Tasks {
-		if task.Status == "done" {
+	f, err := s.Read()
+	if err != nil {
+		t.Fatalf("failed to read store: %v", err)
+	}
+	for _, tk := range f.Tasks {
+		if tk.Status == task.StatusDone {
 			doneCount++
 		}
 	}
@@ -317,15 +376,29 @@ func TestUpdate_BulkArchive(t *testing.T) {
 		t.Errorf("expected confirmAction 'bulk_archive', got %v", confirmModel.confirmAction)
 	}
 
-	// Press 'y' to confirm
+	// Press 'y' to confirm - this returns an async command
 	yMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}}
-	finalModel, _ := confirmModel.Update(yMsg)
-	_ = finalModel.(Model)
+	finalModel, cmd := confirmModel.Update(yMsg)
+	model = finalModel.(Model)
+
+	// Execute the async command and process result
+	if cmd != nil {
+		msg := cmd()
+		finalModel, _ = model.Update(msg)
+		if _, ok := msg.(ActionResultMsg); ok {
+			loadCmd := loadTasksCmd(s)
+			loadMsg := loadCmd()
+			_, _ = finalModel.(Model).Update(loadMsg)
+		}
+	}
 
 	// Verify all done tasks were archived
-	f, _ = s.Read()
-	for _, task := range f.Tasks {
-		if task.Status == "done" {
+	f, err = s.Read()
+	if err != nil {
+		t.Fatalf("failed to read store: %v", err)
+	}
+	for _, tk := range f.Tasks {
+		if tk.Status == task.StatusDone {
 			t.Error("expected no done tasks to remain in active tasks")
 		}
 	}
@@ -338,8 +411,7 @@ func TestUpdate_ConfirmEscape(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Find and select the done task
 	for i, item := range model.taskList.Items() {
@@ -369,8 +441,7 @@ func TestUpdate_WindowResize(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	msg := tea.WindowSizeMsg{Width: 100, Height: 50}
 	newModel, _ := model.Update(msg)
@@ -479,15 +550,15 @@ func TestFilterStateCheck(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
+	model := newTestModel(t, s)
 
 	// Initially not filtering
-	if m.taskList.SettingFilter() {
+	if model.taskList.SettingFilter() {
 		t.Error("expected SettingFilter() to be false initially")
 	}
 
 	// Check FilterState type
-	state := m.taskList.FilterState()
+	state := model.taskList.FilterState()
 	if state != list.Unfiltered {
 		t.Errorf("expected Unfiltered state, got %v", state)
 	}
@@ -497,8 +568,7 @@ func TestUpdate_DeleteTask(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Find and select the ready task
 	for i, item := range model.taskList.Items() {
@@ -524,13 +594,27 @@ func TestUpdate_DeleteTask(t *testing.T) {
 		t.Errorf("expected confirmTaskID 'test-ready', got %v", confirmModel.confirmTaskID)
 	}
 
-	// Press 'y' to confirm
+	// Press 'y' to confirm - this returns an async command
 	yMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}}
-	finalModel, _ := confirmModel.Update(yMsg)
-	_ = finalModel.(Model)
+	finalModel, cmd := confirmModel.Update(yMsg)
+	model = finalModel.(Model)
+
+	// Execute the async command and process result
+	if cmd != nil {
+		msg := cmd()
+		finalModel, _ = model.Update(msg)
+		if _, ok := msg.(ActionResultMsg); ok {
+			loadCmd := loadTasksCmd(s)
+			loadMsg := loadCmd()
+			_, _ = finalModel.(Model).Update(loadMsg)
+		}
+	}
 
 	// Verify task was deleted
-	f, _ := s.Read()
+	f, err := s.Read()
+	if err != nil {
+		t.Fatalf("failed to read store: %v", err)
+	}
 	if _, exists := f.Tasks["test-ready"]; exists {
 		t.Error("expected task to be deleted from active tasks")
 	}
@@ -540,8 +624,7 @@ func TestUpdate_DeleteTaskCancel(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	m, _ := New(s)
-	model := *m
+	model := newTestModel(t, s)
 
 	// Find and select the ready task
 	for i, item := range model.taskList.Items() {
@@ -567,7 +650,10 @@ func TestUpdate_DeleteTaskCancel(t *testing.T) {
 	}
 
 	// Verify task was NOT deleted
-	f, _ := s.Read()
+	f, err := s.Read()
+	if err != nil {
+		t.Fatalf("failed to read store: %v", err)
+	}
 	if _, exists := f.Tasks["test-ready"]; !exists {
 		t.Error("expected task to still exist")
 	}
@@ -580,6 +666,12 @@ func TestRefresh_PreservesSelection(t *testing.T) {
 	m, _ := New(s)
 	model := *m
 
+	// Simulate initial load (since New() no longer loads synchronously)
+	cmd := model.Init()
+	msg := cmd()
+	newModel, _ := model.Update(msg)
+	model = newModel.(Model)
+
 	// Select a specific task (not the first one)
 	for i, item := range model.taskList.Items() {
 		if ti, ok := item.(TaskItem); ok && ti.ID == "test-progress" {
@@ -588,9 +680,13 @@ func TestRefresh_PreservesSelection(t *testing.T) {
 		}
 	}
 
-	// Trigger refresh
-	refreshedModel, _ := model.refresh()
-	updated := refreshedModel.(Model)
+	// Trigger refresh by simulating runAction(loadTasksCmd)
+	model.lastSelectedID = "test-progress"
+	model.lastSelectedIdx = model.taskList.Index()
+	cmd = loadTasksCmd(s)
+	msg = cmd()
+	newModel, _ = model.Update(msg)
+	updated := newModel.(Model)
 
 	// Verify selection was preserved
 	if item, ok := updated.taskList.SelectedItem().(TaskItem); ok {
@@ -609,13 +705,21 @@ func TestRefresh_HandlesMissingTask(t *testing.T) {
 	m, _ := New(s)
 	model := *m
 
+	// Simulate initial load
+	cmd := model.Init()
+	msg := cmd()
+	newModel, _ := model.Update(msg)
+	model = newModel.(Model)
+
 	// Get initial item count
 	initialCount := len(model.taskList.Items())
 
 	// Select a task that will be deleted
+	var selectedIdx int
 	for i, item := range model.taskList.Items() {
 		if ti, ok := item.(TaskItem); ok && ti.ID == "test-done" {
 			model.taskList.Select(i)
+			selectedIdx = i
 			break
 		}
 	}
@@ -623,9 +727,13 @@ func TestRefresh_HandlesMissingTask(t *testing.T) {
 	// Delete the task directly through the store
 	_ = s.DeleteTask("test-done")
 
-	// Trigger refresh
-	refreshedModel, _ := model.refresh()
-	updated := refreshedModel.(Model)
+	// Trigger refresh by simulating runAction(loadTasksCmd)
+	model.lastSelectedID = "test-done"
+	model.lastSelectedIdx = selectedIdx
+	cmd = loadTasksCmd(s)
+	msg = cmd()
+	newModel, _ = model.Update(msg)
+	updated := newModel.(Model)
 
 	// Verify selection moved to a valid index
 	newCount := len(updated.taskList.Items())
@@ -634,9 +742,9 @@ func TestRefresh_HandlesMissingTask(t *testing.T) {
 	}
 
 	// Selection should be at a valid index
-	selectedIdx := updated.taskList.Index()
-	if selectedIdx >= newCount {
-		t.Errorf("selection index %d is out of bounds for %d items", selectedIdx, newCount)
+	newSelectedIdx := updated.taskList.Index()
+	if newSelectedIdx >= newCount {
+		t.Errorf("selection index %d is out of bounds for %d items", newSelectedIdx, newCount)
 	}
 }
 

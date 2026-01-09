@@ -304,14 +304,19 @@ func newTodoCheckCmd() *cobra.Command {
 
 Analyzes tool output and suggests actions:
   - TodoWrite: Persist project-level tasks to Tasuku
-  - Bash (tests): Prompt to track test failures
+  - Bash (tests): Prompt to track test failures, detect fixes
   - Bash (git): Link commits to tasks
 
 Features (all enabled by default):
   - bugfix_learning: Prompt for learnings after bug fixes
   - project_task: Suggest persisting project-level tasks
   - test_failure: Detect test failures and suggest tracking
+  - test_fix_learning: Prompt for learning when tests pass after failure
   - git_commit: Link commits to related tasks
+
+The test_fix_learning feature is critical: it detects when you fix a failing
+test and prompts you to document the learning IMMEDIATELY, preventing
+knowledge loss.
 
 Configuration:
   --quiet           Minimal output mode
@@ -339,14 +344,16 @@ var todoCheckFeatures = []string{
 	"bugfix_learning",
 	"project_task",
 	"test_failure",
+	"test_fix_learning", // NEW: Prompt for learning when tests pass after failure
 	"git_commit",
 }
 
 var todoCheckQuietFeatures = map[string]bool{
-	"bugfix_learning": true, // Keep in quiet mode
-	"project_task":    false,
-	"test_failure":    true, // Keep in quiet mode
-	"git_commit":      false,
+	"bugfix_learning":   true,  // Keep in quiet mode
+	"project_task":      false,
+	"test_failure":      true,  // Keep in quiet mode
+	"test_fix_learning": true,  // Keep in quiet mode - this is critical
+	"git_commit":        false,
 }
 
 func runTodoCheck(cmd *cobra.Command, args []string) error {
@@ -851,17 +858,43 @@ func handleBashCheck(config featureConfig, toolInput, toolOutput string) error {
 	command := strings.ToLower(bashInput.Command)
 	outputLower := strings.ToLower(toolOutput)
 
-	// === TEST FAILURE DETECTION ===
-	if config["test_failure"] && isTestCommand(command) {
-		if detectTestFailure(outputLower) {
+	// === TEST DETECTION (failure tracking and fix learning) ===
+	if isTestCommand(command) {
+		isFailure := detectTestFailure(outputLower)
+		isSuccess := detectTestSuccess(outputLower)
+
+		// === TEST FAILURE: Save state and show warning ===
+		if config["test_failure"] && isFailure {
+			// Save failure state for later "test fix" detection
+			saveTestFailureState(bashInput.Command)
+
 			fmt.Println("🔴 TEST FAILURE DETECTED")
 			fmt.Println()
 			fmt.Println("   Track the fix:")
 			fmt.Println("   → tk task add \"Fix failing tests\" --tag bug --priority high")
 			fmt.Println()
-			fmt.Println("   Or if you just fixed it, record what you learned:")
-			fmt.Println("   → tk learn \"root cause or pattern\"")
-			fmt.Println()
+		}
+
+		// === TEST FIX: Detect success after recent failure ===
+		// This is the key feature: prompt for learning when tests pass after failure
+		if config["test_fix_learning"] && isSuccess && !isFailure {
+			// Check if there was a recent test failure (within 30 minutes)
+			const maxAge = 30 * time.Minute
+			if isRecentTestFailure(maxAge) {
+				fmt.Println("✅ TESTS PASSING AFTER FAILURE - DOCUMENT YOUR FIX!")
+				fmt.Println()
+				fmt.Println("   You just fixed a bug. Record the learning NOW:")
+				fmt.Println("   → What was the root cause?")
+				fmt.Println("   → What rule prevents this in the future?")
+				fmt.Println()
+				fmt.Println("   tk learn \"Never X\" or \"Always Y\"")
+				fmt.Println()
+				fmt.Println("   This is MANDATORY - don't let this knowledge be lost!")
+				fmt.Println()
+
+				// Clear the state so we don't prompt again
+				clearTestFailureState()
+			}
 		}
 	}
 
@@ -2302,4 +2335,92 @@ func checkHookVersionAndWarn() {
 			return // Only show one warning
 		}
 	}
+}
+
+// === TEST FAILURE STATE TRACKING ===
+// These functions track test failures to detect when an agent fixes a failing test,
+// prompting them to document the learning.
+
+// testFailureState holds the state of the last test failure
+type testFailureState struct {
+	FailedAt time.Time `json:"failed_at"`
+	Command  string    `json:"command"`
+}
+
+// getTestFailureStatePath returns the path to the test failure state file.
+// Uses .tasuku/ if it exists, otherwise ~/.cache/tasuku/
+func getTestFailureStatePath() string {
+	// Try project-local first
+	if _, err := os.Stat(".tasuku"); err == nil {
+		return filepath.Join(".tasuku", ".test-failure-state.json")
+	}
+
+	// Fall back to cache directory
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		cacheDir = os.TempDir()
+	}
+	tasukuCache := filepath.Join(cacheDir, "tasuku")
+	os.MkdirAll(tasukuCache, 0755)
+	return filepath.Join(tasukuCache, "test-failure-state.json")
+}
+
+// saveTestFailureState saves the current test failure state
+func saveTestFailureState(command string) error {
+	state := testFailureState{
+		FailedAt: time.Now(),
+		Command:  command,
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(getTestFailureStatePath(), data, 0644)
+}
+
+// getLastTestFailure reads the last test failure state if it exists
+func getLastTestFailure() (*testFailureState, error) {
+	data, err := os.ReadFile(getTestFailureStatePath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var state testFailureState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+// clearTestFailureState removes the test failure state file
+func clearTestFailureState() {
+	os.Remove(getTestFailureStatePath())
+}
+
+// isRecentTestFailure checks if a test failure occurred within the given duration
+func isRecentTestFailure(maxAge time.Duration) bool {
+	state, err := getLastTestFailure()
+	if err != nil || state == nil {
+		return false
+	}
+	return time.Since(state.FailedAt) < maxAge
+}
+
+// detectTestSuccess checks test output for success indicators
+func detectTestSuccess(output string) bool {
+	successPatterns := []string{
+		"pass", "passed", "ok ",
+		"all tests passed", "tests passed",
+		"success", "succeeded",
+		"exit status 0", "exit code 0",
+		"0 failures", "0 failed", "0 errors",
+	}
+	for _, pattern := range successPatterns {
+		if strings.Contains(output, pattern) {
+			return true
+		}
+	}
+	return false
 }

@@ -13,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
@@ -66,6 +67,11 @@ type Model struct {
 	err          error
 	sortMode     SortMode     // current sort mode
 	statusFilter StatusFilter // current status filter
+
+	// Async state for non-blocking I/O
+	loading         bool   // true while an async operation is in progress
+	lastSelectedID  string // task ID selected before refresh (for restoration)
+	lastSelectedIdx int    // task index before refresh (fallback)
 
 	// Markdown renderer for rich content
 	mdRenderer *glamour.TermRenderer
@@ -126,7 +132,8 @@ func prioritySymbolPlain(priority int) string {
 }
 
 func (i TaskItem) Description() string {
-	desc := safeTruncate(i.Task.Description, 60)
+	// ansi.Truncate handles ANSI codes, wide chars (CJK), and graphemes correctly
+	desc := ansi.Truncate(i.Task.Description, 60, "...")
 
 	var extras []string
 	if len(i.Task.Tags) > 0 {
@@ -139,19 +146,6 @@ func (i TaskItem) Description() string {
 		desc += " " + strings.Join(extras, " ")
 	}
 	return desc
-}
-
-// safeTruncate truncates a string to maxLen runes to handle multi-byte chars safely.
-// NOTE: Only use on raw strings BEFORE lipgloss styling. Does not handle ANSI sequences.
-func safeTruncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	r := []rune(s)
-	if len(r) <= maxLen {
-		return s
-	}
-	return string(r[:maxLen-3]) + "..."
 }
 
 func (i TaskItem) FilterValue() string {
@@ -256,13 +250,101 @@ func highlightMatches(text string, matches []int, baseStyle, matchStyle lipgloss
 	return result.String()
 }
 
-// New creates a new TUI model
-func New(s store.Storage) (*Model, error) {
-	f, err := s.Read()
-	if err != nil {
-		return nil, err
-	}
+// --- Async Message Types ---
 
+// TasksLoadedMsg carries the result of loading tasks from storage.
+type TasksLoadedMsg struct {
+	File *task.File
+	Err  error
+}
+
+// ActionResultMsg carries the result of an async action (status change, archive, etc.).
+type ActionResultMsg struct {
+	Err error
+}
+
+// --- Async Command Constructors ---
+// These wrap storage operations in tea.Cmd for non-blocking execution.
+
+func loadTasksCmd(s store.Storage) tea.Cmd {
+	return func() tea.Msg {
+		f, err := s.Read()
+		return TasksLoadedMsg{File: f, Err: err}
+	}
+}
+
+func setStatusCmd(s store.Storage, id string, status task.Status) tea.Cmd {
+	return func() tea.Msg {
+		return ActionResultMsg{Err: s.SetStatus(id, status)}
+	}
+}
+
+func archiveTaskCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionResultMsg{Err: s.ArchiveTask(id, "")}
+	}
+}
+
+func bulkArchiveCmd(s store.Storage, ids []string) tea.Cmd {
+	return func() tea.Msg {
+		for _, id := range ids {
+			if err := s.ArchiveTask(id, ""); err != nil {
+				return ActionResultMsg{Err: err}
+			}
+		}
+		return ActionResultMsg{Err: nil}
+	}
+}
+
+func deleteTaskCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionResultMsg{Err: s.DeleteTask(id)}
+	}
+}
+
+func addTaskCmd(s store.Storage, id, desc string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionResultMsg{Err: s.AddTask(id, desc)}
+	}
+}
+
+func setDescriptionCmd(s store.Storage, id, desc string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionResultMsg{Err: s.SetDescription(id, desc)}
+	}
+}
+
+func startTimerCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		return ActionResultMsg{Err: s.StartTimer(id)}
+	}
+}
+
+func stopTimerCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := s.StopTimer(id)
+		return ActionResultMsg{Err: err}
+	}
+}
+
+func unblockAndReadyCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		_ = s.UnblockTask(id)
+		return ActionResultMsg{Err: s.SetStatus(id, task.StatusReady)}
+	}
+}
+
+func pauseTaskCmd(s store.Storage, id string) tea.Cmd {
+	return func() tea.Msg {
+		// Stop timer if running (best effort)
+		_, _, _ = s.StopTimerIfRunning(id)
+		return ActionResultMsg{Err: s.SetStatus(id, task.StatusReady)}
+	}
+}
+
+// New creates a new TUI model.
+// The model starts in a loading state; Init() triggers async data loading.
+func New(s store.Storage) (*Model, error) {
 	// Initialize progress bar with theme colors
 	prog := progress.New(
 		progress.WithScaledGradient(string(ColorMuted), string(ColorAccent)),
@@ -277,12 +359,14 @@ func New(s store.Storage) (*Model, error) {
 
 	m := &Model{
 		store:      s,
-		file:       f,
+		file:       task.NewFile(), // Start with empty file
 		view:       ViewDashboard,
 		progress:   prog,
 		mdRenderer: mdRenderer,
+		loading:    true, // Will be set to false when TasksLoadedMsg arrives
 	}
 
+	// Initialize empty task list (will be populated after async load)
 	m.initTaskList()
 	return m, nil
 }
@@ -406,9 +490,10 @@ func (m *Model) getListTitle() string {
 	return title
 }
 
-// Init implements tea.Model
+// Init implements tea.Model.
+// Returns a command to load tasks asynchronously.
 func (m Model) Init() tea.Cmd {
-	return nil
+	return loadTasksCmd(m.store)
 }
 
 // KeyMap defines the key bindings
@@ -564,38 +649,74 @@ func (m Model) countDoneTasks() int {
 	return count
 }
 
+// runAction saves selection state, sets loading, and returns the given command.
+// Use this for all async storage operations.
+func (m *Model) runAction(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	// Save selection before action (for restoration after reload)
+	if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
+		m.lastSelectedID = item.ID
+		m.lastSelectedIdx = m.taskList.Index()
+	}
+	m.loading = true
+	return *m, cmd // Return value, not pointer, to match tea.Model pattern
+}
+
 // Update implements tea.Model
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	// --- Handle Async Results ---
+	case TasksLoadedMsg:
+		m.loading = false
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.file = msg.File
+		m.initTaskList()
+		m.restoreSelection(m.lastSelectedID, m.lastSelectedIdx)
+		return m, nil
+
+	case ActionResultMsg:
+		if msg.Err != nil {
+			m.loading = false
+			m.err = msg.Err
+			return m, nil
+		}
+		// Action succeeded, refresh data from storage
+		return m, loadTasksCmd(m.store)
+
 	case tea.KeyMsg:
 		// Handle confirmation dialog
 		if m.view == ViewConfirm {
 			switch {
 			case key.Matches(msg, keys.ConfirmYes):
-				// Execute the confirmed action
-				switch m.confirmAction {
+				// Capture action details before clearing state
+				action := m.confirmAction
+				taskID := m.confirmTaskID
+
+				// Clear confirm state and return to dashboard
+				m.view = ViewDashboard
+				m.confirmAction = ""
+				m.confirmTaskID = ""
+				m.confirmMessage = ""
+
+				// Execute the confirmed action asynchronously
+				switch action {
 				case "archive":
-					_ = m.store.ArchiveTask(m.confirmTaskID, "")
+					return m.runAction(archiveTaskCmd(m.store, taskID))
 				case "bulk_archive":
-					// Collect done task IDs first to avoid iterating while modifying
+					// Collect done task IDs
 					var doneIDs []string
 					for id, t := range m.file.Tasks {
 						if t.Status == task.StatusDone {
 							doneIDs = append(doneIDs, id)
 						}
 					}
-					// Archive all collected tasks
-					for _, id := range doneIDs {
-						_ = m.store.ArchiveTask(id, "")
-					}
+					return m.runAction(bulkArchiveCmd(m.store, doneIDs))
 				case "delete":
-					_ = m.store.DeleteTask(m.confirmTaskID)
+					return m.runAction(deleteTaskCmd(m.store, taskID))
 				}
-				m.view = ViewDashboard
-				m.confirmAction = ""
-				m.confirmTaskID = ""
-				m.confirmMessage = ""
-				return m.refresh()
+				return m, nil
 
 			case key.Matches(msg, keys.ConfirmNo), key.Matches(msg, keys.Back):
 				// Cancel the action
@@ -614,16 +735,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.String() == "ctrl+s" || (msg.Type == tea.KeyEnter && msg.Alt) {
 				// Create the task
 				desc := strings.TrimSpace(m.createInput.Value())
-				if desc != "" {
-					id := generateTaskID(desc)
-					if err := m.store.AddTask(id, desc); err != nil {
-						m.err = err
-					}
-				}
-				// Reset and return to dashboard
 				m.createInput.Reset()
 				m.view = ViewDashboard
-				return m.refresh()
+				if desc != "" {
+					id := generateTaskID(desc)
+					return m.runAction(addTaskCmd(m.store, id, desc))
+				}
+				return m, nil
 			}
 			if msg.Type == tea.KeyEsc {
 				// Cancel creation
@@ -643,16 +761,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.String() == "ctrl+s" || (msg.Type == tea.KeyEnter && msg.Alt) {
 				// Update the task description
 				desc := strings.TrimSpace(m.editInput.Value())
-				if desc != "" && m.editTaskID != "" {
-					if err := m.store.SetDescription(m.editTaskID, desc); err != nil {
-						m.err = err
-					}
-				}
-				// Reset and return to dashboard
+				taskID := m.editTaskID
 				m.editInput.Reset()
 				m.editTaskID = ""
 				m.view = ViewDashboard
-				return m.refresh()
+				if desc != "" && taskID != "" {
+					return m.runAction(setDescriptionCmd(m.store, taskID, desc))
+				}
+				return m, nil
 			}
 			if msg.Type == tea.KeyEsc {
 				// Cancel editing
@@ -689,14 +805,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.Refresh):
-			f, err := m.store.Read()
-			if err != nil {
-				m.err = err
-				return m, nil
-			}
-			m.file = f
-			m.initTaskList()
-			return m, nil
+			return m.runAction(loadTasksCmd(m.store))
 
 		case key.Matches(msg, keys.Help):
 			if m.view == ViewHelp {
@@ -736,8 +845,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusReady {
-						_ = m.store.SetStatus(item.ID, task.StatusInProgress)
-						return m.refresh()
+						return m.runAction(setStatusCmd(m.store, item.ID, task.StatusInProgress))
 					}
 				}
 			}
@@ -746,8 +854,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusInProgress {
-						_ = m.store.SetStatus(item.ID, task.StatusDone)
-						return m.refresh()
+						return m.runAction(setStatusCmd(m.store, item.ID, task.StatusDone))
 					}
 				}
 			}
@@ -756,11 +863,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.IsTimerRunning() {
-						_, _ = m.store.StopTimer(item.ID)
+						return m.runAction(stopTimerCmd(m.store, item.ID))
 					} else {
-						_ = m.store.StartTimer(item.ID)
+						return m.runAction(startTimerCmd(m.store, item.ID))
 					}
-					return m.refresh()
 				}
 			}
 
@@ -898,8 +1004,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusReady || item.Task.Status == task.StatusInProgress {
-						_ = m.store.SetStatus(item.ID, task.StatusBlocked)
-						return m.refresh()
+						return m.runAction(setStatusCmd(m.store, item.ID, task.StatusBlocked))
 					}
 				}
 			}
@@ -909,10 +1014,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusBlocked {
-						// Unblock by setting to ready
-						_ = m.store.UnblockTask(item.ID)
-						_ = m.store.SetStatus(item.ID, task.StatusReady)
-						return m.refresh()
+						return m.runAction(unblockAndReadyCmd(m.store, item.ID))
 					}
 				}
 			}
@@ -922,12 +1024,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.view == ViewDashboard {
 				if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
 					if item.Task.Status == task.StatusInProgress {
-						// Stop timer if running
-						if item.Task.IsTimerRunning() {
-							_, _ = m.store.StopTimer(item.ID)
-						}
-						_ = m.store.SetStatus(item.ID, task.StatusReady)
-						return m.refresh()
+						return m.runAction(pauseTaskCmd(m.store, item.ID))
 					}
 				}
 			}
@@ -946,29 +1043,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.taskList, cmd = m.taskList.Update(msg)
 		return m, cmd
 	}
-
-	return m, nil
-}
-
-func (m Model) refresh() (tea.Model, tea.Cmd) {
-	// Save current selection before refresh
-	var selectedID string
-	var selectedIdx int
-	if item, ok := m.taskList.SelectedItem().(TaskItem); ok {
-		selectedID = item.ID
-		selectedIdx = m.taskList.Index()
-	}
-
-	f, err := m.store.Read()
-	if err != nil {
-		m.err = err
-		return m, nil
-	}
-	m.file = f
-	m.initTaskList()
-
-	// Restore selection if task still exists, otherwise maintain position
-	m.restoreSelection(selectedID, selectedIdx)
 
 	return m, nil
 }
@@ -1006,6 +1080,11 @@ func (m *Model) restoreSelection(taskID string, previousIdx int) {
 func (m Model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.err)
+	}
+
+	// Show loading indicator while async operations are in progress
+	if m.loading && m.file != nil && len(m.file.Tasks) == 0 {
+		return HelpStyle.Render("Loading tasks...")
 	}
 
 	switch m.view {

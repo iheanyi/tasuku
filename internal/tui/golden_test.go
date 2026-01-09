@@ -112,7 +112,8 @@ func setupGoldenTestStore(t *testing.T) *store.Store {
 	return s
 }
 
-// createTestModel creates a test TUI model with the given store
+// createTestModel creates a test TUI model with the given store.
+// It processes the async Init() command to load tasks before returning.
 func createTestModel(t *testing.T, s *store.Store) Model {
 	t.Helper()
 
@@ -126,6 +127,19 @@ func createTestModel(t *testing.T, s *store.Store) Model {
 	m.height = testTermHeight
 	m.taskList.SetSize(testTermWidth-4, testTermHeight-8)
 	m.progress.Width = testTermWidth - 4
+
+	// Process the Init() command to load tasks asynchronously
+	// This simulates what tea.NewProgram does: call Init(), then process the resulting message
+	cmd := m.Init()
+	if cmd != nil {
+		msg := cmd()
+		newModel, _ := m.Update(msg)
+		model := newModel.(Model)
+		// Restore terminal size after reinitializing task list
+		model.taskList.SetSize(testTermWidth-4, testTermHeight-8)
+		model.progress.Width = testTermWidth - 4
+		return model
+	}
 
 	return *m
 }

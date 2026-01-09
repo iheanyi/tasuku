@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iheanyi/tasuku/internal/cmd/testutil"
 	"github.com/iheanyi/tasuku/internal/task"
@@ -149,7 +150,7 @@ func TestGenerateID(t *testing.T) {
 
 func TestShouldPersistTask(t *testing.T) {
 	tests := []struct {
-		description string
+		description   string
 		shouldPersist bool
 	}{
 		{"Implement user authentication", true},
@@ -167,6 +168,78 @@ func TestShouldPersistTask(t *testing.T) {
 		got := shouldPersistTask(tt.description)
 		if got != tt.shouldPersist {
 			t.Errorf("shouldPersistTask(%q) = %v, want %v", tt.description, got, tt.shouldPersist)
+		}
+	}
+}
+
+func TestTestFailureStateTracking(t *testing.T) {
+	// Save original directory and change to temp dir
+	tempDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(origDir)
+
+	// Create .tasuku directory for local state storage
+	os.MkdirAll(".tasuku", 0755)
+
+	// Clean up any existing state
+	clearTestFailureState()
+
+	// Initially, no failure should be detected
+	if isRecentTestFailure(30 * time.Minute) {
+		t.Error("expected no recent failure initially")
+	}
+
+	// Save a test failure
+	if err := saveTestFailureState("go test ./..."); err != nil {
+		t.Fatalf("failed to save test failure state: %v", err)
+	}
+
+	// Now should detect recent failure
+	if !isRecentTestFailure(30 * time.Minute) {
+		t.Error("expected recent failure after saving state")
+	}
+
+	// Read the state
+	state, err := getLastTestFailure()
+	if err != nil {
+		t.Fatalf("failed to get last test failure: %v", err)
+	}
+	if state == nil {
+		t.Fatal("expected non-nil state")
+	}
+	if state.Command != "go test ./..." {
+		t.Errorf("expected command 'go test ./...', got %q", state.Command)
+	}
+
+	// Clear the state
+	clearTestFailureState()
+
+	// Should no longer detect failure
+	if isRecentTestFailure(30 * time.Minute) {
+		t.Error("expected no recent failure after clearing state")
+	}
+}
+
+func TestDetectTestSuccess(t *testing.T) {
+	tests := []struct {
+		output  string
+		success bool
+	}{
+		{"PASS\nok  github.com/example/pkg 0.123s", true},
+		{"Tests passed!", true},
+		{"All tests passed", true},
+		{"exit status 0", true},
+		{"0 failures, 10 successes", true},
+		{"FAIL\nFailed: TestSomething", false},
+		{"Error: assertion failed", false},
+		{"Some random output", false},
+	}
+
+	for _, tt := range tests {
+		got := detectTestSuccess(strings.ToLower(tt.output))
+		if got != tt.success {
+			t.Errorf("detectTestSuccess(%q) = %v, want %v", tt.output, got, tt.success)
 		}
 	}
 }

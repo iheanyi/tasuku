@@ -52,3 +52,15 @@ syscall.Flock (file locking) is Unix-only. Windows builds will fail if using it 
 ## f11dfa - 2026-01-09T03:36:44Z
 Always use `tk list` to verify task IDs before calling `tk done`, as the ID might differ from the description slug or be truncated.
 
+## fe0282 - 2026-01-09T15:50:11Z
+In BubbleTea TUIs, when using pointer receiver methods like runAction(*Model), always return a dereferenced value (*m) not the pointer (m) to match the tea.Model interface contract. Returning a pointer causes type assertion panics (interface conversion: *Model is not Model).
+
+## 1f9d2a - 2026-01-09T15:50:20Z
+Charmbracelet ecosystem essentials for TUIs: (1) lipgloss for styling - use Place() for centering modals on ANSI-aware backgrounds; (2) bubbles/list for filterable lists with custom delegates; (3) bubbles/progress for progress bars; (4) bubbles/textarea for multi-line input; (5) bubbles/key for keybinding definitions; (6) glamour for Markdown rendering in views; (7) charmbracelet/x/ansi.Truncate for ANSI-aware string truncation (handles wide chars, graphemes); (8) x/exp/teatest for golden file testing.
+
+## a64c8c - 2026-01-09T15:50:27Z
+BubbleTea async I/O pattern: (1) Define message types for results (TasksLoadedMsg, ActionResultMsg); (2) Create command constructors that wrap I/O in tea.Cmd closures; (3) New() starts with empty state and loading=true; (4) Init() returns the load command; (5) Update() handles result messages and chains commands (action → reload); (6) In tests, process Init() command before checking state: cmd := m.Init(); msg := cmd(); m.Update(msg).
+
+## 66a564 - 2026-01-09T16:11:58Z
+Never assume lipgloss functions exist without checking documentation. lipgloss does NOT have Truncate() - use charmbracelet/x/ansi.Truncate instead for ANSI-aware string truncation. Verify API existence before using charmbracelet libraries.
+
