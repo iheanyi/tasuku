@@ -126,10 +126,7 @@ func prioritySymbolPlain(priority int) string {
 }
 
 func (i TaskItem) Description() string {
-	desc := i.Task.Description
-	if len(desc) > 60 {
-		desc = desc[:57] + "..."
-	}
+	desc := lipgloss.Truncate(i.Task.Description, 60, "...")
 
 	var extras []string
 	if len(i.Task.Tags) > 0 {
