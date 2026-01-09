@@ -5,27 +5,36 @@ description: Start working on a task. Use when beginning work, picking up a new 
 
 # Start Task
 
-Begin working on a task by marking it as in_progress.
+Quick command to mark a task as in-progress.
+
+**For a guided workflow with context loading, use `/tasuku-pickup` instead.**
 
 ## Usage
 
 ```bash
-tk task start <task-id>                  # Start a task
-tk task start <task-id> --timer          # Start task and begin timing
-tk task start <task-id> --unblock        # Clear blockers and start
-tk task start <task-id> --timer --unblock  # All options combined
+tk task start <task-id>              # Start working on task
+tk task start <task-id> --timer      # Start with time tracking
+tk task start <task-id> --unblock    # Clear blockers and start
 ```
-
-## Flags
-
-- `--timer`: Also start a time tracking timer on the task
-- `--unblock`: Clear any blockers before starting (for blocked tasks)
 
 ## When to Use
 
-- Picking up a new task from the ready list
-- Resuming work on a task
-- Claiming a task to indicate active work
+- You know exactly which task to work on
+- Task context is already loaded
+- Quick resumption of previous work
+
+## When to Use `/tasuku-pickup` Instead
+
+Use the guided workflow `/tasuku-pickup` when:
+- Starting a session and need to choose what to work on
+- Want related learnings and decisions surfaced
+- Need help prioritizing between ready tasks
+- Want full task context before starting
+
+## Flags
+
+- `--timer` - Start time tracking automatically
+- `--unblock` - Clear any blockers before starting (for blocked tasks)
 
 ## Best Practices
 
@@ -35,6 +44,13 @@ tk task start <task-id> --timer --unblock  # All options combined
 
 ## After Starting
 
-- Record learnings with `tk learn "insight"`
-- Add notes with `tk note add <id> "note"`
-- When done, use `tk task done <id>`
+- Record learnings: `/tasuku-learn "insight"`
+- Add notes: `/tasuku-note <id> "progress update"`
+- When done: `/tasuku-complete <id>`
+
+## Related Skills
+
+- `/tasuku-pickup` - Guided task selection and start (recommended)
+- `/tasuku-ready` - See tasks ready to work on
+- `/tasuku-show` - View task details
+- `/tasuku-complete` - When you finish
