@@ -644,9 +644,9 @@ func hookStopReminder() error {
 		hasReminders = true
 	}
 	fmt.Println("\n💡 Before ending this session, reflect:")
-	fmt.Println("   - Did you make any architectural decisions? → /tasuku-decide")
-	fmt.Println("   - Did you discover any gotchas or insights? → /tasuku-learn")
-	fmt.Println("   - Any 'never do X' or 'always do Y' patterns? → /tasuku-learn (auto-flagged as rule)")
+	fmt.Println("   - Did you make any architectural decisions? → /tasuku:decide")
+	fmt.Println("   - Did you discover any gotchas or insights? → /tasuku:learn")
+	fmt.Println("   - Any 'never do X' or 'always do Y' patterns? → /tasuku:learn (auto-flagged as rule)")
 
 	if hasReminders {
 		fmt.Println("\n================================")
@@ -723,10 +723,10 @@ func hookPreCompact() error {
 	fmt.Println("🧠 CAPTURE BEFORE CONTEXT IS LOST:")
 	fmt.Println()
 	fmt.Println("   DECISIONS - Did you choose between approaches?")
-	fmt.Println("   → /tasuku-decide (guided decision recording)")
+	fmt.Println("   → /tasuku:decide (guided decision recording)")
 	fmt.Println()
 	fmt.Println("   LEARNINGS - Did you discover gotchas, patterns, or behaviors?")
-	fmt.Println("   → /tasuku-learn \"insight here\"")
+	fmt.Println("   → /tasuku:learn \"insight here\"")
 	fmt.Println()
 
 	if hasGitActivity {
@@ -827,8 +827,8 @@ func handleTodoWriteCheck(config featureConfig, toolInput string) error {
 		}
 		fmt.Println()
 		fmt.Println("📝 Document what you learned:")
-		fmt.Println("   → /tasuku-learn \"root cause: ...\"")
-		fmt.Println("   → /tasuku-learn \"Never X\" or \"Always Y\" (for rules)")
+		fmt.Println("   → /tasuku:learn \"root cause: ...\"")
+		fmt.Println("   → /tasuku:learn \"Never X\" or \"Always Y\" (for rules)")
 		fmt.Println()
 	}
 
@@ -839,7 +839,7 @@ func handleTodoWriteCheck(config featureConfig, toolInput string) error {
 			fmt.Printf("   → %s\n", truncateString(s, 60))
 		}
 		fmt.Println()
-		fmt.Println("Consider: /tasuku-add \"description\" --priority high")
+		fmt.Println("Consider: /tasuku:add \"description\" --priority high")
 	}
 
 	return nil
@@ -871,7 +871,7 @@ func handleBashCheck(config featureConfig, toolInput, toolOutput string) error {
 			fmt.Println("🔴 TEST FAILURE DETECTED")
 			fmt.Println()
 			fmt.Println("   Track the fix:")
-			fmt.Println("   → /tasuku-add \"Fix failing tests\" --tag bug --priority high")
+			fmt.Println("   → /tasuku:add \"Fix failing tests\" --tag bug --priority high")
 			fmt.Println()
 		}
 
@@ -887,9 +887,9 @@ func handleBashCheck(config featureConfig, toolInput, toolOutput string) error {
 				fmt.Println("   → What was the root cause?")
 				fmt.Println("   → What rule prevents this in the future?")
 				fmt.Println()
-				fmt.Println("   /tasuku-learn \"Never X\" or \"Always Y\"")
+				fmt.Println("   /tasuku:learn \"Never X\" or \"Always Y\"")
 				fmt.Println()
-				fmt.Println("   Or use /tasuku-reflect for guided extraction.")
+				fmt.Println("   Or use /tasuku:reflect for guided extraction.")
 				fmt.Println()
 
 				// Clear the state so we don't prompt again
@@ -1068,11 +1068,11 @@ func hookSubagentDone() error {
 	fmt.Println("🔍 Subagent exploration completed.")
 	fmt.Println()
 	fmt.Println("Did the exploration reveal:")
-	fmt.Println("   - Patterns or conventions? → /tasuku-learn")
-	fmt.Println("   - Gotchas or unexpected behaviors? → /tasuku-learn")
-	fmt.Println("   - Design decisions to document? → /tasuku-decide")
+	fmt.Println("   - Patterns or conventions? → /tasuku:learn")
+	fmt.Println("   - Gotchas or unexpected behaviors? → /tasuku:learn")
+	fmt.Println("   - Design decisions to document? → /tasuku:decide")
 	fmt.Println()
-	fmt.Println("   Or use /tasuku-reflect for guided extraction.")
+	fmt.Println("   Or use /tasuku:reflect for guided extraction.")
 	fmt.Println()
 
 	return nil
@@ -1162,7 +1162,7 @@ func hookPromptCheck(config featureConfig) error {
 			fmt.Printf("   \"%s\"\n", truncateString(rulePortion, 80))
 			fmt.Println()
 			fmt.Println("   Record this as a project rule:")
-			fmt.Printf("   → /tasuku-learn \"%s\"\n", escapeForShell(rulePortion))
+			fmt.Printf("   → /tasuku:learn \"%s\"\n", escapeForShell(rulePortion))
 			fmt.Println()
 			outputCount++
 		}
@@ -1174,7 +1174,7 @@ func hookPromptCheck(config featureConfig) error {
 		learningContent := extractLearningContent(userPrompt)
 		if learningContent != "" && !hasSimilarLearning(f.Context.Learnings, learningContent) {
 			fmt.Println("💡 Capture this learning?")
-			fmt.Printf("   → /tasuku-learn \"%s\"\n", escapeForShell(learningContent))
+			fmt.Printf("   → /tasuku:learn \"%s\"\n", escapeForShell(learningContent))
 			fmt.Println()
 			outputCount++
 		}
@@ -1231,7 +1231,7 @@ func hookPromptCheck(config featureConfig) error {
 				fmt.Println("⚠️  Scope expansion detected.")
 				fmt.Printf("   Currently working on: %s\n", currentTask.id)
 				fmt.Println("   Create separate task for new work?")
-				fmt.Println("   → /tasuku-add \"description\" --priority normal")
+				fmt.Println("   → /tasuku:add \"description\" --priority normal")
 				fmt.Println()
 				outputCount++
 			}
@@ -1241,9 +1241,9 @@ func hookPromptCheck(config featureConfig) error {
 	// === 10. STUCK/FRUSTRATION DETECTION ===
 	if config["stuck_detection"] && outputCount < maxOutputs && detectStuckPattern(promptLower) {
 		fmt.Println("🤔 Sounds like you're stuck. Options:")
-		fmt.Println("   → Search learnings: /tasuku-list or tk find \"keyword\"")
-		fmt.Println("   → Track blocker: /tasuku-add \"...\" --tag blocker")
-		fmt.Println("   → Break it down: /tasuku-add \"...\" --parent <current-task>")
+		fmt.Println("   → Search learnings: /tasuku:list or tk find \"keyword\"")
+		fmt.Println("   → Track blocker: /tasuku:add \"...\" --tag blocker")
+		fmt.Println("   → Break it down: /tasuku:add \"...\" --parent <current-task>")
 		fmt.Println()
 		outputCount++
 	}
@@ -1266,7 +1266,7 @@ func hookPromptCheck(config featureConfig) error {
 		if !hasRelatedBugTask(f.Tasks, promptLower) {
 			fmt.Println("🐛 This sounds like a bug report.")
 			fmt.Println("   Track it:")
-			fmt.Println("   → /tasuku-add \"description\" --tag bug --priority high")
+			fmt.Println("   → /tasuku:add \"description\" --tag bug --priority high")
 			fmt.Println()
 			outputCount++
 		}
@@ -1284,7 +1284,7 @@ func hookPromptCheck(config featureConfig) error {
 		if !hasInProgress {
 			fmt.Println("💡 This looks like significant work.")
 			fmt.Println("   Consider creating a task to track it:")
-			fmt.Println("   → /tasuku-add \"description\" --priority high")
+			fmt.Println("   → /tasuku:add \"description\" --priority high")
 			fmt.Println()
 		}
 	}
@@ -2133,8 +2133,8 @@ fi
 # Prompt for reflection after significant commits
 echo ""
 echo "💡 Post-commit reflection:"
-echo "   - Made an architectural decision? → /tasuku-decide"
-echo "   - Discovered a gotcha or insight? → /tasuku-learn"`
+echo "   - Made an architectural decision? → /tasuku:decide"
+echo "   - Discovered a gotcha or insight? → /tasuku:learn"`
 	default:
 		return ""
 	}

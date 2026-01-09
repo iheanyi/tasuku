@@ -10,7 +10,7 @@ A guided workflow for properly completing a task. This skill combines marking do
 ## Usage
 
 ```
-/tasuku-complete <task-id>
+/tasuku:complete <task-id>
 ```
 
 ## Workflow Steps
@@ -68,7 +68,7 @@ tk task ready
 ## Example Flow
 
 ```
-User: /tasuku-complete fix-auth-bug
+User: /tasuku:complete fix-auth-bug
 
 Agent:
 1. Marking task done...
@@ -98,6 +98,6 @@ Agent:
 
 ## Related Skills
 
-- `/tasuku-learn` - Record individual learnings
-- `/tasuku-ready` - See tasks ready to work on
-- `/tasuku-pickup` - Start working on the next task
+- `/tasuku:learn` - Record individual learnings
+- `/tasuku:ready` - See tasks ready to work on
+- `/tasuku:pickup` - Start working on the next task

@@ -10,7 +10,7 @@ A guided process for extracting and recording learnings from your recent work. T
 ## Usage
 
 ```
-/tasuku-reflect
+/tasuku:reflect
 ```
 
 ## When to Use
@@ -123,7 +123,7 @@ When you invoke this skill, I'll ask:
 ## Example Session
 
 ```
-/tasuku-reflect
+/tasuku:reflect
 
 Agent: What did you just work on?
 
@@ -162,6 +162,6 @@ Agent: Done! Learning recorded. Run `tk learning rules` to see if it should be p
 
 ## Related Skills
 
-- `/tasuku-learn` - Quick learning capture (no guided process)
-- `/tasuku-decide` - Record architectural decisions
-- `/tasuku-complete` - Task completion workflow (includes reflection)
+- `/tasuku:learn` - Quick learning capture (no guided process)
+- `/tasuku:decide` - Record architectural decisions
+- `/tasuku:complete` - Task completion workflow (includes reflection)

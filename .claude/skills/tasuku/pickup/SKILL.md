@@ -10,7 +10,7 @@ A guided workflow for selecting and starting your next piece of work. Shows what
 ## Usage
 
 ```
-/tasuku-pickup [task-id]
+/tasuku:pickup [task-id]
 ```
 
 If no task-id provided, shows ready tasks and helps you choose.
@@ -64,7 +64,7 @@ Show any learnings or decisions related to this work:
 ## Example Flow
 
 ```
-User: /tasuku-pickup
+User: /tasuku:pickup
 
 Agent:
 1. Ready tasks (by priority):
@@ -99,7 +99,7 @@ Agent:
 ## With Specific Task
 
 ```
-User: /tasuku-pickup implement-rate-limiting
+User: /tasuku:pickup implement-rate-limiting
 
 Agent:
 1. Task details:
@@ -126,7 +126,7 @@ Agent:
 
 ## Related Skills
 
-- `/tasuku-ready` - Just list ready tasks (no workflow)
-- `/tasuku-start` - Just start a task (no context loading)
-- `/tasuku-show` - Show task details
-- `/tasuku-complete` - When you finish the task
+- `/tasuku:ready` - Just list ready tasks (no workflow)
+- `/tasuku:start` - Just start a task (no context loading)
+- `/tasuku:show` - Show task details
+- `/tasuku:complete` - When you finish the task

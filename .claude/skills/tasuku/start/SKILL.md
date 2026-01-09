@@ -7,7 +7,7 @@ description: Start working on a task. Use when beginning work, picking up a new 
 
 Quick command to mark a task as in-progress.
 
-**For a guided workflow with context loading, use `/tasuku-pickup` instead.**
+**For a guided workflow with context loading, use `/tasuku:pickup` instead.**
 
 ## Usage
 
@@ -23,9 +23,9 @@ tk task start <task-id> --unblock    # Clear blockers and start
 - Task context is already loaded
 - Quick resumption of previous work
 
-## When to Use `/tasuku-pickup` Instead
+## When to Use `/tasuku:pickup` Instead
 
-Use the guided workflow `/tasuku-pickup` when:
+Use the guided workflow `/tasuku:pickup` when:
 - Starting a session and need to choose what to work on
 - Want related learnings and decisions surfaced
 - Need help prioritizing between ready tasks
@@ -44,13 +44,13 @@ Use the guided workflow `/tasuku-pickup` when:
 
 ## After Starting
 
-- Record learnings: `/tasuku-learn "insight"`
-- Add notes: `/tasuku-note <id> "progress update"`
-- When done: `/tasuku-complete <id>`
+- Record learnings: `/tasuku:learn "insight"`
+- Add notes: `/tasuku:note <id> "progress update"`
+- When done: `/tasuku:complete <id>`
 
 ## Related Skills
 
-- `/tasuku-pickup` - Guided task selection and start (recommended)
-- `/tasuku-ready` - See tasks ready to work on
-- `/tasuku-show` - View task details
-- `/tasuku-complete` - When you finish
+- `/tasuku:pickup` - Guided task selection and start (recommended)
+- `/tasuku:ready` - See tasks ready to work on
+- `/tasuku:show` - View task details
+- `/tasuku:complete` - When you finish

@@ -7,7 +7,7 @@ description: Mark a task as completed. Use when finishing work, completing a fea
 
 Quick command to mark a task as complete.
 
-**For a guided completion workflow with learning capture, use `/tasuku-complete` instead.**
+**For a guided completion workflow with learning capture, use `/tasuku:complete` instead.**
 
 ## Usage
 
@@ -27,9 +27,9 @@ tk task done <id1> <id2>        # Complete multiple tasks
 - Batch completing multiple small tasks
 - Simple tasks that don't warrant reflection
 
-## When to Use `/tasuku-complete` Instead
+## When to Use `/tasuku:complete` Instead
 
-Use the guided workflow `/tasuku-complete` when:
+Use the guided workflow `/tasuku:complete` when:
 - You just fixed a bug (learning capture is critical)
 - You completed significant work
 - You want to see what tasks are unblocked
@@ -38,14 +38,14 @@ Use the guided workflow `/tasuku-complete` when:
 ## After Completing
 
 Always consider:
-1. **Record learnings:** `/tasuku-learn "what you discovered"`
+1. **Record learnings:** `/tasuku:learn "what you discovered"`
 2. **Check impact:** What tasks are now unblocked?
 3. **Archive if done:** `tk task archive add <id>`
-4. **Pick up next:** `/tasuku-pickup`
+4. **Pick up next:** `/tasuku:pickup`
 
 ## Related Skills
 
-- `/tasuku-complete` - Guided completion workflow (recommended)
-- `/tasuku-learn` - Record learnings
-- `/tasuku-pickup` - Start next task
-- `/tasuku-ready` - See what's available
+- `/tasuku:complete` - Guided completion workflow (recommended)
+- `/tasuku:learn` - Record learnings
+- `/tasuku:pickup` - Start next task
+- `/tasuku:ready` - See what's available
