@@ -349,7 +349,7 @@ go tool cover -html=coverage.out
 | **CLI** | Humans in terminal | `tk task list`, `tk learn "insight"` |
 | **MCP** | AI agents (Claude Code, Cursor, Codex, OpenCode) | `tk_list`, `tk_learn` tools |
 | **TUI** | Humans who prefer visual interfaces | Interactive terminal UI (`tk ui`) |
-| **Skills** | AI agents (slash commands) | `/tasuku-list`, `/tasuku-learn` |
+| **Skills** | AI agents (slash commands) | `/tasuku:list`, `/tasuku:learn` |
 
 **Parity Rules:**
 1. **New CLI command → Add MCP tool** - Agents need the same capabilities as humans

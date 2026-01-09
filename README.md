@@ -411,24 +411,35 @@ tk skills install           # Install to current project (.claude/skills/)
 tk skills install --global  # Install globally (~/.claude/skills/)
 ```
 
-This installs skills that can be invoked with `/skill-name`:
+This installs skills that can be invoked with `/tasuku:skill-name`:
+
+**Workflow Skills (Recommended)**
 
 | Skill | Description |
 |-------|-------------|
 | `/tasuku` | Overview and quick reference |
-| `/tasuku-add` | Create a new task |
-| `/tasuku-list` | List all tasks with optional filtering |
-| `/tasuku-ready` | Show tasks ready to work on |
-| `/tasuku-start` | Start working on a task |
-| `/tasuku-done` | Mark a task complete |
-| `/tasuku-block` | Mark task as blocked |
-| `/tasuku-show` | Show task details |
-| `/tasuku-learn` | Record learnings and insights |
-| `/tasuku-decide` | Record architectural decisions |
-| `/tasuku-note` | Add notes to tasks |
-| `/tasuku-promote` | Promote learnings to docs |
-| `/tasuku-context` | Get full project context |
-| `/tasuku-stats` | Show task statistics |
+| `/tasuku:pickup` | **Guided workflow** - select task, load context, start work |
+| `/tasuku:complete` | **Guided workflow** - mark done, capture learnings, see next steps |
+| `/tasuku:reflect` | **Guided workflow** - extract learnings from recent work |
+| `/tasuku:help` | Complete skill reference and discovery |
+
+**Basic Skills**
+
+| Skill | Description |
+|-------|-------------|
+| `/tasuku:add` | Create a new task |
+| `/tasuku:list` | List all tasks with optional filtering |
+| `/tasuku:ready` | Show tasks ready to work on |
+| `/tasuku:start` | Start working on a task |
+| `/tasuku:done` | Mark a task complete |
+| `/tasuku:block` | Mark task as blocked |
+| `/tasuku:show` | Show task details |
+| `/tasuku:learn` | Record learnings and insights |
+| `/tasuku:decide` | Record architectural decisions |
+| `/tasuku:note` | Add notes to tasks |
+| `/tasuku:promote` | Promote learnings to docs |
+| `/tasuku:context` | Get full project context |
+| `/tasuku:stats` | Show task statistics |
 
 Restart Claude Code after installing for skills to take effect.
 
