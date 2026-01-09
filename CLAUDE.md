@@ -794,6 +794,25 @@ tk mcp install --local        # Project-local config
 - Codex: `.codex/` directory or `CODEX.md` file
 - OpenCode: `.opencode/` directory or `opencode.json` file
 
+**Multi-tool MCP management with agentctl:**
+
+If you use many AI tools beyond the ones Tasuku directly supports, consider [agentctl](https://github.com/iheanyi/agentctl) for centralized MCP configuration. agentctl supports 10+ tools (Claude Code, Cursor, Codex, OpenCode, Cline, Windsurf, Zed, Continue, Gemini, and more) with a single config file.
+
+```bash
+# Install agentctl
+go install github.com/iheanyi/agentctl@latest
+
+# Add Tasuku MCP server to all your AI tools at once
+agentctl add tasuku --command "tk serve mcp"
+agentctl sync
+```
+
+Tasuku and agentctl are complementary:
+- **agentctl**: Manages MCP server configs across many tools ("install once, sync everywhere")
+- **Tasuku**: Provides task management + hooks (session context, test-fix learning, prompt analysis)
+
+Use `tk mcp install` for simple setups, or agentctl when managing configs across many tools.
+
 ### Hook Features & Configuration
 
 Tasuku hooks are configurable with `--quiet`, `--disable`, and `--list-features` flags.
