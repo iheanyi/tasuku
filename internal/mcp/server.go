@@ -927,32 +927,16 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 }
 
 func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
-	// Parse filter arguments
-	var filter task.TaskFilter
-
-	statusStr, _ := args["status"].(string)
-	if statusStr != "" {
-		status := task.Status(statusStr)
-		filter.Status = &status
-	}
-
-	tagFilter, _ := args["tag"].(string)
-	if tagFilter != "" {
-		filter.Tag = &tagFilter
-	}
-
-	ownerFilter, _ := args["owner"].(string)
-	if ownerFilter != "" {
-		filter.Owner = &ownerFilter
-	}
-
-	treeView, _ := args["tree"].(bool)
-
-	// Fetch tasks using granular ListTasks
-	tasks, err := s.store.ListTasks(filter)
+	f, err := s.store.Read()
 	if err != nil {
 		return nil, err
 	}
+
+	// Parse filter arguments
+	status, _ := args["status"].(string)
+	tagFilter, _ := args["tag"].(string)
+	ownerFilter, _ := args["owner"].(string)
+	treeView, _ := args["tree"].(bool)
 
 	type taskResult struct {
 		ID          string         `json:"id"`
@@ -966,22 +950,32 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 		Children    []taskResult   `json:"children,omitempty"`
 	}
 
-	// Convert TaskMeta to taskResult
+	// Filter tasks
 	var results []taskResult
-	for _, t := range tasks {
+	for id, t := range f.Tasks {
+		if status != "" && string(t.Status) != status {
+			continue
+		}
+		if tagFilter != "" && !t.HasTag(tagFilter) {
+			continue
+		}
+		if ownerFilter != "" {
+			if t.Owner == nil || *t.Owner != ownerFilter {
+				continue
+			}
+		}
 		parentID := ""
 		if t.ParentID != nil {
 			parentID = *t.ParentID
 		}
-		
 		results = append(results, taskResult{
-			ID:          t.ID,
+			ID:          id,
 			Status:      string(t.Status),
 			Description: t.Description,
 			BlockedBy:   t.BlockedBy,
 			Owner:       t.Owner,
 			ParentID:    parentID,
-			Priority:    t.Priority,
+			Priority:    t.GetPriority(),
 			Tags:        t.Tags,
 		})
 	}

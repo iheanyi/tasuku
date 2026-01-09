@@ -438,58 +438,6 @@ func (s *DirStore) writeAll(f *task.File) error {
 	return nil
 }
 
-// ListTasks returns a filtered list of tasks.
-func (s *DirStore) ListTasks(filter task.TaskFilter) ([]task.TaskMeta, error) {
-	ids, err := s.listTaskIDs()
-	if err != nil {
-		return nil, err
-	}
-
-	var results []task.TaskMeta
-	for _, id := range ids {
-		t, err := s.readTask(id)
-		if err != nil {
-			continue
-		}
-
-		// Apply filters
-		if filter.Status != nil && t.Status != *filter.Status {
-			continue
-		}
-		if filter.Tag != nil && !t.HasTag(*filter.Tag) {
-			continue
-		}
-		if filter.Owner != nil {
-			if t.Owner == nil || *t.Owner != *filter.Owner {
-				continue
-			}
-		}
-
-		results = append(results, task.TaskMeta{
-			ID:          id,
-			Status:      t.Status,
-			Description: t.Description,
-			Priority:    t.GetPriority(),
-			BlockedBy:   t.BlockedBy,
-			Owner:       t.Owner,
-			ParentID:    t.ParentID,
-			Tags:        t.Tags,
-		})
-	}
-
-	return results, nil
-}
-
-// GetTask returns a single task by ID.
-func (s *DirStore) GetTask(id string) (*task.Task, error) {
-	return s.readTask(id)
-}
-
-// UpdateTask updates a single task using a callback.
-func (s *DirStore) UpdateTask(id string, fn func(*task.Task) error) error {
-	return s.updateTask(id, fn)
-}
-
 // =============================================================================
 // Task Operations (optimized for single-file operations)
 // =============================================================================

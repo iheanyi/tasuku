@@ -37,11 +37,6 @@ type Storage interface {
 	SetParent(id string, parentID *string) error
 	GetSubtasks(parentID string) (map[string]task.Task, error)
 
-	// Granular access (avoids loading entire store)
-	ListTasks(filter task.TaskFilter) ([]task.TaskMeta, error)
-	GetTask(id string) (*task.Task, error)
-	UpdateTask(id string, fn func(*task.Task) error) error
-
 	// Blocking
 	BlockTask(id string, blockers []string) error
 	UnblockTask(id string) error
