@@ -78,24 +78,26 @@ Supported tools:
   - Cursor (~/.cursor/mcp.json or ./.cursor/mcp.json with --local)
   - Codex (~/.codex/config.toml)
   - OpenCode (~/.config/opencode/opencode.json or ./opencode.json with --local)
+  - Gemini (~/.gemini/mcp.json or .gemini/mcp.json with --local)
 
 Detection signals (local install):
   - Claude Code: .claude/ directory OR CLAUDE.md file
   - Cursor: .cursorrules file OR .cursor/ directory
   - OpenCode: opencode.json file
+  - Gemini: .gemini/ directory OR GEMINI.md file
 
 The configuration will be added to existing settings without
 overwriting other MCP servers or configurations.
 
 Use --local to install to project-level config instead of global.
 Use --force to reinstall even if already configured.
-Use --tool to target a specific tool (claude, cursor, codex, opencode).`,
+Use --tool to target a specific tool (claude, cursor, codex, opencode, gemini).`,
 		RunE: runInstall,
 	}
 
 	cmd.Flags().Bool("force", false, "Force reinstall even if already configured")
 	cmd.Flags().Bool("local", false, "Install to project-level config")
-	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode")
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode, gemini")
 
 	return cmd
 }
@@ -155,7 +157,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if len(filtered) == 0 {
-			return fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode)", toolFilter)
+			return fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini)", toolFilter)
 		}
 		tools = filtered
 	}
@@ -567,6 +569,7 @@ func getSupportedAITools(local bool) []AITool {
 			{"Claude Code (project)", ".claude.json", "mcpServers", []string{".claude", "CLAUDE.md"}, FormatJSON, "tasuku"},
 			{"Cursor (project)", ".cursor/mcp.json", "mcpServers", []string{".cursorrules", ".cursor"}, FormatJSON, "tasuku"},
 			{"OpenCode (project)", "opencode.json", "mcp", []string{"opencode.json"}, FormatJSON, "tasuku"},
+			{"Gemini (project)", ".gemini/mcp.json", "mcpServers", []string{".gemini", "GEMINI.md"}, FormatJSON, "tasuku"},
 		}
 	}
 
@@ -588,5 +591,7 @@ func getSupportedAITools(local bool) []AITool {
 		{"Codex", home + "/.codex/config.toml", "mcp_servers", []string{home + "/.codex"}, FormatTOML, "tasuku"},
 		// OpenCode: config at ~/.config/opencode/opencode.json
 		{"OpenCode", configDir + "/opencode/opencode.json", "mcp", []string{configDir + "/opencode"}, FormatJSON, "tasuku"},
+		// Gemini: config at ~/.gemini/mcp.json
+		{"Gemini", home + "/.gemini/mcp.json", "mcpServers", []string{home + "/.gemini"}, FormatJSON, "tasuku"},
 	}
 }

@@ -382,6 +382,7 @@ func detectContextFile() string {
         description string
     }{
         {"CLAUDE.md", "Claude Code"},
+        {"GEMINI.md", "Gemini"},
         {".cursorrules", "Cursor"},
         {".github/copilot-instructions.md", "GitHub Copilot"},
         {"AGENTS.md", "Generic AI agents"},

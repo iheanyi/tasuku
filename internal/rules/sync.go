@@ -69,6 +69,15 @@ func GetTargets() []EditorTarget {
 		})
 	}
 
+	// Gemini: detect via .gemini/ or GEMINI.md
+	if dirExists(".gemini") || fileExists("GEMINI.md") {
+		targets = append(targets, EditorTarget{
+			Name:       "Gemini",
+			RulesDir:   ".gemini/rules/tasuku",
+			DetectDirs: []string{".gemini", "GEMINI.md"},
+		})
+	}
+
 	return targets
 }
 
@@ -97,7 +106,7 @@ func HasSyncedRules() bool {
 func Sync(learnings []task.Learning, decisions []task.Decision) ([]SyncResult, error) {
 	targets := GetTargets()
 	if len(targets) == 0 {
-		return nil, fmt.Errorf("no supported editors detected (need .claude/, .cursor/, .codex/, or .opencode/)")
+		return nil, fmt.Errorf("no supported editors detected (need .claude/, .cursor/, .codex/, .opencode/, or .gemini/)")
 	}
 
 	results := make([]SyncResult, 0, len(targets))
@@ -110,7 +119,7 @@ func Sync(learnings []task.Learning, decisions []task.Decision) ([]SyncResult, e
 }
 
 // SyncToTool synchronizes learnings and decisions to a specific tool.
-// Tool names: "claude", "cursor", "codex", "opencode"
+// Tool names: "claude", "cursor", "codex", "opencode", "gemini"
 func SyncToTool(learnings []task.Learning, decisions []task.Decision, tool string) ([]SyncResult, error) {
 	// Normalize tool name
 	toolLower := strings.ToLower(tool)
@@ -124,11 +133,13 @@ func SyncToTool(learnings []task.Learning, decisions []task.Decision, tool strin
 		"codex":      "Codex",
 		"opencode":   "OpenCode",
 		"open-code":  "OpenCode",
+		"gemini":     "Gemini",
+		"google":     "Gemini",
 	}
 
 	targetName, ok := toolMap[toolLower]
 	if !ok {
-		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode)", tool)
+		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini)", tool)
 	}
 
 	// Get the specific target configuration (even if not detected)
@@ -167,6 +178,12 @@ func getTargetByName(name string) *EditorTarget {
 			Name:       "OpenCode",
 			RulesDir:   ".opencode/rules/tasuku",
 			DetectDirs: []string{"opencode.json", ".opencode"},
+		}
+	case "Gemini":
+		return &EditorTarget{
+			Name:       "Gemini",
+			RulesDir:   ".gemini/rules/tasuku",
+			DetectDirs: []string{".gemini", "GEMINI.md"},
 		}
 	default:
 		return nil
@@ -375,11 +392,13 @@ func CleanTool(tool string) ([]string, error) {
 		"codex":       "Codex",
 		"opencode":    "OpenCode",
 		"open-code":   "OpenCode",
+		"gemini":      "Gemini",
+		"google":      "Gemini",
 	}
 
 	targetName, ok := toolMap[toolLower]
 	if !ok {
-		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode)", tool)
+		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini)", tool)
 	}
 
 	target := getTargetByName(targetName)

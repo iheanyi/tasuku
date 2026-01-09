@@ -79,8 +79,8 @@ func TestGetSupportedAITools(t *testing.T) {
 
 	// Test local tools
 	localTools := getSupportedAITools(true)
-	if len(localTools) != 3 {
-		t.Errorf("expected 3 local tools, got %d", len(localTools))
+	if len(localTools) != 4 {
+		t.Errorf("expected 4 local tools, got %d", len(localTools))
 	}
 	// Check Claude Code (project) - should detect via .claude/ OR CLAUDE.md
 	if localTools[0].Name != "Claude Code (project)" {
@@ -111,6 +111,16 @@ func TestGetSupportedAITools(t *testing.T) {
 	}
 	if localTools[2].MCPKey != "mcp" {
 		t.Errorf("expected MCPKey 'mcp', got %s", localTools[2].MCPKey)
+	}
+	// Check Gemini (project)
+	if localTools[3].Name != "Gemini (project)" {
+		t.Errorf("expected 'Gemini (project)', got %s", localTools[3].Name)
+	}
+	if len(localTools[3].DetectPaths) != 2 {
+		t.Errorf("expected 2 DetectPaths for Gemini, got %d", len(localTools[3].DetectPaths))
+	}
+	if localTools[3].DetectPaths[0] != ".gemini" || localTools[3].DetectPaths[1] != "GEMINI.md" {
+		t.Errorf("expected DetectPaths ['.gemini', 'GEMINI.md'], got %v", localTools[3].DetectPaths)
 	}
 }
 

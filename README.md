@@ -334,15 +334,16 @@ tk learning promote <learning-id> --keep
 
 **Auto-detected context files** (in priority order):
 1. `CLAUDE.md` - Claude Code
-2. `.cursorrules` - Cursor
-3. `.github/copilot-instructions.md` - GitHub Copilot
-4. `AGENTS.md` - Generic AI agents
+2. `GEMINI.md` - Gemini
+3. `.cursorrules` - Cursor
+4. `.github/copilot-instructions.md` - GitHub Copilot
+5. `AGENTS.md` - Generic AI agents
 
 If none exist, defaults to creating `CLAUDE.md`.
 
-## Claude Code Integration
+## AI Tool Integration (Claude, Gemini, Cursor)
 
-Tasuku includes an MCP (Model Context Protocol) server for seamless Claude Code integration.
+Tasuku includes an MCP (Model Context Protocol) server for seamless integration with AI tools like Claude Code, Gemini, and Cursor.
 
 ### Install the MCP server
 
@@ -350,11 +351,11 @@ Tasuku includes an MCP (Model Context Protocol) server for seamless Claude Code 
 tk mcp install
 ```
 
-This adds Tasuku to your Claude Code settings. Restart Claude Code to activate.
+This adds Tasuku to your tool's settings (e.g., `~/.claude.json` or `.gemini/mcp.json`). Restart your tool to activate.
 
 ### Available MCP Tools
 
-Once installed, Claude has access to these tools:
+Once installed, the agent has access to these tools:
 
 **Task Operations:**
 - `tk_list`, `tk_add`, `tk_show`, `tk_edit`, `tk_delete` - CRUD operations

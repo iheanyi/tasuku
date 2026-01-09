@@ -243,7 +243,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_learn",
-			Description: "Record a learning or insight discovered while working. Use PROACTIVELY when: (1) Debugging reveals undocumented behavior, (2) Finding gotchas or edge cases, (3) Discovering patterns that work well (or poorly), (4) API behaviors differ from expectations, (5) Performance insights. Use 'Never X' or 'Always Y' prefixes for rules. Use 'scope' to apply learnings to specific file patterns. These persist across sessions and auto-sync to .claude/rules/.",
+			Description: "Record a learning or insight discovered while working. Use PROACTIVELY when: (1) Debugging reveals undocumented behavior, (2) Finding gotchas or edge cases, (3) Discovering patterns that work well (or poorly), (4) API behaviors differ from expectations, (5) Performance insights. Use 'Never X' or 'Always Y' prefixes for rules. Use 'scope' to apply learnings to specific file patterns. These persist across sessions and auto-sync to editor rules (e.g., .claude/rules/, .gemini/rules/).",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"insight"},
@@ -706,7 +706,7 @@ func (s *Server) Tools() []Tool {
 		// Learning promote
 		{
 			Name:        "tk_learning_promote",
-			Description: "Promote a learning to permanent documentation (CLAUDE.md or similar). Use this for valuable insights that should persist beyond the session. Agents should autonomously promote rule learnings (never/always patterns) that prove useful.",
+			Description: "Promote a learning to permanent documentation (CLAUDE.md, GEMINI.md, or similar). Use this for valuable insights that should persist beyond the session. Agents should autonomously promote rule learnings (never/always patterns) that prove useful.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -717,7 +717,7 @@ func (s *Server) Tools() []Tool {
 					},
 					"to": map[string]interface{}{
 						"type":        "string",
-						"description": "Target file (auto-detected if not specified: CLAUDE.md, .cursorrules, etc.)",
+						"description": "Target file (auto-detected if not specified: CLAUDE.md, GEMINI.md, .cursorrules, etc.)",
 					},
 					"keep": map[string]interface{}{
 						"type":        "boolean",
@@ -819,7 +819,7 @@ func (s *Server) Tools() []Tool {
 		// Rules sync
 		{
 			Name:        "tk_rules_sync",
-			Description: "Sync learnings and decisions to editor rules directories (.claude/rules/tasuku/, .cursor/rules/tasuku/). Use PROACTIVELY after: (1) Adding important learnings or decisions, (2) At session end to persist knowledge, (3) When updating multiple learnings. Scoped learnings are written to separate files with paths frontmatter for conditional application.",
+			Description: "Sync learnings and decisions to editor rules directories (.claude/rules/tasuku/, .cursor/rules/tasuku/, .gemini/rules/tasuku/). Use PROACTIVELY after: (1) Adding important learnings or decisions, (2) At session end to persist knowledge, (3) When updating multiple learnings. Scoped learnings are written to separate files with paths frontmatter for conditional application.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
