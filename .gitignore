@@ -32,3 +32,4 @@ Thumbs.db
 # Build
 dist/
 bin/
+.claude/.tasuku-hooks-version
