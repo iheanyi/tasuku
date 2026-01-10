@@ -9,7 +9,7 @@
       "name": "tasuku",
       "source": "./plugins/tasuku",
       "description": "Agent-first task management for AI workflows",
-      "version": "0.7.2"
+      "version": "0.8.0"
     }
   ]
 }
