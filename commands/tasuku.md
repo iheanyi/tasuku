@@ -1,6 +1,5 @@
 ---
-name: tasuku
-description: Task management for AI agents. Use /tasuku for an overview or specific skills like /tasuku:list, /tasuku:add, /tasuku:start, /tasuku:done.
+description: "Task management for AI agents. Overview and quick reference for all /tasuku:* commands."
 ---
 
 # Tasuku Task Management
@@ -17,21 +16,19 @@ tk task done <id>           # Complete task
 tk learn "insight"          # Record learning
 ```
 
-## Workflow Skills (Recommended)
+## Workflow Commands (Recommended)
 
-Use these for guided workflows:
-
-| Skill | When to Use |
-|-------|-------------|
+| Command | When to Use |
+|---------|-------------|
 | `/tasuku:pickup` | Starting work - shows options, loads context, starts task |
 | `/tasuku:complete` | Finishing work - marks done, captures learnings, shows next |
 | `/tasuku:reflect` | After discoveries - guided learning extraction |
-| `/tasuku:help` | See all available skills |
+| `/tasuku:help` | See all available commands |
 
-## Basic Skills
+## Basic Commands
 
-| Skill | Purpose |
-|-------|---------|
+| Command | Purpose |
+|---------|---------|
 | `/tasuku:context` | Full project context at session start |
 | `/tasuku:add` | Create a new task |
 | `/tasuku:list` | List tasks with filtering |
@@ -51,18 +48,3 @@ Use these for guided workflows:
 1. **Start session:** `/tasuku:context` or `/tasuku:pickup`
 2. **During work:** `/tasuku:note`, `/tasuku:learn` as you go
 3. **Finish work:** `/tasuku:complete` (guided) or `/tasuku:done` (quick)
-
-## Key Principles
-
-1. **Capture learnings immediately** - Don't wait until session end
-2. **Use "Never/Always" for rules** - They get special treatment
-3. **Document decisions when made** - Future you will thank you
-4. **Complete tasks properly** - Use `/tasuku:complete` for the full workflow
-
-## Time Tracking
-
-```bash
-tk task start <id> --timer    # Start with timer
-tk task timer status          # Check running timers
-tk task done <id>             # Auto-stops timer
-```

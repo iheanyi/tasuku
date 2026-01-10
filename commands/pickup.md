@@ -1,5 +1,4 @@
 ---
-name: pickup
 description: Pick up the next task to work on. Shows ready tasks, helps select one, and starts it with full context.
 ---
 

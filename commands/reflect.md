@@ -1,5 +1,4 @@
 ---
-name: reflect
 description: Guided reflection to extract learnings from recent work. Use after bug fixes, feature completion, or when prompted by hooks.
 ---
 

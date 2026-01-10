@@ -1,5 +1,4 @@
 ---
-name: ready
 description: Show tasks ready to work on, sorted by priority. Use when user wants to pick up new work or see what's available.
 ---
 

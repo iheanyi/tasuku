@@ -1,5 +1,4 @@
 ---
-name: add
 description: Create a new task. Use when user wants to add work items, create todos, or break down features into tasks.
 ---
 

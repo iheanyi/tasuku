@@ -1,5 +1,4 @@
 ---
-name: show
 description: Show detailed information about a single task. Use when you need full task details, notes, or metadata.
 ---
 

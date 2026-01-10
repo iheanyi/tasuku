@@ -1,5 +1,4 @@
 ---
-name: done
 description: Mark a task as completed. Use when finishing work, completing a feature, or closing out a task.
 ---
 

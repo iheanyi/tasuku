@@ -1,5 +1,4 @@
 ---
-name: complete
 description: Complete a task with guided learning capture. Use after finishing work to mark done, document learnings, and see what's unblocked.
 ---
 

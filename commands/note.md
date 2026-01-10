@@ -1,5 +1,4 @@
 ---
-name: note
 description: Add a note to a task for context, progress, or insights. Use proactively when starting tasks, making progress, or discovering context.
 ---
 

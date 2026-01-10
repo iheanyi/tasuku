@@ -1,5 +1,4 @@
 ---
-name: list
 description: List all tasks with optional status filtering. Use when user wants to see tasks, check project status, or get an overview.
 ---
 

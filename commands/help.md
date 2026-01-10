@@ -1,5 +1,4 @@
 ---
-name: help
 description: Show all available Tasuku skills organized by workflow. Use to discover what skills exist and when to use them.
 ---
 

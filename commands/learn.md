@@ -1,5 +1,4 @@
 ---
-name: learn
 description: Record a learning or insight. Use when discovering important patterns, gotchas, or knowledge that should be remembered.
 ---
 

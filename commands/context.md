@@ -1,5 +1,4 @@
 ---
-name: context
 description: Get full project context including tasks, learnings, and decisions. Use at session start or when needing complete project state.
 ---
 

@@ -1,5 +1,4 @@
 ---
-name: promote
 description: Promote a learning to permanent documentation. Use when a learning proves valuable and should persist in project docs.
 ---
 

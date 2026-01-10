@@ -1,5 +1,4 @@
 ---
-name: decide
 description: Record an architectural decision with reasoning. Use when making design choices, selecting technologies, or resolving trade-offs.
 ---
 

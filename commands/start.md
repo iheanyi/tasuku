@@ -1,5 +1,4 @@
 ---
-name: start
 description: Start working on a task. Use when beginning work, picking up a new task, or resuming work.
 ---
 

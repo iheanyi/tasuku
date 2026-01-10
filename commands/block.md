@@ -1,5 +1,4 @@
 ---
-name: block
 description: Mark a task as blocked by other tasks. Use when work cannot proceed until dependencies are resolved.
 ---
 
