@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "tasuku",
-      "source": "..",
+      "source": "./plugins/tasuku",
       "description": "Agent-first task management for AI workflows",
       "version": "0.7.2"
     }

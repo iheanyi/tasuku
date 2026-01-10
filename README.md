@@ -163,9 +163,7 @@ tk task list --format json    # Output as JSON
 | `tk migrate v4` | Migrate from V3 to V4 (.tasuku/ Markdown) |
 | `tk migrate beads` | Migrate from Beads format |
 | `tk migrate beads --dry-run` | Preview migration without changes |
-| `tk skills install` | Install Claude Code slash command skills |
-| `tk skills uninstall` | Remove Tasuku skills |
-| `tk skills list` | List available skills |
+| `tk skills list` | List available Tasuku plugin commands |
 
 ### Output Formats
 
@@ -419,31 +417,36 @@ Once installed, the agent has access to these tools:
 **Rules Sync:**
 - `tk_rules_sync` - Sync learnings/decisions to editor rules directories
 
-### Slash Command Skills (Claude Code)
+### Tasuku Plugin (Claude Code)
 
-Claude Code supports slash command skills for guided workflows:
+Claude Code supports the Tasuku plugin for slash command workflows:
 
-```bash
-tk skills install           # Install to current project (.claude/skills/)
-tk skills install --global  # Install globally (~/.claude/skills/)
+**Installation:**
+
+```
+# In Claude Code, add the marketplace:
+/plugin add-marketplace https://github.com/iheanyi/tasuku
+
+# Then install the plugin:
+/plugin install tasuku
 ```
 
-This installs skills that can be invoked with `/tasuku:skill-name`:
+This enables all `/tasuku:*` commands:
 
-**Workflow Skills (Recommended)**
+**Workflow Commands (Recommended)**
 
-| Skill | Description |
-|-------|-------------|
+| Command | Description |
+|---------|-------------|
 | `/tasuku` | Overview and quick reference |
 | `/tasuku:pickup` | **Guided workflow** - select task, load context, start work |
 | `/tasuku:complete` | **Guided workflow** - mark done, capture learnings, see next steps |
 | `/tasuku:reflect` | **Guided workflow** - extract learnings from recent work |
-| `/tasuku:help` | Complete skill reference and discovery |
+| `/tasuku:help` | Complete command reference and discovery |
 
-**Basic Skills**
+**Basic Commands**
 
-| Skill | Description |
-|-------|-------------|
+| Command | Description |
+|---------|-------------|
 | `/tasuku:add` | Create a new task |
 | `/tasuku:list` | List all tasks with optional filtering |
 | `/tasuku:ready` | Show tasks ready to work on |
@@ -458,7 +461,7 @@ This installs skills that can be invoked with `/tasuku:skill-name`:
 | `/tasuku:context` | Get full project context |
 | `/tasuku:stats` | Show task statistics |
 
-Restart Claude Code after installing for skills to take effect.
+Restart Claude Code after installing for commands to take effect.
 
 ### Manual Configuration
 

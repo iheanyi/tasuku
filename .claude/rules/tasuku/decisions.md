@@ -74,3 +74,11 @@ _Auto-synced from .tasuku/context/decisions.md_
 
 **Because**: Sensible defaults without configuration. Humans see familiar times, machines get unambiguous UTC. Go's time.Local handles detection automatically. JSON/YAML output stays UTC for machine readability.
 
+## proactive-skills (2026-01-09)
+
+**Chose**: Workflow skills with guided processes
+
+**Over**: Basic CRUD skills only, Auto-invocation without guidance, Skills as thin wrappers
+
+**Because**: Workflow skills (complete, pickup, reflect) guide agents through multi-step processes, ensuring learnings are captured and context is loaded. Hooks suggest skills instead of raw commands, making the right action discoverable at the right moment.
+

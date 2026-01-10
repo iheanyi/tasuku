@@ -340,7 +340,7 @@ go tool cover -html=coverage.out
 
 ## MCP Server
 
-### TUI/CLI/MCP/Skills Parity Principle
+### TUI/CLI/MCP/Plugin Parity Principle
 
 **Every capability should be accessible through all interfaces.** This is critical for agent-first design:
 
@@ -349,13 +349,13 @@ go tool cover -html=coverage.out
 | **CLI** | Humans in terminal | `tk task list`, `tk learn "insight"` |
 | **MCP** | AI agents (Claude Code, Cursor, Codex, OpenCode) | `tk_list`, `tk_learn` tools |
 | **TUI** | Humans who prefer visual interfaces | Interactive terminal UI (`tk ui`) |
-| **Skills** | AI agents (slash commands) | `/tasuku:list`, `/tasuku:learn` |
+| **Plugin** | AI agents (slash commands) | `/tasuku:list`, `/tasuku:learn` |
 
 **Parity Rules:**
 1. **New CLI command → Add MCP tool** - Agents need the same capabilities as humans
 2. **New MCP tool → Consider CLI equivalent** - Humans may want to use it manually
 3. **Core operations → Add to TUI** - Visual interface for task management
-4. **Frequent operations → Consider Skills** - Slash commands for quick agent access
+4. **Frequent operations → Consider Plugin commands** - Slash commands for quick agent access
 5. **Same behavior across all interfaces** - Identical semantics, different UX
 
 **Shortcut Commands via Cobra:**
@@ -584,7 +584,7 @@ Record architectural decisions here as we make them:
 
 When adding new MCP tools, CLI commands, or features, follow this audit checklist:
 
-### 1. TUI/CLI/MCP/Skills Parity
+### 1. TUI/CLI/MCP/Plugin Parity
 - [ ] New CLI command → Add corresponding MCP tool
 - [ ] New MCP tool → Consider CLI equivalent
 - [ ] Core operation → Add to TUI if visual interaction helps
@@ -623,7 +623,7 @@ Check if the new feature should trigger or be triggered by:
 - [ ] Update README.md MCP tools table
 - [ ] Add to CLI help text
 
-### 6. Skills (Optional)
+### 6. Plugin Commands (Optional)
 If the feature is frequently used, consider adding a skill (slash command).
 
 ## Mandatory Learning Documentation
@@ -905,7 +905,7 @@ Hooks include version tracking to alert when updates are available:
 
 ## Learnings
 
-- TUI/CLI/MCP/Skills Parity Principle: Every capability should be accessible through all interfaces (TUI, CLI, MCP tools, Skills). Agents interact via MCP/Skills, humans via CLI/TUI - same capabilities, different UX. When adding new functionality, consider all four interfaces.
+- TUI/CLI/MCP/Plugin Parity Principle: Every capability should be accessible through all interfaces (TUI, CLI, MCP tools, Plugin commands). Agents interact via MCP/Plugin, humans via CLI/TUI - same capabilities, different UX. When adding new functionality, consider all four interfaces.
 - Leverage Cobra's command structure for ergonomic shortcuts: Add root-level commands like `tk learn` as shortcuts for nested commands like `tk learning add`. This provides a better UX without duplicating logic. Example: `newLearnShortcutCmd()` in root.go provides `tk learn "insight"` as a direct shortcut.
 - Always audit MCP tools, Claude Code hooks, and nudges when adding new functionality (CLI commands, MCP methods, or features). Check: (1) MCP/CLI parity, (2) Tool descriptions include WHEN to use and follow-up hints, (3) Response enhancements with warnings/suggestions, (4) Hook integration for SessionStart/Stop/PostToolUse. See CLAUDE.md 'Adding New Functionality Checklist' for full details.
 - Whenever a tk CLI command fails or feels clunky, reflect on whether this highlights a UX gap. If it does, add the missing functionality. Example: tk task done a b c failing because it only accepts 1 arg → should support multiple task IDs.

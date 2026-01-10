@@ -11,6 +11,7 @@ _Auto-synced from .tasuku/context/learnings.md_
 - Always use `tk list` to verify task IDs before calling `tk done`, as the ID might differ from the description slug or be truncated.
 - In BubbleTea TUIs, when using pointer receiver methods like runAction(*Model), always return a dereferenced value (*m) not the pointer (m) to match the tea.Model interface contract. Returning a pointer causes type assertion panics (interface conversion: *Model is not Model).
 - Never assume lipgloss functions exist without checking documentation. lipgloss does NOT have Truncate() - use charmbracelet/x/ansi.Truncate instead for ANSI-aware string truncation. Verify API existence before using charmbracelet libraries.
+- Claude Code skills use `skill-name/SKILL.md` structure for `/skill-name` invocation (no colon namespacing). Plugins use `commands/name.md` in a directory with `.claude-plugin/plugin.json` for `/plugin:name` invocation. For namespaced commands like `/tasuku:add`, you must use the plugin format with a commands/ directory.
 
 ## Insights
 

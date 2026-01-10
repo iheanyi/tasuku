@@ -64,3 +64,6 @@ BubbleTea async I/O pattern: (1) Define message types for results (TasksLoadedMs
 ## 66a564 - 2026-01-09T16:11:58Z
 Never assume lipgloss functions exist without checking documentation. lipgloss does NOT have Truncate() - use charmbracelet/x/ansi.Truncate instead for ANSI-aware string truncation. Verify API existence before using charmbracelet libraries.
 
+## 87f6b7 - 2026-01-10T20:06:58Z
+Claude Code skills use `skill-name/SKILL.md` structure for `/skill-name` invocation (no colon namespacing). Plugins use `commands/name.md` in a directory with `.claude-plugin/plugin.json` for `/plugin:name` invocation. For namespaced commands like `/tasuku:add`, you must use the plugin format with a commands/ directory.
+
