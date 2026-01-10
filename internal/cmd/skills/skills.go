@@ -33,14 +33,14 @@ By default, installs to the current project's .claude/skills directory.
 Use --global to install to ~/.claude/skills for all projects.
 
 This enables commands like:
-  /tasuku-add     - Create a new task
-  /tasuku-list    - List all tasks
-  /tasuku-ready   - Show ready tasks
-  /tasuku-start   - Start working on a task
-  /tasuku-done    - Mark a task complete
-  /tasuku-learn   - Record learnings
-  /tasuku-context - Get full project context
-  /tasuku-stats   - Show task statistics`,
+  /tasuku:add     - Create a new task
+  /tasuku:list    - List all tasks
+  /tasuku:ready   - Show ready tasks
+  /tasuku:start   - Start working on a task
+  /tasuku:done    - Mark a task complete
+  /tasuku:learn   - Record learnings
+  /tasuku:context - Get full project context
+  /tasuku:stats   - Show task statistics`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		force, _ := cmd.Flags().GetBool("force")
 		global, _ := cmd.Flags().GetBool("global")
@@ -731,13 +731,15 @@ func installSkills(force, global bool) error {
 	}
 
 	// Create each skill in its own directory with SKILL.md
+	// Skills are organized as tasuku/<skill>/SKILL.md for /tasuku:<skill> format
 	installed := 0
+	tasukuDir := filepath.Join(baseDir, "tasuku")
 	for name, content := range skillDefinitions {
-		skillDir := filepath.Join(baseDir, "tasuku-"+name)
+		skillDir := filepath.Join(tasukuDir, name)
 
 		// Check if already exists
 		if _, err := os.Stat(skillDir); err == nil && !force {
-			fmt.Printf("Skill /tasuku-%s already installed (use --force to overwrite)\n", name)
+			fmt.Printf("Skill /tasuku:%s already installed (use --force to overwrite)\n", name)
 			continue
 		}
 
@@ -754,71 +756,79 @@ func installSkills(force, global bool) error {
 		installed++
 	}
 
-	// Also create main tasuku skill as an overview
-	mainSkillDir := filepath.Join(baseDir, "tasuku")
-	if _, err := os.Stat(mainSkillDir); err == nil && !force {
+	// Also create main tasuku skill as an overview (at tasuku/SKILL.md)
+	mainSkillPath := filepath.Join(tasukuDir, "SKILL.md")
+	if _, err := os.Stat(mainSkillPath); err == nil && !force {
 		fmt.Println("Main /tasuku skill already installed (use --force to overwrite)")
 	} else {
-		if err := os.MkdirAll(mainSkillDir, 0755); err != nil {
+		if err := os.MkdirAll(tasukuDir, 0755); err != nil {
 			return fmt.Errorf("failed to create main skill directory: %w", err)
 		}
 
 		mainSkill := `---
 name: tasuku
-description: Task management for AI agents. Use /tasuku for an overview or specific skills like /tasuku-list, /tasuku-add, /tasuku-start, /tasuku-done.
+description: Task management for AI agents. Use /tasuku for an overview or specific skills like /tasuku:list, /tasuku:add, /tasuku:start, /tasuku:done.
 ---
 
 # Tasuku Task Management
 
-Tasuku is an agent-first task management system. Manage tasks, track learnings, and coordinate agents.
+Tasuku is an agent-first task management system. Manage tasks, track learnings, and coordinate work across sessions.
 
-## Quick Reference
+## Quick Start
 
 ` + "```bash" + `
-tk task add "description" # Create a task
-tk task list              # See all tasks
-tk task ready             # What can I work on?
-tk task start <id>        # Begin work (add --timer to track time)
-tk task done <id>         # Complete task (auto-stops timer)
-tk task pause <id>        # Pause work (auto-stops timer)
-tk learn "insight"        # Record learning
-tk context show           # Full context
-tk task stats             # Project statistics
+tk task add "description"   # Create a task
+tk task ready               # What can I work on?
+tk task start <id>          # Begin work
+tk task done <id>           # Complete task
+tk learn "insight"          # Record learning
 ` + "```" + `
 
-## Available Skills
+## Workflow Skills (Recommended)
 
-Use specific skills for detailed guidance:
+Use these for guided workflows:
 
-- **/tasuku-add** - Create a new task
-- **/tasuku-list** - List all tasks with optional filtering
-- **/tasuku-ready** - Show tasks ready to work on
-- **/tasuku-start** - Start working on a task
-- **/tasuku-done** - Mark a task complete
-- **/tasuku-block** - Mark task as blocked
-- **/tasuku-show** - Show task details
-- **/tasuku-learn** - Record learnings and insights
-- **/tasuku-decide** - Record architectural decisions
-- **/tasuku-note** - Add notes to tasks
-- **/tasuku-promote** - Promote learnings to docs
-- **/tasuku-context** - Get full project context
-- **/tasuku-stats** - Show task statistics
+| Skill | When to Use |
+|-------|-------------|
+| ` + "`/tasuku:pickup`" + ` | Starting work - shows options, loads context, starts task |
+| ` + "`/tasuku:complete`" + ` | Finishing work - marks done, captures learnings, shows next |
+| ` + "`/tasuku:reflect`" + ` | After discoveries - guided learning extraction |
+| ` + "`/tasuku:help`" + ` | See all available skills |
+
+## Basic Skills
+
+| Skill | Purpose |
+|-------|---------|
+| ` + "`/tasuku:context`" + ` | Full project context at session start |
+| ` + "`/tasuku:add`" + ` | Create a new task |
+| ` + "`/tasuku:list`" + ` | List tasks with filtering |
+| ` + "`/tasuku:ready`" + ` | Tasks ready to work on |
+| ` + "`/tasuku:start`" + ` | Begin working on a task |
+| ` + "`/tasuku:done`" + ` | Mark task complete |
+| ` + "`/tasuku:learn`" + ` | Record learnings and insights |
+| ` + "`/tasuku:decide`" + ` | Record architectural decisions |
+| ` + "`/tasuku:note`" + ` | Add notes to tasks |
+| ` + "`/tasuku:show`" + ` | View task details |
+| ` + "`/tasuku:block`" + ` | Mark task as blocked |
+| ` + "`/tasuku:stats`" + ` | Project statistics |
+| ` + "`/tasuku:promote`" + ` | Promote learnings to docs |
 
 ## Task Lifecycle
 
-1. ` + "`tk task add \"description\"`" + ` - Create task
-2. ` + "`tk task start <id>`" + ` - Begin work
-3. ` + "`tk learn \"insight\"`" + ` - Record learnings
-4. ` + "`tk task done <id>`" + ` - Complete task
+1. **Start session:** ` + "`/tasuku:context`" + ` or ` + "`/tasuku:pickup`" + `
+2. **During work:** ` + "`/tasuku:note`" + `, ` + "`/tasuku:learn`" + ` as you go
+3. **Finish work:** ` + "`/tasuku:complete`" + ` (guided) or ` + "`/tasuku:done`" + ` (quick)
 
 ## Time Tracking
 
-- ` + "`tk task start <id> --timer`" + ` - Start with timer
-- ` + "`tk task timer status`" + ` - See running timers
-- Timers auto-stop on ` + "`done`" + ` or ` + "`pause`" + `
+` + "```bash" + `
+tk task start <id> --timer    # Start with timer
+tk task timer status          # Check running timers
+tk task done <id>             # Auto-stops timer
+` + "```" + `
 `
 
-		if err := os.WriteFile(filepath.Join(mainSkillDir, "SKILL.md"), []byte(mainSkill), 0644); err != nil {
+		if err := os.WriteFile(mainSkillPath, []byte(mainSkill), 0644); err != nil {
 			return fmt.Errorf("failed to write main skill: %w", err)
 		}
 		installed++
@@ -829,22 +839,26 @@ Use specific skills for detailed guidance:
 		return nil
 	}
 
-	fmt.Printf("Installed %d Tasuku skill(s) to %s (%s)\n", installed, baseDir, location)
+	fmt.Printf("Installed %d Tasuku skill(s) to %s (%s)\n", installed, tasukuDir, location)
 	fmt.Println("\nAvailable slash commands:")
-	fmt.Println("  /tasuku         - Overview and quick reference")
-	fmt.Println("  /tasuku-add     - Create a new task")
-	fmt.Println("  /tasuku-list    - List all tasks")
-	fmt.Println("  /tasuku-ready   - Show ready tasks")
-	fmt.Println("  /tasuku-start   - Start a task")
-	fmt.Println("  /tasuku-done    - Complete a task")
-	fmt.Println("  /tasuku-block   - Mark task blocked")
-	fmt.Println("  /tasuku-show    - Show task details")
-	fmt.Println("  /tasuku-learn   - Record learnings")
-	fmt.Println("  /tasuku-decide  - Record decisions")
-	fmt.Println("  /tasuku-note    - Add task notes")
-	fmt.Println("  /tasuku-promote - Promote to docs")
-	fmt.Println("  /tasuku-context - Get full context")
-	fmt.Println("  /tasuku-stats   - Show statistics")
+	fmt.Println("  /tasuku           - Overview and quick reference")
+	fmt.Println("  /tasuku:pickup    - Guided task selection and start")
+	fmt.Println("  /tasuku:complete  - Guided completion with learning capture")
+	fmt.Println("  /tasuku:reflect   - Guided learning extraction")
+	fmt.Println("  /tasuku:help      - Complete skill reference")
+	fmt.Println("  /tasuku:add       - Create a new task")
+	fmt.Println("  /tasuku:list      - List all tasks")
+	fmt.Println("  /tasuku:ready     - Show ready tasks")
+	fmt.Println("  /tasuku:start     - Start a task")
+	fmt.Println("  /tasuku:done      - Complete a task")
+	fmt.Println("  /tasuku:block     - Mark task blocked")
+	fmt.Println("  /tasuku:show      - Show task details")
+	fmt.Println("  /tasuku:learn     - Record learnings")
+	fmt.Println("  /tasuku:decide    - Record decisions")
+	fmt.Println("  /tasuku:note      - Add task notes")
+	fmt.Println("  /tasuku:promote   - Promote to docs")
+	fmt.Println("  /tasuku:context   - Get full context")
+	fmt.Println("  /tasuku:stats     - Show statistics")
 	fmt.Println("\nRestart Claude Code for skills to take effect.")
 
 	return nil
@@ -861,9 +875,18 @@ func uninstallSkills(global bool) error {
 		location = "global"
 	}
 
-	removed := 0
+	// Remove entire tasuku directory (contains all skills)
+	tasukuDir := filepath.Join(baseDir, "tasuku")
+	if _, err := os.Stat(tasukuDir); err == nil {
+		if err := os.RemoveAll(tasukuDir); err != nil {
+			return fmt.Errorf("failed to remove tasuku skills: %w", err)
+		}
+		fmt.Printf("Removed Tasuku skills from %s (%s)\n", tasukuDir, location)
+		return nil
+	}
 
-	// Remove individual skill directories
+	// Also check for old-style tasuku-* directories for backwards compatibility
+	removed := 0
 	for name := range skillDefinitions {
 		skillDir := filepath.Join(baseDir, "tasuku-"+name)
 		if _, err := os.Stat(skillDir); err == nil {
@@ -874,21 +897,12 @@ func uninstallSkills(global bool) error {
 		}
 	}
 
-	// Remove main tasuku skill
-	mainSkillDir := filepath.Join(baseDir, "tasuku")
-	if _, err := os.Stat(mainSkillDir); err == nil {
-		if err := os.RemoveAll(mainSkillDir); err != nil {
-			return fmt.Errorf("failed to remove main skill: %w", err)
-		}
-		removed++
-	}
-
 	if removed == 0 {
 		fmt.Println("No Tasuku skills installed.")
 		return nil
 	}
 
-	fmt.Printf("Removed %d Tasuku skill(s) from %s (%s)\n", removed, baseDir, location)
+	fmt.Printf("Removed %d legacy Tasuku skill(s) from %s (%s)\n", removed, baseDir, location)
 	return nil
 }
 
