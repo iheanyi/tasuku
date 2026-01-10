@@ -1,33 +1,11 @@
 {
   "version": "v4",
   "tasks": {
-    "fix-empty-toolexecuteafter-hook": {
-      "status": "done",
-      "priority": 2,
-      "tags": [
-        "opencode",
-        "hooks",
-        "bug"
-      ],
-      "file": "tasks/fix-empty-toolexecuteafter-hook.md",
-      "updated_at": "2026-01-09T03:36:44.311629Z"
-    },
     "fix-tui-string-truncation-for-an": {
       "status": "ready",
       "priority": 2,
       "file": "tasks/fix-tui-string-truncation-for-an.md",
       "updated_at": "2026-01-09T02:39:16.233324Z"
-    },
-    "implement-missing-opencode-hooks": {
-      "status": "done",
-      "priority": 1,
-      "tags": [
-        "opencode",
-        "hooks",
-        "feature"
-      ],
-      "file": "tasks/implement-missing-opencode-hooks.md",
-      "updated_at": "2026-01-09T03:30:39.044692Z"
     },
     "optimize-storage-interface-for-g": {
       "status": "ready",
@@ -40,15 +18,10 @@
       "priority": 1,
       "file": "tasks/refactor-tui-to-use-nonblocking.md",
       "updated_at": "2026-01-09T02:39:06.160536Z"
-    },
-    "task-tests": {
-      "status": "done",
-      "file": "tasks/task-tests.md",
-      "updated_at": "2026-01-09T20:23:32.03516Z"
     }
   },
-  "archived_count": 183,
+  "archived_count": 186,
   "learnings_count": 13,
   "decisions_count": 11,
-  "updated_at": "2026-01-10T20:36:20.493311Z"
+  "updated_at": "2026-01-10T20:42:13.839702Z"
 }
