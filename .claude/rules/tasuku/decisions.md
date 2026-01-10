@@ -82,3 +82,11 @@ _Auto-synced from .tasuku/context/decisions.md_
 
 **Because**: Workflow skills (complete, pickup, reflect) guide agents through multi-step processes, ensuring learnings are captured and context is loaded. Hooks suggest skills instead of raw commands, making the right action discoverable at the right moment.
 
+## plugin-over-skills (2026-01-10)
+
+**Chose**: Claude Code plugin format (commands/*.md)
+
+**Over**: Skills format (SKILL.md), No slash commands (MCP only)
+
+**Because**: Plugins support namespaced commands like /tasuku:add via the commands/ directory structure. Skills only support flat /skill-name format without colon namespacing. Plugin marketplace also enables easy installation from GitHub URLs.
+

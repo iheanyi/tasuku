@@ -10,6 +10,6 @@ updated_at: 2026-01-06T04:27:52.818928Z
 
 ## Notes
 
-### 2026-01-06 04:22 [6f232e]
+### 2026-01-06T04:22:00Z [6f232e]
 Hook should check for: (1) Running timers - warn to stop, (2) In-progress tasks - prompt to pause with notes, (3) Unclaimed tasks that were being worked on. Should NOT block, just remind.
 

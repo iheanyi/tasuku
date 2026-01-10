@@ -425,7 +425,7 @@ Claude Code supports the Tasuku plugin for slash command workflows:
 
 ```
 # In Claude Code, add the marketplace:
-/plugin add-marketplace https://github.com/iheanyi/tasuku
+/plugin marketplace add https://github.com/iheanyi/tasuku
 
 # Then install the plugin:
 /plugin install tasuku

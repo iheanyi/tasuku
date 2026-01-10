@@ -27,43 +27,15 @@ HTTP server has no handling for stale processes or port conflicts. Consider PID 
 ## aebb8c - 2026-01-05T00:00:00Z
 When updating storage formats, check ALL user-facing strings: ErrNotInitialized, help text, error messages, hook scripts. Shared errors can leak format-specific messages.
 
-## 37aa8f - 2026-01-06T00:00:00Z
-Always force UTC timezone in golden tests (os.Setenv("TZ", "UTC") in init()) when testing time-dependent output. Local timezone varies between CI and developer machines, causing spurious test failures.
-
-## be327a - 2026-01-07T18:49:04Z
-Never manually manipulate ANSI-styled strings with rune/character operations. ANSI escape codes (e.g., \x1b[31m) are counted as characters, corrupting position calculations. Always use lipgloss.Place(), lipgloss.Width(), lipgloss.Height() which properly handle escape sequences.
-
-## 788070 - 2026-01-07T18:49:12Z
-Never iterate over a map while modifying it (e.g., archiving tasks while looping over m.file.Tasks). Always collect IDs/keys first into a slice, then iterate over the slice to perform modifications.
-
-## a4a226 - 2026-01-07T18:49:18Z
-In BubbleTea TUIs, always save both the selected item ID AND index before refresh/reinitializing lists. After refresh, restore by ID first (item may have moved), fall back to index position (item may be deleted), or clamp to list bounds.
-
 ## ebc542 - 2026-01-07T18:49:25Z
 For terminal UI overlays/modals, use lipgloss.Place() to center content on a clean screen rather than trying to composite foreground over background. Manual overlay compositing breaks with styled text.
 
-## 68d5cd - 2026-01-07T23:45:30Z
-scope: *.md
-Always audit CLI command documentation (README.md, CLAUDE.md) when adding new commands or changing command signatures. Shortcut commands like `tk learn` should be documented alongside their full forms (`tk learning add`).
-
 ## 2543ae - 2026-01-08T01:12:45Z
 syscall.Flock (file locking) is Unix-only. Windows builds will fail if using it directly. Either use build tags with platform-specific implementations or exclude Windows from build targets.
-
-## f11dfa - 2026-01-09T03:36:44Z
-Always use `tk list` to verify task IDs before calling `tk done`, as the ID might differ from the description slug or be truncated.
-
-## fe0282 - 2026-01-09T15:50:11Z
-In BubbleTea TUIs, when using pointer receiver methods like runAction(*Model), always return a dereferenced value (*m) not the pointer (m) to match the tea.Model interface contract. Returning a pointer causes type assertion panics (interface conversion: *Model is not Model).
 
 ## 1f9d2a - 2026-01-09T15:50:20Z
 Charmbracelet ecosystem essentials for TUIs: (1) lipgloss for styling - use Place() for centering modals on ANSI-aware backgrounds; (2) bubbles/list for filterable lists with custom delegates; (3) bubbles/progress for progress bars; (4) bubbles/textarea for multi-line input; (5) bubbles/key for keybinding definitions; (6) glamour for Markdown rendering in views; (7) charmbracelet/x/ansi.Truncate for ANSI-aware string truncation (handles wide chars, graphemes); (8) x/exp/teatest for golden file testing.
 
 ## a64c8c - 2026-01-09T15:50:27Z
 BubbleTea async I/O pattern: (1) Define message types for results (TasksLoadedMsg, ActionResultMsg); (2) Create command constructors that wrap I/O in tea.Cmd closures; (3) New() starts with empty state and loading=true; (4) Init() returns the load command; (5) Update() handles result messages and chains commands (action → reload); (6) In tests, process Init() command before checking state: cmd := m.Init(); msg := cmd(); m.Update(msg).
-
-## 66a564 - 2026-01-09T16:11:58Z
-Never assume lipgloss functions exist without checking documentation. lipgloss does NOT have Truncate() - use charmbracelet/x/ansi.Truncate instead for ANSI-aware string truncation. Verify API existence before using charmbracelet libraries.
-
-## 87f6b7 - 2026-01-10T20:06:58Z
-Claude Code skills use `skill-name/SKILL.md` structure for `/skill-name` invocation (no colon namespacing). Plugins use `commands/name.md` in a directory with `.claude-plugin/plugin.json` for `/plugin:name` invocation. For namespaced commands like `/tasuku:add`, you must use the plugin format with a commands/ directory.
 

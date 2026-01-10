@@ -19,10 +19,10 @@ To install the Tasuku plugin:
 
 1. Add the marketplace (one-time setup):
    In Claude Code, run:
-   /plugin add-marketplace /path/to/tasuku
+   /plugin marketplace add /path/to/tasuku
 
    Or if installed via go install:
-   /plugin add-marketplace https://github.com/iheanyi/tasuku
+   /plugin marketplace add https://github.com/iheanyi/tasuku
 
 2. Install the plugin:
    /plugin install tasuku
@@ -34,7 +34,7 @@ This provides all commands: /tasuku:add, /tasuku:list, /tasuku:start, etc.`,
 To install the Tasuku plugin in Claude Code:
 
 1. Add the marketplace:
-   /plugin add-marketplace https://github.com/iheanyi/tasuku
+   /plugin marketplace add https://github.com/iheanyi/tasuku
 
 2. Install the plugin:
    /plugin install tasuku
@@ -61,7 +61,7 @@ The Tasuku plugin provides slash commands through Claude Code's plugin system.
 To install:
 
 1. In Claude Code, add the marketplace:
-   /plugin add-marketplace https://github.com/iheanyi/tasuku
+   /plugin marketplace add https://github.com/iheanyi/tasuku
 
 2. Install the plugin:
    /plugin install tasuku
@@ -120,7 +120,7 @@ Basic Commands:
   /tasuku:promote   - Promote learnings to docs
 
 To install these commands, run in Claude Code:
-  /plugin add-marketplace https://github.com/iheanyi/tasuku
+  /plugin marketplace add https://github.com/iheanyi/tasuku
   /plugin install tasuku`)
 		return nil
 	},
