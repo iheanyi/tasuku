@@ -1,0 +1,15 @@
+{
+  "name": "tasuku-marketplace",
+  "description": "Local marketplace for tasuku plugin development",
+  "owner": {
+    "name": "Iheanyi Ekechukwu"
+  },
+  "plugins": [
+    {
+      "name": "tasuku",
+      "source": "..",
+      "description": "Agent-first task management for AI workflows",
+      "version": "0.7.2"
+    }
+  ]
+}
