@@ -1,8 +1,13 @@
 ---
-description: Promote a learning to permanent documentation. Use when a learning proves valuable and should persist in project docs.
+description: "Promote a learning to permanent documentation"
+argument-hint: "LEARNING_ID [--to FILE] [--keep]"
 ---
 
 # Promote Learning
+
+```!
+tk learning promote $ARGUMENTS
+```
 
 Move a learning from Tasuku's context to permanent project documentation.
 

@@ -1,10 +1,13 @@
 ---
-description: Show detailed information about a single task. Use when you need full task details, notes, or metadata.
+description: "Show detailed information about a task"
+argument-hint: "TASK_ID [--format FORMAT]"
 ---
 
 # Show Task Details
 
-Display complete information about a specific task.
+```!
+tk task show $ARGUMENTS
+```
 
 ## Usage
 
@@ -25,16 +28,3 @@ tk task show <task-id> --format json   # Output as JSON
 - Notes attached to the task
 - Time tracked
 - Created and updated timestamps
-
-## When to Use
-
-- Before starting work to understand full context
-- Checking notes left by previous work sessions
-- Reviewing blockers and dependencies
-- Inspecting task metadata
-
-## Related Commands
-
-- `tk task list` - See all tasks
-- `tk task deps <id>` - Show dependency tree
-- `tk note list <id>` - List just the notes

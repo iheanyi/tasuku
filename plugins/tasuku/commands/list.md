@@ -1,21 +1,23 @@
 ---
-description: List all tasks with optional status filtering. Use when user wants to see tasks, check project status, or get an overview.
+description: "List all tasks with optional filtering"
+argument-hint: "[--status STATUS] [--tag TAG] [--tree] [--format FORMAT]"
 ---
 
 # List Tasks
 
-Display all tasks in the project, optionally filtered by status.
+```!
+tk task list $ARGUMENTS
+```
 
 ## Usage
-
-Run the `tk task list` command to show all tasks:
 
 ```bash
 tk task list                    # All tasks
 tk task list --status ready     # Only ready tasks
-tk task list --status in_progress  # Only in-progress tasks
+tk task list --status in_progress  # Only in-progress
 tk task list --status blocked   # Only blocked tasks
 tk task list --status done      # Only completed tasks
+tk task list --tag bug          # Filter by tag
 tk task list --tree             # Hierarchical view with subtasks
 tk task list --format json      # Output as JSON
 ```
@@ -27,10 +29,3 @@ Tasks are displayed with:
 - Task ID
 - Description
 - Blockers (if any)
-
-## When to Use
-
-- Starting a session to see what needs to be done
-- Checking overall project progress
-- Finding tasks by status
-- Reviewing blocked tasks

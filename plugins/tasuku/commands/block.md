@@ -1,8 +1,13 @@
 ---
-description: Mark a task as blocked by other tasks. Use when work cannot proceed until dependencies are resolved.
+description: "Mark a task as blocked by other tasks"
+argument-hint: "TASK_ID --by BLOCKER_ID [--by BLOCKER_ID...]"
 ---
 
 # Block Task
+
+```!
+tk task block $ARGUMENTS
+```
 
 Mark a task as blocked, indicating it cannot proceed until dependencies are resolved.
 

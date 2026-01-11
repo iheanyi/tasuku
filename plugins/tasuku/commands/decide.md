@@ -1,8 +1,13 @@
 ---
-description: Record an architectural decision with reasoning. Use when making design choices, selecting technologies, or resolving trade-offs.
+description: "Record an architectural decision with reasoning"
+argument-hint: "--id ID --chose CHOICE --over ALTERNATIVES --because REASON"
 ---
 
 # Record Decision
+
+```!
+tk decide $ARGUMENTS
+```
 
 Capture important decisions with the alternatives considered and reasoning.
 

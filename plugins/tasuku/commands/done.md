@@ -1,50 +1,32 @@
 ---
-description: Mark a task as completed. Use when finishing work, completing a feature, or closing out a task.
+description: "Mark a task as completed"
+argument-hint: "TASK_ID [TASK_ID...]"
 ---
 
-# Mark Task Done
+# Complete Task
 
-Quick command to mark a task as complete.
+```!
+tk task done $ARGUMENTS
+```
 
-**For a guided completion workflow with learning capture, use `/tasuku:complete` instead.**
+**For guided completion with learning capture, use `/tasuku:complete` instead.**
 
 ## Usage
 
 ```bash
-tk task done <task-id>          # Mark task as complete
-tk task done <id1> <id2>        # Complete multiple tasks
+tk task done <task-id>           # Mark single task complete
+tk task done <id1> <id2> <id3>   # Mark multiple tasks complete
 ```
 
 ## Automatic Behavior
 
-- If a timer is running on the task, it will be automatically stopped
-- The elapsed time is added to the task's total duration
-
-## When to Use
-
-- Quick completion when learnings are already documented
-- Batch completing multiple small tasks
-- Simple tasks that don't warrant reflection
-
-## When to Use `/tasuku:complete` Instead
-
-Use the guided workflow `/tasuku:complete` when:
-- You just fixed a bug (learning capture is critical)
-- You completed significant work
-- You want to see what tasks are unblocked
-- You want suggestions for what to do next
+- Running timers are automatically stopped
+- Elapsed time is added to task's total duration
+- Blocked tasks that depended on this one may become unblocked
 
 ## After Completing
 
-Always consider:
-1. **Record learnings:** `/tasuku:learn "what you discovered"`
-2. **Check impact:** What tasks are now unblocked?
-3. **Archive if done:** `tk task archive add <id>`
-4. **Pick up next:** `/tasuku:pickup`
-
-## Related Skills
-
-- `/tasuku:complete` - Guided completion workflow (recommended)
-- `/tasuku:learn` - Record learnings
-- `/tasuku:pickup` - Start next task
-- `/tasuku:ready` - See what's available
+Consider:
+- Recording learnings: `tk learn "what you discovered"`
+- Archiving if no longer needed: `tk task archive add <id>`
+- Starting the next ready task: `tk task ready`

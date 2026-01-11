@@ -1,8 +1,13 @@
 ---
-description: Show project statistics and progress. Use when user wants metrics, completion status, or progress overview.
+description: "Show project statistics and progress"
+argument-hint: "[--format FORMAT]"
 ---
 
 # Task Statistics
+
+```!
+tk task stats $ARGUMENTS
+```
 
 Display project statistics including task counts, completion rates, and progress.
 

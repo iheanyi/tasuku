@@ -1,10 +1,13 @@
 ---
-description: Record a learning or insight. Use when discovering important patterns, gotchas, or knowledge that should be remembered.
+description: "Record a learning or insight"
+argument-hint: "\"INSIGHT\" [--scope GLOB]"
 ---
 
 # Record Learning
 
-Capture insights discovered while working on the project.
+```!
+tk learn $ARGUMENTS
+```
 
 ## Usage
 
@@ -12,39 +15,29 @@ Capture insights discovered while working on the project.
 tk learn "The API rate limits to 100 req/min"     # Add a learning
 tk learn "Never use sync calls in handlers"       # Record a "never do" pattern
 tk learn "Always validate input before DB write"  # Record an "always do" pattern
-tk learnings                                      # List all learnings
+tk learn "Use mocks for external APIs" --scope "**/*_test.go"  # Scoped learning
 ```
 
 ## What to Record
 
-Good learnings include:
-
 - **API behaviors**: "The auth endpoint returns 401 for expired tokens, not 403"
 - **Code patterns**: "Use the `withRetry` wrapper for all external API calls"
 - **Gotchas**: "The config file must be loaded before initializing the logger"
-- **Performance**: "Batch inserts are 10x faster than individual inserts"
 - **Never/Always rules**: "Never store passwords in plain text"
 
-## When to Use
+## Scoped Learnings
 
-- After debugging a tricky issue
-- When discovering undocumented behavior
-- After making a decision that future work should know about
-- When finding a pattern that works well (or poorly)
+Use `--scope` with a glob pattern to apply learnings only to specific files:
+
+```bash
+tk learn "Use React Query for data fetching" --scope "src/components/**"
+```
 
 ## Promoting Learnings
 
 For learnings that should be permanent documentation:
 
 ```bash
-tk promote 1                    # Promote learning #1 to context file
-tk promote 1 --to CLAUDE.md     # Promote to specific file
-tk promote 1 --keep             # Keep in learnings after promoting
+tk learning promote <id>                # Promote to CLAUDE.md
+tk learning promote <id> --to AGENTS.md # Promote to specific file
 ```
-
-## Best Practices
-
-1. Be specific - include context that makes the learning actionable
-2. Use "Never" or "Always" prefixes for rules
-3. Promote important learnings to permanent docs
-4. Review learnings periodically to refresh memory

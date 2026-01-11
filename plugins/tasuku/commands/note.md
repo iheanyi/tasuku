@@ -1,8 +1,13 @@
 ---
-description: Add a note to a task for context, progress, or insights. Use proactively when starting tasks, making progress, or discovering context.
+description: "Add a note to a task for context or progress"
+argument-hint: "TASK_ID \"NOTE_TEXT\""
 ---
 
 # Add Task Note
+
+```!
+tk note add $ARGUMENTS
+```
 
 Attach notes to tasks to capture context, progress, and insights.
 

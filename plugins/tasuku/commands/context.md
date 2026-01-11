@@ -1,8 +1,13 @@
 ---
-description: Get full project context including tasks, learnings, and decisions. Use at session start or when needing complete project state.
+description: "Get full project context including tasks, learnings, and decisions"
+argument-hint: "[--format FORMAT]"
 ---
 
 # Project Context
+
+```!
+tk context show $ARGUMENTS
+```
 
 Load the complete project context including all tasks, learnings, and decisions.
 
