@@ -1048,6 +1048,631 @@ func TestSuggest(t *testing.T) {
 	}
 }
 
+func TestHandleToolCall_TimerStartStop(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Timer test task",
+		"id":          "timer-test",
+	})
+
+	// Start timer
+	result, err := server.HandleToolCall("tk_timer_start", map[string]interface{}{
+		"id": "timer-test",
+	})
+	if err != nil {
+		t.Fatalf("timer_start error: %v", err)
+	}
+
+	// Use JSON to parse result generically
+	data, _ := json.Marshal(result)
+	var startResult map[string]interface{}
+	json.Unmarshal(data, &startResult)
+	if startResult["status"] != "timer_started" {
+		t.Errorf("expected status 'timer_started', got %v", startResult["status"])
+	}
+
+	// Check timer status
+	statusResult, err := server.HandleToolCall("tk_timer_status", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("timer_status error: %v", err)
+	}
+
+	// Should have one running timer - response is {"count": 1, "timers": [...]}
+	data, _ = json.Marshal(statusResult)
+	var statusRes map[string]interface{}
+	json.Unmarshal(data, &statusRes)
+	count, _ := statusRes["count"].(float64)
+	if int(count) != 1 {
+		t.Errorf("expected 1 running timer, got %d (status: %s)", int(count), string(data))
+	}
+
+	// Stop timer
+	stopResult, err := server.HandleToolCall("tk_timer_stop", map[string]interface{}{
+		"id": "timer-test",
+	})
+	if err != nil {
+		t.Fatalf("timer_stop error: %v", err)
+	}
+
+	data, _ = json.Marshal(stopResult)
+	var stopRes map[string]interface{}
+	json.Unmarshal(data, &stopRes)
+	if stopRes["status"] != "timer_stopped" {
+		t.Errorf("expected status 'timer_stopped', got %v", stopRes["status"])
+	}
+
+	// Timer status should now be empty
+	statusResult2, err := server.HandleToolCall("tk_timer_status", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("timer_status error: %v", err)
+	}
+
+	data, _ = json.Marshal(statusResult2)
+	var statusRes2 map[string]interface{}
+	json.Unmarshal(data, &statusRes2)
+	count2, _ := statusRes2["count"].(float64)
+	if int(count2) != 0 {
+		t.Errorf("expected 0 running timers after stop, got %d", int(count2))
+	}
+}
+
+func TestHandleToolCall_FieldSetRemove(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Field test task",
+		"id":          "field-test",
+	})
+
+	// Set field
+	result, err := server.HandleToolCall("tk_field_set", map[string]interface{}{
+		"id":    "field-test",
+		"key":   "estimate",
+		"value": "2h",
+	})
+	if err != nil {
+		t.Fatalf("field_set error: %v", err)
+	}
+
+	data, _ := json.Marshal(result)
+	var r map[string]interface{}
+	json.Unmarshal(data, &r)
+	if r["status"] != "set" {
+		t.Errorf("expected status 'set', got %v", r["status"])
+	}
+
+	// Verify field is set via show
+	showResult, _ := server.HandleToolCall("tk_show", map[string]interface{}{
+		"id": "field-test",
+	})
+	data, _ = json.Marshal(showResult)
+	var sr map[string]interface{}
+	json.Unmarshal(data, &sr)
+	fields, ok := sr["fields"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected fields to be a map")
+	}
+	if fields["estimate"] != "2h" {
+		t.Errorf("expected estimate '2h', got %v", fields["estimate"])
+	}
+
+	// Remove field
+	removeResult, err := server.HandleToolCall("tk_field_remove", map[string]interface{}{
+		"id":  "field-test",
+		"key": "estimate",
+	})
+	if err != nil {
+		t.Fatalf("field_remove error: %v", err)
+	}
+
+	data, _ = json.Marshal(removeResult)
+	var rr map[string]interface{}
+	json.Unmarshal(data, &rr)
+	if rr["status"] != "removed" {
+		t.Errorf("expected status 'removed', got %v", rr["status"])
+	}
+}
+
+func TestHandleToolCall_TagAddRemove(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Tag test task",
+		"id":          "tag-test",
+	})
+
+	// Add tag
+	result, err := server.HandleToolCall("tk_tag_add", map[string]interface{}{
+		"id":  "tag-test",
+		"tag": "urgent",
+	})
+	if err != nil {
+		t.Fatalf("tag_add error: %v", err)
+	}
+
+	data, _ := json.Marshal(result)
+	var r map[string]interface{}
+	json.Unmarshal(data, &r)
+	if r["status"] != "added" {
+		t.Errorf("expected status 'added', got %v", r["status"])
+	}
+
+	// Verify tag is set via show
+	showResult, _ := server.HandleToolCall("tk_show", map[string]interface{}{
+		"id": "tag-test",
+	})
+	data, _ = json.Marshal(showResult)
+	var sr map[string]interface{}
+	json.Unmarshal(data, &sr)
+	tags, ok := sr["tags"].([]interface{})
+	if !ok {
+		t.Fatal("expected tags to be an array")
+	}
+	foundTag := false
+	for _, tag := range tags {
+		if tag == "urgent" {
+			foundTag = true
+			break
+		}
+	}
+	if !foundTag {
+		t.Error("expected 'urgent' tag to be set")
+	}
+
+	// Remove tag
+	removeResult, err := server.HandleToolCall("tk_tag_remove", map[string]interface{}{
+		"id":  "tag-test",
+		"tag": "urgent",
+	})
+	if err != nil {
+		t.Fatalf("tag_remove error: %v", err)
+	}
+
+	data, _ = json.Marshal(removeResult)
+	var rr map[string]interface{}
+	json.Unmarshal(data, &rr)
+	if rr["status"] != "removed" {
+		t.Errorf("expected status 'removed', got %v", rr["status"])
+	}
+}
+
+func TestHandleToolCall_ArchiveAll(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add and complete two tasks
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Archive all test 1",
+		"id":          "archive-all-1",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Archive all test 2",
+		"id":          "archive-all-2",
+	})
+	server.HandleToolCall("tk_done", map[string]interface{}{
+		"id": "archive-all-1",
+	})
+	server.HandleToolCall("tk_done", map[string]interface{}{
+		"id": "archive-all-2",
+	})
+
+	// Archive all done tasks older than 0 hours (i.e., all done tasks)
+	result, err := server.HandleToolCall("tk_archive_all", map[string]interface{}{
+		"older_than": "0h",
+	})
+	if err != nil {
+		t.Fatalf("archive_all error: %v", err)
+	}
+
+	data, _ := json.Marshal(result)
+	var r map[string]interface{}
+	json.Unmarshal(data, &r)
+
+	count, _ := r["archived_count"].(float64)
+	if int(count) != 2 {
+		t.Errorf("expected archived_count 2, got %v", count)
+	}
+}
+
+func TestParseDurationString(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int64 // in nanoseconds
+		hasError bool
+	}{
+		{"1h", int64(3600 * 1e9), false},
+		{"24h", int64(24 * 3600 * 1e9), false},
+		{"7d", int64(7 * 24 * 3600 * 1e9), false},
+		{"2w", int64(14 * 24 * 3600 * 1e9), false},
+		{"invalid", 0, true},
+		{"", 0, true},
+		{"30m", 0, true}, // only h, d, w are supported
+		{"60s", 0, true}, // only h, d, w are supported
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			dur, err := parseDurationString(tt.input)
+			if tt.hasError {
+				if err == nil {
+					t.Errorf("expected error for %q", tt.input)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error for %q: %v", tt.input, err)
+				}
+				if int64(dur) != tt.expected {
+					t.Errorf("parseDurationString(%q) = %v, expected %v", tt.input, dur, tt.expected)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleToolCall_Ready(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add tasks with different priorities and statuses
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "High priority task",
+		"id":          "high-pri",
+	})
+	server.HandleToolCall("tk_priority", map[string]interface{}{
+		"id":       "high-pri",
+		"priority": "high",
+	})
+
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Normal priority task",
+		"id":          "normal-pri",
+	})
+
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Started task",
+		"id":          "started",
+	})
+	server.HandleToolCall("tk_start", map[string]interface{}{
+		"id": "started",
+	})
+
+	// Get ready tasks
+	result, err := server.HandleToolCall("tk_ready", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("ready error: %v", err)
+	}
+
+	data, _ := json.Marshal(result)
+	var tasks []map[string]interface{}
+	json.Unmarshal(data, &tasks)
+
+	// Should only show ready tasks (not in_progress)
+	for _, task := range tasks {
+		if task["status"] == "in_progress" {
+			t.Error("ready list should not contain in_progress tasks")
+		}
+	}
+
+	// High priority should be first (if multiple ready tasks)
+	if len(tasks) >= 2 {
+		if tasks[0]["id"] != "high-pri" {
+			t.Errorf("expected high-pri to be first, got %v", tasks[0]["id"])
+		}
+	}
+}
+
+func TestHandleToolCall_Who(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add and claim tasks
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "who-test-1",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "who-test-2",
+	})
+	server.HandleToolCall("tk_claim", map[string]interface{}{
+		"id":    "who-test-1",
+		"agent": "agent-1",
+	})
+	server.HandleToolCall("tk_claim", map[string]interface{}{
+		"id":    "who-test-2",
+		"agent": "agent-2",
+	})
+
+	// Check who
+	result, err := server.HandleToolCall("tk_who", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("who error: %v", err)
+	}
+
+	// Result should be a map of agents to their tasks
+	data, _ := json.Marshal(result)
+	var who map[string]interface{}
+	json.Unmarshal(data, &who)
+
+	if who["agent-1"] == nil {
+		t.Error("expected agent-1 in who list")
+	}
+	if who["agent-2"] == nil {
+		t.Error("expected agent-2 in who list")
+	}
+}
+
+func TestHandleToolCall_Stats(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add tasks with different statuses
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "stats-ready",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "stats-progress",
+	})
+	server.HandleToolCall("tk_start", map[string]interface{}{
+		"id": "stats-progress",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "stats-done",
+	})
+	server.HandleToolCall("tk_done", map[string]interface{}{
+		"id": "stats-done",
+	})
+
+	// Get stats
+	result, err := server.HandleToolCall("tk_stats", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("stats error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["total"] == nil {
+		t.Error("expected total in stats")
+	}
+	if r["by_status"] == nil {
+		t.Error("expected by_status in stats")
+	}
+}
+
+func TestHandleToolCall_LearningOperations(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add learnings
+	server.HandleToolCall("tk_learn", map[string]interface{}{
+		"insight": "Regular learning",
+	})
+	server.HandleToolCall("tk_learn", map[string]interface{}{
+		"insight": "Never do X",
+	})
+
+	// List learnings
+	listResult, err := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("learning_list error: %v", err)
+	}
+
+	data, _ := json.Marshal(listResult)
+	var learnings []map[string]interface{}
+	json.Unmarshal(data, &learnings)
+
+	if len(learnings) != 2 {
+		t.Errorf("expected 2 learnings, got %d", len(learnings))
+	}
+
+	// List rules only - response is {"rules": [...], "count": ..., "recommendation": ...}
+	rulesResult, err := server.HandleToolCall("tk_learning_rules", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("learning_rules error: %v", err)
+	}
+
+	data, _ = json.Marshal(rulesResult)
+	var rulesResp map[string]interface{}
+	json.Unmarshal(data, &rulesResp)
+
+	// Should only have the "Never" rule
+	count, _ := rulesResp["count"].(float64)
+	if int(count) != 1 {
+		t.Errorf("expected 1 rule learning, got %d (response: %s)", int(count), string(data))
+	}
+}
+
+func TestHandleToolCall_DecisionOperations(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add decisions
+	server.HandleToolCall("tk_decide", map[string]interface{}{
+		"id":      "dec-1",
+		"chose":   "A",
+		"over":    []interface{}{"B"},
+		"because": "reason",
+	})
+	server.HandleToolCall("tk_decide", map[string]interface{}{
+		"id":      "dec-2",
+		"chose":   "X",
+		"over":    []interface{}{"Y"},
+		"because": "other reason",
+	})
+
+	// List decisions
+	listResult, err := server.HandleToolCall("tk_decision_list", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("decision_list error: %v", err)
+	}
+
+	data, _ := json.Marshal(listResult)
+	var decisions []map[string]interface{}
+	json.Unmarshal(data, &decisions)
+
+	if len(decisions) != 2 {
+		t.Errorf("expected 2 decisions, got %d", len(decisions))
+	}
+
+	// Remove decision
+	removeResult, err := server.HandleToolCall("tk_decision_remove", map[string]interface{}{
+		"id": "dec-1",
+	})
+	if err != nil {
+		t.Fatalf("decision_remove error: %v", err)
+	}
+
+	r := removeResult.(map[string]interface{})
+	if r["status"] != "removed" {
+		t.Errorf("expected status 'removed', got %v", r["status"])
+	}
+}
+
+func TestHandleToolCall_NoteOperations(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task with notes
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "note-ops-test",
+	})
+	server.HandleToolCall("tk_note", map[string]interface{}{
+		"task_id": "note-ops-test",
+		"note":    "First note",
+	})
+	server.HandleToolCall("tk_note", map[string]interface{}{
+		"task_id": "note-ops-test",
+		"note":    "Second note",
+	})
+
+	// List notes for task
+	listResult, err := server.HandleToolCall("tk_note_list", map[string]interface{}{
+		"task_id": "note-ops-test",
+	})
+	if err != nil {
+		t.Fatalf("note_list error: %v", err)
+	}
+
+	data, _ := json.Marshal(listResult)
+	var notes []map[string]interface{}
+	json.Unmarshal(data, &notes)
+
+	if len(notes) != 2 {
+		t.Errorf("expected 2 notes, got %d", len(notes))
+	}
+
+	// Get note ID from first note
+	noteID := ""
+	if len(notes) > 0 {
+		noteID, _ = notes[0]["id"].(string)
+	}
+
+	// Remove note
+	if noteID != "" {
+		removeResult, err := server.HandleToolCall("tk_note_remove", map[string]interface{}{
+			"task_id": "note-ops-test",
+			"note_id": noteID,
+		})
+		if err != nil {
+			t.Fatalf("note_remove error: %v", err)
+		}
+
+		r := removeResult.(map[string]interface{})
+		if r["status"] != "removed" {
+			t.Errorf("expected status 'removed', got %v", r["status"])
+		}
+	}
+}
+
+func TestHandleToolCall_Deps(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Create task dependency chain: A blocked by B, B blocked by C
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "dep-a",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "dep-b",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "dep-c",
+	})
+	server.HandleToolCall("tk_block", map[string]interface{}{
+		"id":         "dep-a",
+		"blocked_by": []interface{}{"dep-b"},
+	})
+	server.HandleToolCall("tk_block", map[string]interface{}{
+		"id":         "dep-b",
+		"blocked_by": []interface{}{"dep-c"},
+	})
+
+	// Get deps for A
+	result, err := server.HandleToolCall("tk_deps", map[string]interface{}{
+		"id": "dep-a",
+	})
+	if err != nil {
+		t.Fatalf("deps error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["id"] != "dep-a" {
+		t.Errorf("expected id 'dep-a', got %v", r["id"])
+	}
+	if r["blocked_by"] == nil {
+		t.Error("expected blocked_by in deps result")
+	}
+}
+
+func TestHandleToolCall_Health(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add some data
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "health-test",
+	})
+	server.HandleToolCall("tk_learn", map[string]interface{}{
+		"insight": "Never do this",
+	})
+
+	// Get health
+	result, err := server.HandleToolCall("tk_health", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("health error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["task_counts"] == nil {
+		t.Error("expected task_counts in health result")
+	}
+	if r["recommendations"] == nil {
+		t.Error("expected recommendations in health result")
+	}
+}
+
+func TestHandleToolCall_StartWithUnblock(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Create blocked task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "blocked-start",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "blocker",
+	})
+	server.HandleToolCall("tk_block", map[string]interface{}{
+		"id":         "blocked-start",
+		"blocked_by": []interface{}{"blocker"},
+	})
+
+	// Try to start blocked task with unblock flag
+	result, err := server.HandleToolCall("tk_start", map[string]interface{}{
+		"id":      "blocked-start",
+		"unblock": true,
+	})
+	if err != nil {
+		t.Fatalf("start with unblock error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["status"] != "in_progress" {
+		t.Errorf("expected status 'in_progress', got %v", r["status"])
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }

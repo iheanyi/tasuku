@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func TestServeCmd(t *testing.T) {
@@ -98,5 +99,106 @@ func TestNewServeCmd_ReturnsNewInstance(t *testing.T) {
 func suppressRunE(cmd *cobra.Command) {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return nil
+	}
+}
+
+func TestHTTPCmdFlagPrecedence(t *testing.T) {
+	cmd := newHTTPCmd()
+
+	// Set both flags
+	cmd.SetArgs([]string{"--port", "8080", "--addr", ":9000"})
+	if err := cmd.ParseFlags([]string{"--port", "8080", "--addr", ":9000"}); err != nil {
+		t.Fatalf("failed to parse flags: %v", err)
+	}
+
+	// Verify addr flag is captured
+	addr, _ := cmd.Flags().GetString("addr")
+	if addr != ":9000" {
+		t.Errorf("expected addr ':9000', got '%s'", addr)
+	}
+
+	port, _ := cmd.Flags().GetInt("port")
+	if port != 8080 {
+		t.Errorf("expected port 8080, got %d", port)
+	}
+}
+
+func TestHTTPCmdDefaultPort(t *testing.T) {
+	cmd := newHTTPCmd()
+
+	// No flags set - should use defaults
+	port, _ := cmd.Flags().GetInt("port")
+	if port != 3000 {
+		t.Errorf("expected default port 3000, got %d", port)
+	}
+
+	addr, _ := cmd.Flags().GetString("addr")
+	if addr != "" {
+		t.Errorf("expected default addr empty, got '%s'", addr)
+	}
+}
+
+func TestMCPCmdNoFlags(t *testing.T) {
+	cmd := newMCPCmd()
+
+	// MCP command should have no flags
+	if cmd.Flags().HasFlags() {
+		// Check if there are any non-persistent flags
+		nonPersistent := false
+		cmd.Flags().VisitAll(func(f *pflag.Flag) {
+			if !f.Hidden {
+				nonPersistent = true
+			}
+		})
+		if nonPersistent {
+			t.Error("expected MCP command to have no flags")
+		}
+	}
+}
+
+func TestServeCmdShortDescriptions(t *testing.T) {
+	serveCmd := newServeCmd()
+
+	// Verify short descriptions are meaningful
+	if serveCmd.Short == "" {
+		t.Error("expected serve command to have short description")
+	}
+
+	for _, sub := range serveCmd.Commands() {
+		if sub.Short == "" {
+			t.Errorf("expected %s subcommand to have short description", sub.Name())
+		}
+	}
+}
+
+func TestHTTPCmdCustomPort(t *testing.T) {
+	cmd := newHTTPCmd()
+
+	if err := cmd.ParseFlags([]string{"--port", "4000"}); err != nil {
+		t.Fatalf("failed to parse flags: %v", err)
+	}
+
+	port, _ := cmd.Flags().GetInt("port")
+	if port != 4000 {
+		t.Errorf("expected port 4000, got %d", port)
+	}
+}
+
+func TestHTTPCmdAddrOnly(t *testing.T) {
+	cmd := newHTTPCmd()
+
+	if err := cmd.ParseFlags([]string{"--addr", "localhost:5000"}); err != nil {
+		t.Fatalf("failed to parse flags: %v", err)
+	}
+
+	addr, _ := cmd.Flags().GetString("addr")
+	if addr != "localhost:5000" {
+		t.Errorf("expected addr 'localhost:5000', got '%s'", addr)
+	}
+
+	// Port should still have default
+	port, _ := cmd.Flags().GetInt("port")
+	if port != 3000 {
+		t.Errorf("expected default port 3000, got %d", port)
 	}
 }

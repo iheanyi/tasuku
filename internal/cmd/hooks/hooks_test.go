@@ -272,3 +272,291 @@ func TestDetectTestSuccess(t *testing.T) {
 	}
 }
 
+func TestIsTestCommand(t *testing.T) {
+	tests := []struct {
+		command string
+		isTest  bool
+	}{
+		{"go test ./...", true},
+		{"npm test", true},
+		{"pytest", true},
+		{"yarn test", true},
+		{"jest", true},
+		{"make test", true},
+		{"go build", false},
+		{"npm install", false},
+		{"echo hello", false},
+	}
+
+	for _, tt := range tests {
+		got := isTestCommand(tt.command)
+		if got != tt.isTest {
+			t.Errorf("isTestCommand(%q) = %v, want %v", tt.command, got, tt.isTest)
+		}
+	}
+}
+
+func TestDetectTestFailure(t *testing.T) {
+	tests := []struct {
+		output  string
+		failure bool
+	}{
+		{"fail\n--- fail: TestSomething", true},
+		{"failed", true},
+		{"error:", true},
+		{"panic: runtime error", true},
+		{"exit status 1", true},
+		{"tests failed", true},
+		{"assertion failed", true},
+		{"pass\nok  github.com/example", false},
+		{"all tests passed", false},
+	}
+
+	for _, tt := range tests {
+		got := detectTestFailure(tt.output)
+		if got != tt.failure {
+			t.Errorf("detectTestFailure(%q) = %v, want %v", tt.output, got, tt.failure)
+		}
+	}
+}
+
+func TestDetectBugReport(t *testing.T) {
+	tests := []struct {
+		prompt string
+		isBug  bool
+	}{
+		{"there's a bug in the login page", true},
+		{"error when clicking submit button", true},
+		{"crash occurs on page load", true},
+		{"fix this broken feature", true},
+		{"failing test in the CI", true},
+		{"not working after deploy", true},
+		{"weird behavior with auth", true},
+		{"add a new feature for dark mode", false},
+		{"implement user authentication", false},
+		{"refactor the database layer", false},
+	}
+
+	for _, tt := range tests {
+		got := detectBugReport(tt.prompt)
+		if got != tt.isBug {
+			t.Errorf("detectBugReport(%q) = %v, want %v", tt.prompt, got, tt.isBug)
+		}
+	}
+}
+
+func TestDetectSignificantWork(t *testing.T) {
+	tests := []struct {
+		prompt      string
+		significant bool
+	}{
+		{"implement user authentication", true},
+		{"add feature for payments", true},
+		{"create new dashboard page", true},
+		{"build a REST API", true},
+		{"set up the database schema", true},
+		{"refactor the auth module", true},
+		{"integrate stripe payments", true},
+		{"fix this typo", false},
+		{"rename this variable", false},
+		{"what does this code do", false},
+		{"how does the auth work", false},
+	}
+
+	for _, tt := range tests {
+		got := detectSignificantWork(tt.prompt)
+		if got != tt.significant {
+			t.Errorf("detectSignificantWork(%q) = %v, want %v", tt.prompt, got, tt.significant)
+		}
+	}
+}
+
+func TestLooksLikeQuestion(t *testing.T) {
+	tests := []struct {
+		prompt     string
+		isQuestion bool
+	}{
+		{"what is the purpose of this function?", true},
+		{"how does authentication work?", true},
+		{"why does this test fail?", true},
+		{"can you explain this code?", true},
+		{"implement user login", false},
+		{"fix the bug in payment", false},
+		{"add dark mode support", false},
+	}
+
+	for _, tt := range tests {
+		got := looksLikeQuestion(tt.prompt)
+		if got != tt.isQuestion {
+			t.Errorf("looksLikeQuestion(%q) = %v, want %v", tt.prompt, got, tt.isQuestion)
+		}
+	}
+}
+
+func TestGetStatusIcon(t *testing.T) {
+	tests := []struct {
+		status task.Status
+		icon   string
+	}{
+		{task.StatusReady, "○"},
+		{task.StatusInProgress, "●"},
+		{task.StatusBlocked, "⊘"},
+		{task.StatusDone, "✓"},
+	}
+
+	for _, tt := range tests {
+		got := getStatusIcon(tt.status)
+		if got != tt.icon {
+			t.Errorf("getStatusIcon(%v) = %q, want %q", tt.status, got, tt.icon)
+		}
+	}
+}
+
+func TestTruncateString(t *testing.T) {
+	tests := []struct {
+		input    string
+		maxLen   int
+		expected string
+	}{
+		{"short", 10, "short"},
+		{"exactly ten", 10, "exactly..."},
+		{"a very long string that exceeds the limit", 20, "a very long strin..."},
+		{"", 10, ""},
+		{"abc", 3, "abc"},
+	}
+
+	for _, tt := range tests {
+		got := truncateString(tt.input, tt.maxLen)
+		if got != tt.expected {
+			t.Errorf("truncateString(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.expected)
+		}
+	}
+}
+
+func TestIsBugFixTask(t *testing.T) {
+	tests := []struct {
+		desc   string
+		isBug  bool
+	}{
+		{"fix login bug", true},
+		{"Fix authentication issue", true},
+		{"bugfix for payment", true},
+		{"repair broken link", true},
+		{"add new feature", false},
+		{"implement dark mode", false},
+		{"refactor database", false},
+	}
+
+	for _, tt := range tests {
+		got := isBugFixTask(tt.desc)
+		if got != tt.isBug {
+			t.Errorf("isBugFixTask(%q) = %v, want %v", tt.desc, got, tt.isBug)
+		}
+	}
+}
+
+func TestIsGitCommitCommand(t *testing.T) {
+	tests := []struct {
+		command  string
+		isCommit bool
+	}{
+		{"git commit -m 'message'", true},
+		{"git commit --amend", true},
+		{"git status", false},
+		{"git push", false},
+		{"npm install", false},
+	}
+
+	for _, tt := range tests {
+		got := isGitCommitCommand(tt.command)
+		if got != tt.isCommit {
+			t.Errorf("isGitCommitCommand(%q) = %v, want %v", tt.command, got, tt.isCommit)
+		}
+	}
+}
+
+func TestDetectLearningIntent(t *testing.T) {
+	tests := []struct {
+		prompt     string
+		isLearning bool
+	}{
+		{"til that Go maps are not concurrent-safe", true},
+		{"i learned that React hooks must be called in order", true},
+		{"realized that the API requires auth", true},
+		{"turns out the cache was stale", true},
+		{"note to self: always check nil", true},
+		{"implement user login", false},
+		{"fix the bug", false},
+	}
+
+	for _, tt := range tests {
+		got := detectLearningIntent(tt.prompt)
+		if got != tt.isLearning {
+			t.Errorf("detectLearningIntent(%q) = %v, want %v", tt.prompt, got, tt.isLearning)
+		}
+	}
+}
+
+func TestDetectDecisionPoint(t *testing.T) {
+	tests := []struct {
+		prompt     string
+		isDecision bool
+	}{
+		{"should we use React or Vue?", true},
+		{"either Redux or Context for state", true},
+		{"choosing between PostgreSQL or MongoDB", true},
+		{"implement the login feature", false},
+		{"fix the auth bug", false},
+	}
+
+	for _, tt := range tests {
+		got := detectDecisionPoint(tt.prompt)
+		if got != tt.isDecision {
+			t.Errorf("detectDecisionPoint(%q) = %v, want %v", tt.prompt, got, tt.isDecision)
+		}
+	}
+}
+
+func TestDetectShippingIntent(t *testing.T) {
+	tests := []struct {
+		prompt string
+		isShip bool
+	}{
+		{"let's deploy this to production", true},
+		{"ready to release", true},
+		{"ship it", true},
+		{"merge to main", true},
+		{"push to prod", true},
+		{"time to deploy the changes", true},
+		{"implement new feature", false},
+		{"fix the bug", false},
+	}
+
+	for _, tt := range tests {
+		got := detectShippingIntent(tt.prompt)
+		if got != tt.isShip {
+			t.Errorf("detectShippingIntent(%q) = %v, want %v", tt.prompt, got, tt.isShip)
+		}
+	}
+}
+
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		duration time.Duration
+		expected string
+	}{
+		{30 * time.Second, "30s"},
+		{90 * time.Second, "1m30s"},
+		{3600 * time.Second, "1h0m"},
+		{3661 * time.Second, "1h1m"},
+		{0, "0s"},
+	}
+
+	for _, tt := range tests {
+		got := formatDuration(tt.duration)
+		if got != tt.expected {
+			t.Errorf("formatDuration(%v) = %q, want %q", tt.duration, got, tt.expected)
+		}
+	}
+}
+

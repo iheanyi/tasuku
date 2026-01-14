@@ -844,3 +844,480 @@ func TestArchiveCORSHeaders(t *testing.T) {
 		t.Error("expected CORS header Access-Control-Allow-Origin: *")
 	}
 }
+
+func TestTimerStartStop(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a task
+	body := bytes.NewBufferString(`{"id": "timer-test", "description": "Timer test task"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Start timer
+	req = httptest.NewRequest("POST", "/tasks/timer-test/timer/start", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp["status"] != "timer_started" {
+		t.Errorf("expected status 'timer_started', got '%v'", resp["status"])
+	}
+
+	// Check timers endpoint - returns array of timer info objects
+	req = httptest.NewRequest("GET", "/timers", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var timers []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &timers)
+
+	found := false
+	for _, timer := range timers {
+		if timer["id"] == "timer-test" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected timer-test to have active timer")
+	}
+
+	// Stop timer
+	req = httptest.NewRequest("POST", "/tasks/timer-test/timer/stop", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	json.Unmarshal(w.Body.Bytes(), &resp)
+
+	if resp["status"] != "timer_stopped" {
+		t.Errorf("expected status 'timer_stopped', got '%v'", resp["status"])
+	}
+}
+
+func TestTimerTaskNotFound(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("POST", "/tasks/nonexistent/timer/start", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Returns 400 because the error is from the store, not a route issue
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestAddTag(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a task
+	body := bytes.NewBufferString(`{"id": "tag-test", "description": "Tag test task"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Add tag - tag name is in the URL path
+	req = httptest.NewRequest("PUT", "/tasks/tag-test/tags/important", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify tag was added
+	req = httptest.NewRequest("GET", "/tasks/tag-test", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var task map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &task)
+
+	// Tags may be nil if empty
+	if task["tags"] != nil {
+		tags := task["tags"].([]interface{})
+		found := false
+		for _, tag := range tags {
+			if tag == "important" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("expected tag 'important' to be present")
+		}
+	} else {
+		t.Error("expected tags to be non-nil after adding")
+	}
+}
+
+func TestRemoveTag(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a task with tags
+	body := bytes.NewBufferString(`{"id": "tag-remove-test", "description": "Remove tag test"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Add tag first - tag name in URL path
+	req = httptest.NewRequest("PUT", "/tasks/tag-remove-test/tags/removeme", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Remove tag - tag name in URL path
+	req = httptest.NewRequest("DELETE", "/tasks/tag-remove-test/tags/removeme", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify tag was removed
+	req = httptest.NewRequest("GET", "/tasks/tag-remove-test", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var task map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &task)
+
+	if task["tags"] != nil {
+		tags := task["tags"].([]interface{})
+		for _, tag := range tags {
+			if tag == "removeme" {
+				t.Error("tag 'removeme' should have been removed")
+			}
+		}
+	}
+}
+
+func TestSetField(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a task
+	body := bytes.NewBufferString(`{"id": "field-test", "description": "Field test task"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Set field - key in URL path, value in body
+	body = bytes.NewBufferString(`{"value": "2h"}`)
+	req = httptest.NewRequest("PUT", "/tasks/field-test/fields/estimate", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify field was set
+	req = httptest.NewRequest("GET", "/tasks/field-test", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var task map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &task)
+
+	if task["fields"] != nil {
+		fields := task["fields"].(map[string]interface{})
+		if fields["estimate"] != "2h" {
+			t.Errorf("expected estimate '2h', got '%v'", fields["estimate"])
+		}
+	} else {
+		t.Error("expected fields to be non-nil after setting")
+	}
+}
+
+func TestRemoveField(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a task
+	body := bytes.NewBufferString(`{"id": "field-remove-test", "description": "Field remove test"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Set field first - key in URL path
+	body = bytes.NewBufferString(`{"value": "auth"}`)
+	req = httptest.NewRequest("PUT", "/tasks/field-remove-test/fields/component", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Remove field - key in URL path
+	req = httptest.NewRequest("DELETE", "/tasks/field-remove-test/fields/component", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify field was removed
+	req = httptest.NewRequest("GET", "/tasks/field-remove-test", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var task map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &task)
+
+	if task["fields"] != nil {
+		fields := task["fields"].(map[string]interface{})
+		if fields["component"] != nil {
+			t.Error("field 'component' should have been removed")
+		}
+	}
+}
+
+func TestGetTimersEmpty(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/timers", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var timers []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &timers)
+
+	if len(timers) != 0 {
+		t.Errorf("expected empty timers array, got %d entries", len(timers))
+	}
+}
+
+func TestDashboard(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	// Dashboard should return HTML
+	contentType := w.Header().Get("Content-Type")
+	if contentType != "" && contentType != "text/html; charset=utf-8" && contentType != "text/html" {
+		// Accept empty or text/html
+		body := w.Body.String()
+		if len(body) > 0 && body[0] != '<' {
+			t.Errorf("expected HTML content, got content-type: %s", contentType)
+		}
+	}
+}
+
+func TestPartialTasks(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create a task
+	body := bytes.NewBufferString(`{"id": "partial-test", "description": "Partial test task"}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Get partial tasks
+	req = httptest.NewRequest("GET", "/partials/tasks", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	// Should return HTML partial
+	body2 := w.Body.String()
+	if len(body2) == 0 {
+		t.Error("expected non-empty partial response")
+	}
+}
+
+func TestPartialStats(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/partials/stats", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+}
+
+func TestPartialProgress(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("GET", "/partials/progress", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+}
+
+// Note: UpdateTaskDescription removed - HTTP API only supports status/priority updates
+// Description updates are available via CLI only
+
+func TestUpdateTaskNotFound(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	body := bytes.NewBufferString(`{"status": "done"}`)
+	req := httptest.NewRequest("PUT", "/tasks/nonexistent", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Returns 400 with error message, not 404
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestDeleteTaskNotFound(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest("DELETE", "/tasks/nonexistent", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Returns 400 with error message, not 404
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestArchiveTaskNotFound(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	body := bytes.NewBufferString(`{}`)
+	req := httptest.NewRequest("POST", "/tasks/nonexistent/archive", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Returns 400 with error message, not 404
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+// Tag and Field route tests removed - API uses path-based routing
+// e.g., /tasks/{id}/tags/{tag} not /tasks/{id}/tags with JSON body
+
+func TestInvalidJSON(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	body := bytes.NewBufferString(`{invalid json}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+func TestCreateTaskWithTags(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	body := bytes.NewBufferString(`{"id": "tagged-task", "description": "Task with tags", "tags": ["bug", "urgent"]}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify tags
+	req = httptest.NewRequest("GET", "/tasks/tagged-task", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var task map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &task)
+
+	tags := task["tags"].([]interface{})
+	if len(tags) != 2 {
+		t.Errorf("expected 2 tags, got %d", len(tags))
+	}
+}
+
+func TestListTasksWithTagFilter(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// Create tasks with different tags
+	body := bytes.NewBufferString(`{"id": "bug-task", "description": "Bug task", "tags": ["bug"]}`)
+	req := httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body = bytes.NewBufferString(`{"id": "feature-task", "description": "Feature task", "tags": ["feature"]}`)
+	req = httptest.NewRequest("POST", "/tasks", body)
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	// Filter by bug tag
+	req = httptest.NewRequest("GET", "/tasks?tag=bug", nil)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	var tasks []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &tasks)
+
+	if len(tasks) != 1 {
+		t.Errorf("expected 1 task with bug tag, got %d", len(tasks))
+	}
+
+	if tasks[0]["id"] != "bug-task" {
+		t.Errorf("expected bug-task, got %v", tasks[0]["id"])
+	}
+}

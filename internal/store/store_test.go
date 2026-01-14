@@ -795,6 +795,388 @@ func TestStore_ClearArchive_EmptyArchive(t *testing.T) {
 	}
 }
 
+func TestStore_AddDecision(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	d := task.Decision{
+		ID:      "test-decision",
+		Chose:   "Option A",
+		Over:    []string{"Option B", "Option C"},
+		Because: "It was the best choice",
+	}
+
+	err := s.AddDecision(d)
+	if err != nil {
+		t.Fatalf("add decision failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if len(f.Context.Decisions) != 1 {
+		t.Fatalf("expected 1 decision, got %d", len(f.Context.Decisions))
+	}
+
+	if f.Context.Decisions[0].Chose != "Option A" {
+		t.Errorf("wrong chose: %s", f.Context.Decisions[0].Chose)
+	}
+}
+
+// Note: RemoveDecision is not implemented in Store - decisions are removed via
+// the decision CLI command which manipulates the file directly
+
+func TestStore_AddNote(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("note-task", "Task with note")
+
+	noteID, err := s.AddNote("note-task", "This is a note")
+	if err != nil {
+		t.Fatalf("add note failed: %v", err)
+	}
+	if noteID == "" {
+		t.Error("expected non-empty note ID")
+	}
+
+	f, _ := s.Read()
+	notes := f.Context.Notes["note-task"]
+	if len(notes) != 1 {
+		t.Fatalf("expected 1 note, got %d", len(notes))
+	}
+	if notes[0].Text != "This is a note" {
+		t.Errorf("wrong note text: %s", notes[0].Text)
+	}
+}
+
+func TestStore_AddNoteTaskNotFound(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	_, err := s.AddNote("nonexistent", "Note text")
+	if err == nil {
+		t.Error("expected error when adding note to non-existent task")
+	}
+}
+
+func TestStore_RemoveNote(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("note-task", "Task")
+	noteID, _ := s.AddNote("note-task", "Note to remove")
+
+	removed, err := s.RemoveNote("note-task", noteID)
+	if err != nil {
+		t.Fatalf("remove note failed: %v", err)
+	}
+	if removed != "Note to remove" {
+		t.Errorf("wrong removed text: %s", removed)
+	}
+
+	f, _ := s.Read()
+	if len(f.Context.Notes["note-task"]) != 0 {
+		t.Error("note should be removed")
+	}
+}
+
+func TestStore_BlockTask(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("blocker", "Blocker task")
+	s.AddTask("blocked", "Blocked task")
+
+	err := s.BlockTask("blocked", []string{"blocker"})
+	if err != nil {
+		t.Fatalf("block task failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if f.Tasks["blocked"].Status != task.StatusBlocked {
+		t.Error("task should be blocked")
+	}
+	if len(f.Tasks["blocked"].BlockedBy) != 1 {
+		t.Error("task should have one blocker")
+	}
+}
+
+func TestStore_UnblockTask(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("blocker", "Blocker")
+	s.AddTask("blocked", "Blocked")
+	s.BlockTask("blocked", []string{"blocker"})
+
+	err := s.UnblockTask("blocked")
+	if err != nil {
+		t.Fatalf("unblock task failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if f.Tasks["blocked"].Status != task.StatusReady {
+		t.Error("task should be ready after unblock")
+	}
+}
+
+func TestStore_SetOwner(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("owned-task", "Task")
+
+	err := s.SetOwner("owned-task", "test-owner")
+	if err != nil {
+		t.Fatalf("set owner failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if f.Tasks["owned-task"].Owner == nil || *f.Tasks["owned-task"].Owner != "test-owner" {
+		t.Error("owner should be set")
+	}
+
+	// Clear owner
+	err = s.ClearOwner("owned-task")
+	if err != nil {
+		t.Fatalf("clear owner failed: %v", err)
+	}
+
+	f, _ = s.Read()
+	if f.Tasks["owned-task"].Owner != nil {
+		t.Error("owner should be cleared")
+	}
+}
+
+func TestStore_SetTag(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("tag-task", "Task")
+
+	err := s.AddTag("tag-task", "important")
+	if err != nil {
+		t.Fatalf("add tag failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if !f.Tasks["tag-task"].HasTag("important") {
+		t.Error("task should have tag")
+	}
+}
+
+func TestStore_RemoveTag(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("tag-task", "Task")
+	s.AddTag("tag-task", "remove-me")
+
+	err := s.RemoveTag("tag-task", "remove-me")
+	if err != nil {
+		t.Fatalf("remove tag failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if f.Tasks["tag-task"].HasTag("remove-me") {
+		t.Error("tag should be removed")
+	}
+}
+
+func TestStore_SetField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("field-task", "Task")
+
+	err := s.SetField("field-task", "estimate", "2h")
+	if err != nil {
+		t.Fatalf("set field failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if f.Tasks["field-task"].Fields["estimate"] != "2h" {
+		t.Error("field should be set")
+	}
+}
+
+func TestStore_RemoveField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("field-task", "Task")
+	s.SetField("field-task", "estimate", "2h")
+
+	err := s.RemoveField("field-task", "estimate")
+	if err != nil {
+		t.Fatalf("remove field failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if _, exists := f.Tasks["field-task"].Fields["estimate"]; exists {
+		t.Error("field should be removed")
+	}
+}
+
+func TestStore_Timer(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("timer-task", "Task")
+
+	// Start timer
+	err := s.StartTimer("timer-task")
+	if err != nil {
+		t.Fatalf("start timer failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if f.Tasks["timer-task"].TimerStart == nil {
+		t.Error("timer should be running")
+	}
+
+	// Stop timer
+	elapsed, err := s.StopTimer("timer-task")
+	if err != nil {
+		t.Fatalf("stop timer failed: %v", err)
+	}
+
+	if elapsed < 0 {
+		t.Error("elapsed time should be positive")
+	}
+}
+
+func TestStore_TimerNotRunning(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("no-timer", "Task")
+
+	_, err := s.StopTimer("no-timer")
+	if err == nil {
+		t.Error("stopping non-running timer should fail")
+	}
+}
+
+func TestStore_StartTimerAlreadyRunning(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("timer-task", "Task")
+	s.StartTimer("timer-task")
+
+	err := s.StartTimer("timer-task")
+	if err == nil {
+		t.Error("starting timer twice should fail")
+	}
+}
+
+func TestStore_ClaimRelease(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("claim-task", "Task")
+
+	err := s.ClaimTask("claim-task", "agent-1")
+	if err != nil {
+		t.Fatalf("claim task failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if f.Tasks["claim-task"].Owner == nil || *f.Tasks["claim-task"].Owner != "agent-1" {
+		t.Error("task should be claimed")
+	}
+
+	err = s.ReleaseTask("claim-task")
+	if err != nil {
+		t.Fatalf("release task failed: %v", err)
+	}
+
+	f, _ = s.Read()
+	if f.Tasks["claim-task"].Owner != nil {
+		t.Error("task should be released")
+	}
+}
+
+func TestStore_DeleteTask(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("delete-me", "Task to delete")
+
+	err := s.DeleteTask("delete-me")
+	if err != nil {
+		t.Fatalf("delete task failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if _, exists := f.Tasks["delete-me"]; exists {
+		t.Error("task should be deleted")
+	}
+}
+
+func TestStore_DeleteTaskNotFound(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	err := s.DeleteTask("nonexistent")
+	if err == nil {
+		t.Error("deleting nonexistent task should fail")
+	}
+}
+
+func TestStore_SetDescription(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tasuku.json")
+	s := New(path)
+	s.Init()
+
+	s.AddTask("desc-task", "Original")
+
+	err := s.SetDescription("desc-task", "Updated description")
+	if err != nil {
+		t.Fatalf("set description failed: %v", err)
+	}
+
+	f, _ := s.Read()
+	if f.Tasks["desc-task"].Description != "Updated description" {
+		t.Error("description should be updated")
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }

@@ -105,3 +105,110 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestBuildTaskContextWithTags(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add a task with tags
+	h.Store().AddTaskWithTags("tagged-task", "Task with tags", nil, []string{"bug", "urgent"})
+
+	f, _ := h.Store().Read()
+	task := f.Tasks["tagged-task"]
+
+	context := buildTaskContext("tagged-task", task, f)
+
+	if !contains(context, "Tags") {
+		t.Error("expected tags in context for tagged task")
+	}
+	if !contains(context, "bug") {
+		t.Error("expected 'bug' tag in context")
+	}
+	if !contains(context, "urgent") {
+		t.Error("expected 'urgent' tag in context")
+	}
+}
+
+func TestBuildTaskContextWithoutNotes(t *testing.T) {
+	h := testutil.New(t)
+
+	h.AddTask("no-notes-task", "Task without notes")
+
+	f, _ := h.Store().Read()
+	task := f.Tasks["no-notes-task"]
+
+	context := buildTaskContext("no-notes-task", task, f)
+
+	// Should not contain Notes section
+	if contains(context, "### Notes") {
+		t.Error("did not expect Notes section for task without notes")
+	}
+}
+
+func TestBuildTaskContextContainsTaskSection(t *testing.T) {
+	h := testutil.New(t)
+
+	h.AddTask("test-task", "Test description")
+
+	f, _ := h.Store().Read()
+	task := f.Tasks["test-task"]
+
+	context := buildTaskContext("test-task", task, f)
+
+	if !contains(context, "## Task") {
+		t.Error("expected Task section header")
+	}
+	if !contains(context, "**ID:**") {
+		t.Error("expected ID field")
+	}
+	if !contains(context, "**Description:**") {
+		t.Error("expected Description field")
+	}
+	if !contains(context, "**Status:**") {
+		t.Error("expected Status field")
+	}
+}
+
+func TestCreateCmdTaskNotFound(t *testing.T) {
+	h := testutil.New(t)
+
+	// Try to create PR with non-existent task (only if gh is available)
+	if !hasGhCLI() {
+		t.Skip("gh CLI not installed")
+	}
+
+	err := h.Execute(Cmd, "create", "--task", "non-existent")
+	h.AssertError(err)
+	h.AssertErrorContainsMsg(err, "task not found")
+}
+
+func TestListCmdExists(t *testing.T) {
+	// Verify list subcommand exists
+	subcommands := make(map[string]bool)
+	for _, sub := range Cmd.Commands() {
+		subcommands[sub.Use] = true
+	}
+
+	if !subcommands["list"] {
+		t.Error("expected 'list' subcommand")
+	}
+}
+
+func TestBuildTaskContextWithMultipleNotes(t *testing.T) {
+	h := testutil.New(t)
+
+	h.AddTask("multi-note-task", "Task with multiple notes")
+	h.AddNote("multi-note-task", "First note")
+	h.AddNote("multi-note-task", "Second note")
+
+	f, _ := h.Store().Read()
+	task := f.Tasks["multi-note-task"]
+
+	context := buildTaskContext("multi-note-task", task, f)
+
+	if !contains(context, "First note") {
+		t.Error("expected first note in context")
+	}
+	if !contains(context, "Second note") {
+		t.Error("expected second note in context")
+	}
+}

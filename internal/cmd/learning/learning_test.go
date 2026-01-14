@@ -163,3 +163,90 @@ func TestLearningRulesJSON(t *testing.T) {
 		t.Errorf("expected JSON output with is_rule, got:\n%s", output)
 	}
 }
+
+func TestLearningAddNoArgs(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "add")
+	h.AssertError(err)
+}
+
+func TestLearningRemoveNoArgs(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "remove")
+	h.AssertError(err)
+}
+
+func TestLearningCmdStructure(t *testing.T) {
+	if Cmd.Use != "learning" {
+		t.Errorf("expected Use to be 'learning', got %s", Cmd.Use)
+	}
+
+	// Check subcommands exist - extract command name (first word) from Use
+	subcommands := make(map[string]bool)
+	for _, sub := range Cmd.Commands() {
+		// Use field may be "add \"insight\"" so extract just the command name
+		name := strings.Fields(sub.Use)[0]
+		subcommands[name] = true
+	}
+
+	expected := []string{"list", "add", "remove", "rules", "promote"}
+	for _, name := range expected {
+		if !subcommands[name] {
+			t.Errorf("expected '%s' subcommand", name)
+		}
+	}
+}
+
+func TestLearningAddAlways(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "add", "Always test your code")
+	h.AssertNoError(err)
+	h.AssertOutputContains("[RULE]")
+}
+
+func TestLearningAddAvoid(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "add", "Avoid using global variables")
+	h.AssertNoError(err)
+	h.AssertOutputContains("[RULE]")
+}
+
+func TestLearningAddPrefer(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "add", "Prefer composition over inheritance")
+	h.AssertNoError(err)
+	h.AssertOutputContains("[RULE]")
+}
+
+func TestLearningAddRegular(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "add", "Redis caches data effectively")
+	h.AssertNoError(err)
+	h.AssertOutputNotContains("[RULE]")
+}
+
+func TestLearningListShowsRuleIndicator(t *testing.T) {
+	h := testutil.New(t)
+
+	h.Execute(Cmd, "add", "Never skip tests")
+	h.Execute(Cmd, "add", "Regular observation")
+
+	err := h.Execute(Cmd, "list")
+	h.AssertNoError(err)
+	// Rule learnings should have indicator
+	h.AssertOutputContains("[RULE]")
+}
+
+func TestLearningAddWithScope(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "add", "--scope", "src/api/**", "API error handling pattern")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Learning added")
+}

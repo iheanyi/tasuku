@@ -424,3 +424,538 @@ func TestGenerateTaskID_EmptyDescription(t *testing.T) {
 		t.Errorf("expected prefix 'task-' for empty description, got %s", id)
 	}
 }
+
+func TestDurationMarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration Duration
+		expected string
+	}{
+		{"zero", Duration(0), "null"},
+		{"one hour", Duration(time.Hour), `"1h0m0s"`},
+		{"30 minutes", Duration(30 * time.Minute), `"30m0s"`},
+		{"90 seconds", Duration(90 * time.Second), `"1m30s"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := tt.duration.MarshalJSON()
+			if err != nil {
+				t.Fatalf("MarshalJSON failed: %v", err)
+			}
+			if string(data) != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, string(data))
+			}
+		})
+	}
+}
+
+func TestDurationUnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected Duration
+	}{
+		{"null", "null", Duration(0)},
+		{"empty string", `""`, Duration(0)},
+		{"one hour", `"1h0m0s"`, Duration(time.Hour)},
+		{"30 minutes", `"30m0s"`, Duration(30 * time.Minute)},
+		{"2h30m", `"2h30m"`, Duration(2*time.Hour + 30*time.Minute)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var d Duration
+			err := d.UnmarshalJSON([]byte(tt.input))
+			if err != nil {
+				t.Fatalf("UnmarshalJSON failed: %v", err)
+			}
+			if d != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, d)
+			}
+		})
+	}
+}
+
+func TestDurationUnmarshalJSON_Invalid(t *testing.T) {
+	var d Duration
+	err := d.UnmarshalJSON([]byte(`"invalid"`))
+	if err == nil {
+		t.Error("expected error for invalid duration")
+	}
+}
+
+func TestDurationString(t *testing.T) {
+	d := Duration(2*time.Hour + 30*time.Minute)
+	expected := "2h30m0s"
+	if d.String() != expected {
+		t.Errorf("expected %s, got %s", expected, d.String())
+	}
+}
+
+func TestDurationTimeDuration(t *testing.T) {
+	d := Duration(time.Hour)
+	if d.TimeDuration() != time.Hour {
+		t.Errorf("expected %v, got %v", time.Hour, d.TimeDuration())
+	}
+}
+
+func TestDurationFormatHumanReadable(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration Duration
+		expected string
+	}{
+		{"zero", Duration(0), "0s"},
+		{"seconds only", Duration(45 * time.Second), "45s"},
+		{"minutes only", Duration(30 * time.Minute), "30m"},
+		{"hours only", Duration(2 * time.Hour), "2h"},
+		{"hours and minutes", Duration(2*time.Hour + 30*time.Minute), "2h30m"},
+		{"full", Duration(2*time.Hour + 30*time.Minute + 15*time.Second), "2h30m15s"},
+		{"minutes and seconds", Duration(5*time.Minute + 30*time.Second), "5m30s"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.duration.FormatHumanReadable()
+			if result != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestTaskIsTimerRunning(t *testing.T) {
+	now := time.Now()
+
+	// Timer not running
+	task := Task{}
+	if task.IsTimerRunning() {
+		t.Error("expected timer not running")
+	}
+
+	// Timer running
+	task.TimerStart = &now
+	if !task.IsTimerRunning() {
+		t.Error("expected timer running")
+	}
+}
+
+func TestTaskCurrentDuration(t *testing.T) {
+	// No timer, no previous duration
+	task := Task{}
+	if task.CurrentDuration() != 0 {
+		t.Errorf("expected 0, got %v", task.CurrentDuration())
+	}
+
+	// With previous duration, no timer
+	task.Duration = Duration(time.Hour)
+	if task.CurrentDuration() != time.Hour {
+		t.Errorf("expected 1h, got %v", task.CurrentDuration())
+	}
+
+	// With timer running (approximate check)
+	start := time.Now().Add(-10 * time.Second)
+	task.TimerStart = &start
+	current := task.CurrentDuration()
+	// Should be at least 1h + 10s
+	if current < time.Hour+10*time.Second {
+		t.Errorf("expected at least 1h10s, got %v", current)
+	}
+}
+
+func TestTaskIsClaimStale(t *testing.T) {
+	task := Task{}
+
+	// No claim - not stale
+	if task.IsClaimStale(time.Hour) {
+		t.Error("expected no claim to not be stale")
+	}
+
+	// Fresh claim - not stale
+	now := time.Now()
+	task.ClaimedAt = &now
+	if task.IsClaimStale(time.Hour) {
+		t.Error("expected fresh claim to not be stale")
+	}
+
+	// Old claim - stale
+	oldTime := time.Now().Add(-2 * time.Hour)
+	task.ClaimedAt = &oldTime
+	if !task.IsClaimStale(time.Hour) {
+		t.Error("expected old claim to be stale")
+	}
+}
+
+func TestTaskHasTag(t *testing.T) {
+	task := Task{Tags: []string{"bug", "urgent"}}
+
+	if !task.HasTag("bug") {
+		t.Error("expected task to have 'bug' tag")
+	}
+	if !task.HasTag("urgent") {
+		t.Error("expected task to have 'urgent' tag")
+	}
+	if task.HasTag("feature") {
+		t.Error("expected task to not have 'feature' tag")
+	}
+}
+
+func TestTaskHasTagEmpty(t *testing.T) {
+	task := Task{}
+	if task.HasTag("any") {
+		t.Error("expected empty tags to not match")
+	}
+}
+
+func TestTaskIsSubtask(t *testing.T) {
+	task := Task{}
+	if task.IsSubtask() {
+		t.Error("expected task without parent to not be subtask")
+	}
+
+	parentID := "parent-task"
+	task.ParentID = &parentID
+	if !task.IsSubtask() {
+		t.Error("expected task with parent to be subtask")
+	}
+
+	emptyParent := ""
+	task.ParentID = &emptyParent
+	if task.IsSubtask() {
+		t.Error("expected task with empty parent to not be subtask")
+	}
+}
+
+func TestTaskGetParentID(t *testing.T) {
+	task := Task{}
+	if task.GetParentID() != "" {
+		t.Error("expected empty parent ID")
+	}
+
+	parentID := "parent-task"
+	task.ParentID = &parentID
+	if task.GetParentID() != "parent-task" {
+		t.Errorf("expected 'parent-task', got %s", task.GetParentID())
+	}
+}
+
+func TestTaskGetPriority(t *testing.T) {
+	task := Task{}
+	if task.GetPriority() != PriorityNormal {
+		t.Errorf("expected default priority %d, got %d", PriorityNormal, task.GetPriority())
+	}
+
+	priority := PriorityHigh
+	task.Priority = &priority
+	if task.GetPriority() != PriorityHigh {
+		t.Errorf("expected priority %d, got %d", PriorityHigh, task.GetPriority())
+	}
+}
+
+func TestPriorityName(t *testing.T) {
+	tests := []struct {
+		priority int
+		expected string
+	}{
+		{PriorityCritical, "critical"},
+		{PriorityHigh, "high"},
+		{PriorityNormal, "normal"},
+		{PriorityLow, "low"},
+		{PriorityBacklog, "backlog"},
+		{99, "unknown"},
+		{-1, "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			result := PriorityName(tt.priority)
+			if result != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestParsePriority(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int
+	}{
+		{"0", PriorityCritical},
+		{"critical", PriorityCritical},
+		{"CRITICAL", PriorityCritical},
+		{"1", PriorityHigh},
+		{"high", PriorityHigh},
+		{"2", PriorityNormal},
+		{"normal", PriorityNormal},
+		{"3", PriorityLow},
+		{"low", PriorityLow},
+		{"4", PriorityBacklog},
+		{"backlog", PriorityBacklog},
+		{"invalid", -1},
+		{"", -1},
+		{"5", -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := ParsePriority(tt.input)
+			if result != tt.expected {
+				t.Errorf("expected %d, got %d", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestDecisionStruct(t *testing.T) {
+	decision := Decision{
+		ID:        "test-decision",
+		Chose:     "Option A",
+		Over:      []string{"Option B", "Option C"},
+		Because:   "It was the best choice",
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if decision.ID != "test-decision" {
+		t.Errorf("expected ID 'test-decision', got %s", decision.ID)
+	}
+	if decision.Chose != "Option A" {
+		t.Errorf("expected Chose 'Option A', got %s", decision.Chose)
+	}
+	if len(decision.Over) != 2 {
+		t.Errorf("expected 2 alternatives, got %d", len(decision.Over))
+	}
+}
+
+func TestNoteStruct(t *testing.T) {
+	note := Note{
+		ID:        "abc123",
+		Text:      "Test note",
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if note.ID != "abc123" {
+		t.Errorf("expected ID 'abc123', got %s", note.ID)
+	}
+	if note.Text != "Test note" {
+		t.Errorf("expected Text 'Test note', got %s", note.Text)
+	}
+}
+
+func TestArchivedTaskStruct(t *testing.T) {
+	now := time.Now().UTC()
+	archived := ArchivedTask{
+		Task: Task{
+			Status:      StatusDone,
+			Description: "Completed task",
+			CreatedAt:   now.Add(-24 * time.Hour),
+			UpdatedAt:   now,
+		},
+		ArchivedAt: now,
+		Summary:    "Task was completed successfully",
+		TotalTime:  Duration(2 * time.Hour),
+	}
+
+	if archived.Status != StatusDone {
+		t.Errorf("expected status done, got %s", archived.Status)
+	}
+	if archived.Summary != "Task was completed successfully" {
+		t.Errorf("expected summary, got %s", archived.Summary)
+	}
+}
+
+func TestFormatLocalTime(t *testing.T) {
+	// Zero time
+	if FormatLocalTime(time.Time{}) != "" {
+		t.Error("expected empty string for zero time")
+	}
+
+	// Non-zero time (just verify it doesn't panic and returns non-empty)
+	result := FormatLocalTime(time.Now())
+	if result == "" {
+		t.Error("expected non-empty result for non-zero time")
+	}
+}
+
+func TestFormatLocalDateTime(t *testing.T) {
+	// Zero time
+	if FormatLocalDateTime(time.Time{}) != "" {
+		t.Error("expected empty string for zero time")
+	}
+
+	// Non-zero time
+	result := FormatLocalDateTime(time.Now())
+	if result == "" {
+		t.Error("expected non-empty result")
+	}
+}
+
+func TestFormatLocalDateOnly(t *testing.T) {
+	// Zero time
+	if FormatLocalDateOnly(time.Time{}) != "" {
+		t.Error("expected empty string for zero time")
+	}
+
+	// Non-zero time
+	result := FormatLocalDateOnly(time.Now())
+	if result == "" {
+		t.Error("expected non-empty result")
+	}
+}
+
+func TestFormatRelativeTime(t *testing.T) {
+	// Zero time
+	if FormatRelativeTime(time.Time{}) != "" {
+		t.Error("expected empty string for zero time")
+	}
+
+	// Just now
+	result := FormatRelativeTime(time.Now())
+	if result != "just now" {
+		t.Errorf("expected 'just now', got %s", result)
+	}
+
+	// Minutes ago
+	result = FormatRelativeTime(time.Now().Add(-5 * time.Minute))
+	if !strings.Contains(result, "minutes ago") {
+		t.Errorf("expected 'X minutes ago', got %s", result)
+	}
+
+	// 1 minute ago
+	result = FormatRelativeTime(time.Now().Add(-1 * time.Minute))
+	if result != "1 minute ago" {
+		t.Errorf("expected '1 minute ago', got %s", result)
+	}
+
+	// Hours ago
+	result = FormatRelativeTime(time.Now().Add(-3 * time.Hour))
+	if !strings.Contains(result, "hours ago") {
+		t.Errorf("expected 'X hours ago', got %s", result)
+	}
+
+	// 1 hour ago
+	result = FormatRelativeTime(time.Now().Add(-1 * time.Hour))
+	if result != "1 hour ago" {
+		t.Errorf("expected '1 hour ago', got %s", result)
+	}
+
+	// Yesterday
+	result = FormatRelativeTime(time.Now().Add(-30 * time.Hour))
+	if result != "yesterday" {
+		t.Errorf("expected 'yesterday', got %s", result)
+	}
+
+	// Days ago
+	result = FormatRelativeTime(time.Now().Add(-4 * 24 * time.Hour))
+	if !strings.Contains(result, "days ago") {
+		t.Errorf("expected 'X days ago', got %s", result)
+	}
+
+	// Older than 7 days - should fall back to formatted date
+	result = FormatRelativeTime(time.Now().Add(-10 * 24 * time.Hour))
+	if strings.Contains(result, "ago") {
+		t.Errorf("expected formatted date, got %s", result)
+	}
+}
+
+func TestContextUnmarshalJSON_OldNotesFormat(t *testing.T) {
+	// Old format: notes as map[string][]string
+	oldJSON := `{
+		"learnings": [],
+		"decisions": [],
+		"notes": {"task-1": ["Note 1", "Note 2"]}
+	}`
+
+	var ctx Context
+	if err := json.Unmarshal([]byte(oldJSON), &ctx); err != nil {
+		t.Fatalf("failed to unmarshal old notes format: %v", err)
+	}
+
+	if len(ctx.Notes["task-1"]) != 2 {
+		t.Fatalf("expected 2 notes, got %d", len(ctx.Notes["task-1"]))
+	}
+
+	if ctx.Notes["task-1"][0].Text != "Note 1" {
+		t.Errorf("expected 'Note 1', got %s", ctx.Notes["task-1"][0].Text)
+	}
+
+	if ctx.Notes["task-1"][0].ID == "" {
+		t.Error("expected generated ID for migrated note")
+	}
+}
+
+func TestContextUnmarshalJSON_NewNotesFormat(t *testing.T) {
+	// New format: notes as map[string][]Note
+	newJSON := `{
+		"learnings": [],
+		"decisions": [],
+		"notes": {"task-1": [{"id": "abc123", "text": "New note", "created_at": "2024-01-01T00:00:00Z"}]}
+	}`
+
+	var ctx Context
+	if err := json.Unmarshal([]byte(newJSON), &ctx); err != nil {
+		t.Fatalf("failed to unmarshal new notes format: %v", err)
+	}
+
+	if len(ctx.Notes["task-1"]) != 1 {
+		t.Fatalf("expected 1 note, got %d", len(ctx.Notes["task-1"]))
+	}
+
+	if ctx.Notes["task-1"][0].ID != "abc123" {
+		t.Errorf("expected ID 'abc123', got %s", ctx.Notes["task-1"][0].ID)
+	}
+}
+
+func TestContextUnmarshalJSON_EmptyFields(t *testing.T) {
+	emptyJSON := `{}`
+
+	var ctx Context
+	if err := json.Unmarshal([]byte(emptyJSON), &ctx); err != nil {
+		t.Fatalf("failed to unmarshal empty context: %v", err)
+	}
+
+	if ctx.Learnings == nil {
+		t.Error("expected empty learnings slice, not nil")
+	}
+
+	if ctx.Notes == nil {
+		t.Error("expected empty notes map, not nil")
+	}
+}
+
+func TestLearningScope(t *testing.T) {
+	learning := Learning{
+		ID:        "abc123",
+		Text:      "API error handling pattern",
+		IsRule:    true,
+		Scope:     "src/api/**",
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if learning.Scope != "src/api/**" {
+		t.Errorf("expected scope 'src/api/**', got %s", learning.Scope)
+	}
+
+	// Test JSON serialization preserves scope
+	data, err := json.Marshal(learning)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var unmarshaled Learning
+	if err := json.Unmarshal(data, &unmarshaled); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if unmarshaled.Scope != "src/api/**" {
+		t.Error("Scope not preserved after JSON round-trip")
+	}
+}
+
+func TestValidTransition_UnknownStatus(t *testing.T) {
+	result := ValidTransition(Status("unknown"), StatusReady)
+	if result {
+		t.Error("expected false for unknown status")
+	}
+}
