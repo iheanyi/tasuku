@@ -18,10 +18,110 @@
       "priority": 1,
       "file": "tasks/refactor-tui-to-use-nonblocking.md",
       "updated_at": "2026-01-09T02:39:06.160536Z"
+    },
+    "test-hooks": {
+      "status": "in_progress",
+      "priority": 2,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-hooks.md",
+      "updated_at": "2026-01-14T22:44:15.388149Z"
+    },
+    "test-http": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-http.md",
+      "updated_at": "2026-01-14T22:44:15.226519Z"
+    },
+    "test-learning": {
+      "status": "ready",
+      "priority": 3,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-learning.md",
+      "updated_at": "2026-01-14T22:30:56.413553Z"
+    },
+    "test-mcp": {
+      "status": "ready",
+      "priority": 2,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-mcp.md",
+      "updated_at": "2026-01-14T22:30:56.229989Z"
+    },
+    "test-mcpcmd": {
+      "status": "ready",
+      "priority": 3,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-mcpcmd.md",
+      "updated_at": "2026-01-14T22:30:56.271006Z"
+    },
+    "test-migrate": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-migrate.md",
+      "updated_at": "2026-01-14T22:40:01.586948Z"
+    },
+    "test-pr": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-pr.md",
+      "updated_at": "2026-01-14T22:40:01.502285Z"
+    },
+    "test-serve": {
+      "status": "ready",
+      "priority": 3,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-serve.md",
+      "updated_at": "2026-01-14T22:30:56.316588Z"
+    },
+    "test-store": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-store.md",
+      "updated_at": "2026-01-14T22:40:01.546142Z"
+    },
+    "test-task": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "testing",
+        "coverage"
+      ],
+      "file": "tasks/test-task.md",
+      "updated_at": "2026-01-14T22:40:01.451245Z"
     }
   },
   "archived_count": 186,
   "learnings_count": 13,
   "decisions_count": 11,
-  "updated_at": "2026-01-10T20:42:13.839702Z"
+  "updated_at": "2026-01-14T22:44:15.388307Z"
 }
