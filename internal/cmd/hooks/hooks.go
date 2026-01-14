@@ -344,16 +344,18 @@ var todoCheckFeatures = []string{
 	"bugfix_learning",
 	"project_task",
 	"test_failure",
-	"test_fix_learning", // NEW: Prompt for learning when tests pass after failure
+	"test_fix_learning",        // Prompt for learning when tests pass after failure
 	"git_commit",
+	"investigation_pattern",    // Prompt for learning after deep file investigation + edit
 }
 
 var todoCheckQuietFeatures = map[string]bool{
-	"bugfix_learning":   true,  // Keep in quiet mode
-	"project_task":      false,
-	"test_failure":      true,  // Keep in quiet mode
-	"test_fix_learning": true,  // Keep in quiet mode - this is critical
-	"git_commit":        false,
+	"bugfix_learning":        true,  // Keep in quiet mode
+	"project_task":           false,
+	"test_failure":           true,  // Keep in quiet mode
+	"test_fix_learning":      true,  // Keep in quiet mode - this is critical
+	"git_commit":             false,
+	"investigation_pattern":  true,  // Keep in quiet mode - important for learning capture
 }
 
 func runTodoCheck(cmd *cobra.Command, args []string) error {
@@ -757,6 +759,10 @@ func hookTodoCheck(config featureConfig) error {
 		return handleTodoWriteCheck(config, toolInput)
 	case "Bash":
 		return handleBashCheck(config, toolInput, toolOutput)
+	case "Read":
+		return handleReadCheck(config, toolInput)
+	case "Edit":
+		return handleEditCheck(config, toolInput)
 	default:
 		// For backwards compatibility, assume TodoWrite if no TOOL_NAME
 		if toolInput != "" {
@@ -2444,4 +2450,169 @@ func detectTestSuccess(output string) bool {
 		}
 	}
 	return false
+}
+
+// === INVESTIGATION PATTERN DETECTION ===
+// These functions track file reads to detect when an agent is deeply investigating
+// a file before editing it, suggesting they may have discovered something worth documenting.
+
+// investigationState tracks file read patterns during a session
+type investigationState struct {
+	FileReads   map[string]int `json:"file_reads"`   // file path -> read count
+	LastUpdated time.Time      `json:"last_updated"`
+}
+
+const investigationThreshold = 3  // Number of reads before prompting
+const investigationMaxAge = 30 * time.Minute
+
+// getInvestigationStatePath returns the path to the investigation state file
+func getInvestigationStatePath() string {
+	// Try project-local first
+	if _, err := os.Stat(".tasuku"); err == nil {
+		return filepath.Join(".tasuku", ".investigation-state.json")
+	}
+
+	// Fall back to cache directory
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		cacheDir = os.TempDir()
+	}
+	tasukuCache := filepath.Join(cacheDir, "tasuku")
+	os.MkdirAll(tasukuCache, 0755)
+	return filepath.Join(tasukuCache, "investigation-state.json")
+}
+
+// loadInvestigationState loads the current investigation state
+func loadInvestigationState() (*investigationState, error) {
+	data, err := os.ReadFile(getInvestigationStatePath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &investigationState{
+				FileReads:   make(map[string]int),
+				LastUpdated: time.Now(),
+			}, nil
+		}
+		return nil, err
+	}
+	var state investigationState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return &investigationState{
+			FileReads:   make(map[string]int),
+			LastUpdated: time.Now(),
+		}, nil
+	}
+
+	// Reset if state is too old (stale from previous session)
+	if time.Since(state.LastUpdated) > investigationMaxAge {
+		return &investigationState{
+			FileReads:   make(map[string]int),
+			LastUpdated: time.Now(),
+		}, nil
+	}
+
+	if state.FileReads == nil {
+		state.FileReads = make(map[string]int)
+	}
+	return &state, nil
+}
+
+// saveInvestigationState saves the current investigation state
+func saveInvestigationState(state *investigationState) error {
+	state.LastUpdated = time.Now()
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(getInvestigationStatePath(), data, 0644)
+}
+
+// recordFileRead increments the read count for a file
+func recordFileRead(filePath string) error {
+	state, err := loadInvestigationState()
+	if err != nil {
+		return err
+	}
+	state.FileReads[filePath]++
+	return saveInvestigationState(state)
+}
+
+// checkInvestigationPattern checks if editing a file after multiple reads
+// Returns (wasInvestigating, readCount)
+func checkInvestigationPattern(filePath string) (bool, int) {
+	state, err := loadInvestigationState()
+	if err != nil {
+		return false, 0
+	}
+
+	count := state.FileReads[filePath]
+	if count >= investigationThreshold {
+		// Clear this file's count so we don't prompt again
+		delete(state.FileReads, filePath)
+		saveInvestigationState(state)
+		return true, count
+	}
+	return false, count
+}
+
+// handleReadCheck tracks file reads for investigation pattern detection
+func handleReadCheck(config featureConfig, toolInput string) error {
+	if !config["investigation_pattern"] {
+		return nil
+	}
+
+	// Parse the Read tool input
+	var input struct {
+		FilePath string `json:"file_path"`
+	}
+	if err := json.Unmarshal([]byte(toolInput), &input); err != nil {
+		return nil
+	}
+
+	if input.FilePath == "" {
+		return nil
+	}
+
+	// Record the read
+	recordFileRead(input.FilePath)
+	return nil
+}
+
+// handleEditCheck checks for investigation pattern when editing
+func handleEditCheck(config featureConfig, toolInput string) error {
+	if !config["investigation_pattern"] {
+		return nil
+	}
+
+	// Parse the Edit tool input
+	var input struct {
+		FilePath string `json:"file_path"`
+	}
+	if err := json.Unmarshal([]byte(toolInput), &input); err != nil {
+		return nil
+	}
+
+	if input.FilePath == "" {
+		return nil
+	}
+
+	// Check if this file was being investigated
+	wasInvestigating, readCount := checkInvestigationPattern(input.FilePath)
+	if wasInvestigating {
+		// Get just the filename for display
+		filename := filepath.Base(input.FilePath)
+
+		fmt.Println("🔍 INVESTIGATION PATTERN DETECTED")
+		fmt.Println()
+		fmt.Printf("   You read %s %d times before editing.\n", filename, readCount)
+		fmt.Println("   This suggests you discovered something non-obvious!")
+		fmt.Println()
+		fmt.Println("   📝 Document what you learned:")
+		fmt.Println("   → What gotcha or edge case did you find?")
+		fmt.Println("   → What assumption was wrong?")
+		fmt.Println()
+		fmt.Println("   /tasuku:learn \"insight here\"")
+		fmt.Println()
+	}
+
+	return nil
 }

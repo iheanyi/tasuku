@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -557,6 +558,95 @@ func TestFormatDuration(t *testing.T) {
 		if got != tt.expected {
 			t.Errorf("formatDuration(%v) = %q, want %q", tt.duration, got, tt.expected)
 		}
+	}
+}
+
+func TestInvestigationPatternTracking(t *testing.T) {
+	// Save original directory and change to temp dir
+	tempDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(origDir)
+
+	// Create .tasuku directory for local state storage
+	os.MkdirAll(".tasuku", 0755)
+
+	// Clean up any existing state
+	os.Remove(getInvestigationStatePath())
+
+	testFile := "/path/to/some/file.go"
+
+	// Initially, should not detect investigation pattern
+	wasInvestigating, count := checkInvestigationPattern(testFile)
+	if wasInvestigating {
+		t.Error("expected no investigation pattern initially")
+	}
+	if count != 0 {
+		t.Errorf("expected count 0, got %d", count)
+	}
+
+	// Record file reads (less than threshold)
+	recordFileRead(testFile)
+	recordFileRead(testFile)
+
+	// Still should not trigger (only 2 reads, threshold is 3)
+	wasInvestigating, count = checkInvestigationPattern(testFile)
+	if wasInvestigating {
+		t.Error("expected no investigation pattern with only 2 reads")
+	}
+	if count != 2 {
+		t.Errorf("expected count 2, got %d", count)
+	}
+
+	// Add one more read to reach threshold
+	recordFileRead(testFile)
+
+	// Now should trigger
+	wasInvestigating, count = checkInvestigationPattern(testFile)
+	if !wasInvestigating {
+		t.Error("expected investigation pattern with 3 reads")
+	}
+	if count != 3 {
+		t.Errorf("expected count 3, got %d", count)
+	}
+
+	// After triggering, count should be cleared
+	wasInvestigating, count = checkInvestigationPattern(testFile)
+	if wasInvestigating {
+		t.Error("expected no investigation pattern after clearing")
+	}
+	if count != 0 {
+		t.Errorf("expected count 0 after clearing, got %d", count)
+	}
+}
+
+func TestInvestigationStateExpiry(t *testing.T) {
+	// Save original directory and change to temp dir
+	tempDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(origDir)
+
+	// Create .tasuku directory for local state storage
+	os.MkdirAll(".tasuku", 0755)
+
+	// Create state with old timestamp
+	state := &investigationState{
+		FileReads: map[string]int{
+			"/some/file.go": 5,
+		},
+		LastUpdated: time.Now().Add(-2 * time.Hour), // 2 hours ago, beyond 30 min max
+	}
+	data, _ := json.Marshal(state)
+	os.WriteFile(getInvestigationStatePath(), data, 0644)
+
+	// Loading should reset due to stale state
+	loaded, err := loadInvestigationState()
+	if err != nil {
+		t.Fatalf("failed to load state: %v", err)
+	}
+	if len(loaded.FileReads) != 0 {
+		t.Errorf("expected empty file reads after stale state reset, got %d entries", len(loaded.FileReads))
 	}
 }
 
