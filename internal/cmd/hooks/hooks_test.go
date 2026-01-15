@@ -1168,3 +1168,173 @@ func TestExtractPreferenceContent(t *testing.T) {
 	}
 }
 
+// Integration tests for prompt-check command with new nudges
+
+func TestPromptCheckArchitectureExplanation(t *testing.T) {
+	h := testutil.New(t)
+
+	// Set the USER_PROMPT environment variable
+	os.Setenv("USER_PROMPT", "We chose Go because it compiles to a single binary and has fast startup times for CLI tools")
+	defer os.Unsetenv("USER_PROMPT")
+
+	err := h.Execute(Cmd, "prompt-check")
+	h.AssertNoError(err)
+	h.AssertOutputContains("architectural decision")
+	h.AssertOutputContains("tk decide")
+}
+
+func TestPromptCheckArchitectureExplanationDisabled(t *testing.T) {
+	h := testutil.New(t)
+
+	os.Setenv("USER_PROMPT", "We chose Go because it compiles to a single binary")
+	defer os.Unsetenv("USER_PROMPT")
+
+	err := h.Execute(Cmd, "prompt-check", "--disable=architecture_explanation")
+	h.AssertNoError(err)
+	h.AssertOutputNotContains("architectural decision")
+}
+
+func TestPromptCheckPreferenceStated(t *testing.T) {
+	h := testutil.New(t)
+
+	os.Setenv("USER_PROMPT", "I prefer explicit error handling over panic recovery in this codebase")
+	defer os.Unsetenv("USER_PROMPT")
+
+	err := h.Execute(Cmd, "prompt-check")
+	h.AssertNoError(err)
+	h.AssertOutputContains("preference detected")
+	h.AssertOutputContains("tk_learn")
+}
+
+func TestPromptCheckPreferenceStatedDisabled(t *testing.T) {
+	h := testutil.New(t)
+
+	os.Setenv("USER_PROMPT", "I prefer explicit error handling over panic recovery")
+	defer os.Unsetenv("USER_PROMPT")
+
+	err := h.Execute(Cmd, "prompt-check", "--disable=preference_stated")
+	h.AssertNoError(err)
+	h.AssertOutputNotContains("preference detected")
+}
+
+func TestPromptCheckQuietModeIncludesNewNudges(t *testing.T) {
+	h := testutil.New(t)
+
+	// Architecture explanation should show in quiet mode (it's enabled)
+	os.Setenv("USER_PROMPT", "We chose JSON because it parses faster than YAML")
+	defer os.Unsetenv("USER_PROMPT")
+
+	err := h.Execute(Cmd, "prompt-check", "--quiet")
+	h.AssertNoError(err)
+	h.AssertOutputContains("architectural decision")
+}
+
+func TestPromptCheckShortPromptSkipped(t *testing.T) {
+	h := testutil.New(t)
+
+	// Very short prompts should be skipped (< 15 chars)
+	os.Setenv("USER_PROMPT", "yes")
+	defer os.Unsetenv("USER_PROMPT")
+
+	err := h.Execute(Cmd, "prompt-check")
+	h.AssertNoError(err)
+	// Should produce no output for short prompts
+	if h.Stdout() != "" {
+		t.Errorf("expected empty output for short prompt, got: %s", h.Stdout())
+	}
+}
+
+func TestPromptCheckNoStorageNoError(t *testing.T) {
+	// Create temp dir WITHOUT tasuku storage
+	tempDir, _ := os.MkdirTemp("", "tasuku-test-nostorage-*")
+	defer os.RemoveAll(tempDir)
+
+	origDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(origDir)
+
+	os.Setenv("USER_PROMPT", "We chose Go because it's fast")
+	defer os.Unsetenv("USER_PROMPT")
+
+	// Should not error, just silently return
+	cmd := newPromptCheckCmd()
+	err := cmd.RunE(cmd, []string{})
+	if err != nil {
+		t.Errorf("prompt-check should not error without storage, got: %v", err)
+	}
+}
+
+func TestPromptCheckPreferenceNotDuplicated(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add an existing learning that matches the preference
+	h.AddLearning("I prefer explicit error handling over panic")
+
+	os.Setenv("USER_PROMPT", "I prefer explicit error handling over panic in this codebase")
+	defer os.Unsetenv("USER_PROMPT")
+
+	err := h.Execute(Cmd, "prompt-check")
+	h.AssertNoError(err)
+	// Should NOT prompt for preference since similar learning exists
+	h.AssertOutputNotContains("preference detected")
+}
+
+func TestPromptCheckListFeaturesIncludesNewNudges(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "prompt-check", "--list-features")
+	h.AssertNoError(err)
+	h.AssertOutputContains("architecture_explanation")
+	h.AssertOutputContains("preference_stated")
+}
+
+func TestPromptCheckEdgeCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		prompt         string
+		expectOutput   bool
+		expectedText   string
+	}{
+		{
+			name:         "unicode in architecture explanation",
+			prompt:       "We chose 日本語 because it's better for i18n",
+			expectOutput: true,
+			expectedText: "architectural decision",
+		},
+		{
+			name:         "very long preference",
+			prompt:       "I prefer " + strings.Repeat("explicit error handling with proper context ", 20),
+			expectOutput: true,
+			expectedText: "preference detected",
+		},
+		{
+			name:         "mixed case preference",
+			prompt:       "I PREFER using interfaces over concrete types",
+			expectOutput: true,
+			expectedText: "preference detected",
+		},
+		{
+			name:         "because in non-architecture context",
+			prompt:       "The test failed because the mock was wrong",
+			expectOutput: false, // "because the" isn't a pattern, but "because it/we/they" are
+			expectedText: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := testutil.New(t)
+
+			os.Setenv("USER_PROMPT", tt.prompt)
+			defer os.Unsetenv("USER_PROMPT")
+
+			err := h.Execute(Cmd, "prompt-check")
+			h.AssertNoError(err)
+
+			if tt.expectOutput && tt.expectedText != "" {
+				h.AssertOutputContains(tt.expectedText)
+			}
+		})
+	}
+}
+
