@@ -133,7 +133,7 @@ func (s *Server) Tools() []Tool {
 	return []Tool{
 		{
 			Name:        "tk_list",
-			Description: "List all tasks, optionally filtered by status, tag, or owner. Use at session start to understand project state, after completing work to see remaining tasks, or when planning to identify what needs attention. Returns task IDs, statuses, descriptions, and blockers.",
+			Description: "List all tasks (todos), optionally filtered by status, tag, or owner. Use at session start to understand project state, after completing work to see remaining tasks, or when planning to identify what needs attention. Returns task IDs, statuses, descriptions, and blockers. Aliases: show todos, view tasks, get task list.",
 			InputSchema: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -159,7 +159,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_add",
-			Description: "Create a new task with the given description. Use PROACTIVELY when: (1) Breaking down features into subtasks, (2) Discovering follow-up work during implementation, (3) Finding bugs that should be tracked, (4) User requests work that spans multiple steps. Returns the generated task ID.",
+			Description: "Create a new task (todo) with the given description. Use PROACTIVELY when: (1) Breaking down features into subtasks, (2) Discovering follow-up work during implementation, (3) Finding bugs that should be tracked, (4) User requests work that spans multiple steps. Returns the generated task ID. Aliases: add todo, new task, create task.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"description"},
@@ -212,7 +212,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_done",
-			Description: "Mark a task as completed. Use IMMEDIATELY when finishing work - don't batch completions. Automatically stops any running timer. After marking done, consider: recording learnings, checking if this unblocks other tasks, archiving if no longer needed.",
+			Description: "Mark a task as completed (done/finished). Use IMMEDIATELY when finishing work - don't batch completions. Automatically stops any running timer. After marking done, consider: recording learnings, checking if this unblocks other tasks, archiving if no longer needed. Aliases: complete task, finish task, mark complete.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -308,7 +308,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_context",
-			Description: "Get full context including all tasks, learnings, and decisions. Use this at the start of a session to understand current state.",
+			Description: "Get full project context including all tasks (todos), learnings, and decisions. Use this at the start of a session to understand current state. Returns a complete overview/summary of project status for agent consumption.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -482,7 +482,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_show",
-			Description: "Get detailed information about a specific task including notes, priority, timestamps, and custom fields. Use before starting work to understand full context, check notes from previous sessions, or review task metadata.",
+			Description: "View detailed information about a specific task including notes, priority, timestamps, and custom fields. Use before starting work to understand full context, check notes from previous sessions, or review task metadata. Aliases: task details, inspect task, get task info.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -560,7 +560,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_find",
-			Description: "Search across tasks, notes, learnings, and decisions. Use to find related work, check if similar tasks exist before creating new ones, or locate past decisions/learnings on a topic. Case-insensitive text search.",
+			Description: "Search/lookup across tasks, notes, learnings, and decisions. Use to find related work, check if similar tasks exist before creating new ones, or locate past decisions/learnings on a topic. Case-insensitive text search. Aliases: query tasks, search todos.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"query"},
@@ -642,7 +642,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_suggest",
-			Description: "Analyze a task description and suggest whether it should be persisted to tk (project-level) or kept as a session-only TodoWrite item. Use this before adding items to TodoWrite to determine if they should also be tracked in tk.",
+			Description: "Analyze a task description and recommend whether it should be persisted to tk (project-level) or kept as a session-only TodoWrite item. Use this before adding items to TodoWrite to determine if they should also be tracked in tk. Helps decide: should I track this task?",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"description"},
@@ -657,7 +657,7 @@ func (s *Server) Tools() []Tool {
 		// Ready tasks
 		{
 			Name:        "tk_ready",
-			Description: "List tasks that are ready to work on (not blocked, sorted by priority). Use at session start to pick up work, after completing a task to find the next one, or when deciding what to focus on. Shows highest-priority actionable tasks first.",
+			Description: "List tasks that are ready to work on (not blocked, sorted by priority). Use at session start to pick up work, after completing a task to find the next one, or when deciding what to focus on. Shows highest-priority actionable tasks first. Aliases: available tasks, what's next, next task, workflow.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -666,7 +666,7 @@ func (s *Server) Tools() []Tool {
 		// Who (claimed tasks by owner)
 		{
 			Name:        "tk_who",
-			Description: "Show tasks claimed by each owner/agent. Use before claiming to avoid conflicts, to understand workload distribution, or to find who's working on related tasks. Essential for multi-agent coordination.",
+			Description: "Show task assignments - which tasks are claimed by each owner/agent. Use before claiming to avoid conflicts, to understand workload distribution, or to find who's working on what. Essential for multi-agent coordination.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -675,7 +675,7 @@ func (s *Server) Tools() []Tool {
 		// Dependencies
 		{
 			Name:        "tk_deps",
-			Description: "Show the dependency tree for a task - what it's blocked by and what it blocks. Use to understand task relationships, identify critical path, or find tasks that will be unblocked when completing work.",
+			Description: "Show the dependencies tree for a task - what it's blocked by and what it blocks. Use to understand task relationships, identify critical path, or find tasks that will be unblocked when completing work. Aliases: task dependencies, blockers, dependency graph.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -690,7 +690,7 @@ func (s *Server) Tools() []Tool {
 		// Stats
 		{
 			Name:        "tk_stats",
-			Description: "Show task statistics: counts by status, priority distribution, completion rate. Use for project health checks, identifying bottlenecks (high blocked count), or reporting progress. Helps understand overall project state.",
+			Description: "Show task statistics and metrics: counts by status, priority distribution, completion rate, progress overview. Use for project health checks, identifying bottlenecks (high blocked count), or reporting progress. Helps understand overall project state and velocity.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -812,7 +812,7 @@ func (s *Server) Tools() []Tool {
 		// Health check
 		{
 			Name:        "tk_health",
-			Description: "Get a project health check with actionable recommendations. Use at session start to understand project state, or periodically to identify issues. Returns: task distribution, stale items, rule learnings to promote, and specific recommendations.",
+			Description: "Get a project health check with actionable recommendations and diagnostics. Use at session start to understand project state, or periodically to identify issues. Returns: task distribution, stale items, rule learnings to promote, and specific recommendations. Aliases: project status, diagnose.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
