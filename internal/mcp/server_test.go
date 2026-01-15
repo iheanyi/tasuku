@@ -1675,6 +1675,524 @@ func TestHandleToolCall_StartWithUnblock(t *testing.T) {
 	}
 }
 
+func TestHandleToolCall_LearningPromote(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a learning first
+	server.HandleToolCall("tk_learn", map[string]interface{}{
+		"insight": "Never use global variables in tests",
+	})
+
+	// List learnings to get the ID - use JSON to handle internal types
+	listResult, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	jsonData, _ := json.Marshal(listResult)
+	var learnings []map[string]interface{}
+	json.Unmarshal(jsonData, &learnings)
+	if len(learnings) == 0 {
+		t.Fatal("expected at least one learning")
+	}
+	learningID := learnings[0]["id"].(string)
+
+	// Create CLAUDE.md for promotion target
+	dir := filepath.Dir(server.store.Path())
+	claudemdPath := filepath.Join(dir, "CLAUDE.md")
+	os.WriteFile(claudemdPath, []byte("# Project\n\n## Learnings\n"), 0644)
+
+	// Change to directory so detectContextFile works
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	// Promote the learning
+	result, err := server.HandleToolCall("tk_learning_promote", map[string]interface{}{
+		"id": learningID,
+	})
+	if err != nil {
+		t.Fatalf("promote error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["id"] != learningID {
+		t.Errorf("expected id '%s', got %v", learningID, r["id"])
+	}
+	if r["promoted_to"] == nil {
+		t.Error("expected promoted_to in result")
+	}
+}
+
+func TestHandleToolCall_LearningPromoteKeep(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a learning first
+	server.HandleToolCall("tk_learn", map[string]interface{}{
+		"insight": "Always check error returns",
+	})
+
+	// List learnings to get the ID - use JSON to handle internal types
+	listResult, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	jsonData, _ := json.Marshal(listResult)
+	var learnings []map[string]interface{}
+	json.Unmarshal(jsonData, &learnings)
+	learningID := learnings[0]["id"].(string)
+
+	// Create CLAUDE.md for promotion target
+	dir := filepath.Dir(server.store.Path())
+	claudemdPath := filepath.Join(dir, "CLAUDE.md")
+	os.WriteFile(claudemdPath, []byte("# Project\n\n## Learnings\n"), 0644)
+
+	// Change to directory so detectContextFile works
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	// Promote with keep=true
+	result, err := server.HandleToolCall("tk_learning_promote", map[string]interface{}{
+		"id":   learningID,
+		"keep": true,
+	})
+	if err != nil {
+		t.Fatalf("promote error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["kept"] != true {
+		t.Errorf("expected kept=true, got %v", r["kept"])
+	}
+
+	// Verify learning still exists
+	listResult2, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	jsonData2, _ := json.Marshal(listResult2)
+	var learnings2 []map[string]interface{}
+	json.Unmarshal(jsonData2, &learnings2)
+	if len(learnings2) == 0 {
+		t.Error("expected learning to still exist with keep=true")
+	}
+}
+
+func TestHandleToolCall_LearningRemove(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a learning
+	server.HandleToolCall("tk_learn", map[string]interface{}{
+		"insight": "Test learning to remove",
+	})
+
+	// List learnings to get the ID - use JSON to handle internal types
+	listResult, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	jsonData, _ := json.Marshal(listResult)
+	var learnings []map[string]interface{}
+	json.Unmarshal(jsonData, &learnings)
+	learningID := learnings[0]["id"].(string)
+
+	// Remove the learning
+	result, err := server.HandleToolCall("tk_learning_remove", map[string]interface{}{
+		"id": learningID,
+	})
+	if err != nil {
+		t.Fatalf("remove error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["id"] != learningID {
+		t.Errorf("expected id '%s', got %v", learningID, r["id"])
+	}
+	if r["removed"] == nil {
+		t.Error("expected removed text in result")
+	}
+
+	// Verify learning is gone
+	listResult2, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	jsonData2, _ := json.Marshal(listResult2)
+	var learnings2 []map[string]interface{}
+	json.Unmarshal(jsonData2, &learnings2)
+	if len(learnings2) != 0 {
+		t.Errorf("expected no learnings after remove, got %d", len(learnings2))
+	}
+}
+
+func TestHandleToolCall_LearningRemoveNotFound(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Try to remove non-existent learning
+	_, err := server.HandleToolCall("tk_learning_remove", map[string]interface{}{
+		"id": "non-existent-id",
+	})
+	if err == nil {
+		t.Error("expected error for non-existent learning")
+	}
+}
+
+func TestHandleToolCall_NoteRemove(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task with a note
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Task with note",
+		"id":          "note-remove-test",
+	})
+	noteResult, _ := server.HandleToolCall("tk_note", map[string]interface{}{
+		"task_id": "note-remove-test",
+		"note":    "Test note to remove",
+	})
+	// tk_note returns map[string]string with "id" as the note ID
+	nr := noteResult.(map[string]string)
+	noteID := nr["id"]
+
+	// Remove the note
+	result, err := server.HandleToolCall("tk_note_remove", map[string]interface{}{
+		"task_id": "note-remove-test",
+		"note_id": noteID,
+	})
+	if err != nil {
+		t.Fatalf("note remove error: %v", err)
+	}
+
+	// Result is map[string]string
+	r := result.(map[string]string)
+	if r["task_id"] != "note-remove-test" {
+		t.Errorf("expected task_id 'note-remove-test', got %s", r["task_id"])
+	}
+	if r["note_id"] != noteID {
+		t.Errorf("expected note_id '%s', got %s", noteID, r["note_id"])
+	}
+}
+
+func TestHandleToolCall_NoteRemoveNotFound(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add a task
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Task without note",
+		"id":          "note-remove-test-2",
+	})
+
+	// Try to remove non-existent note
+	_, err := server.HandleToolCall("tk_note_remove", map[string]interface{}{
+		"task_id": "note-remove-test-2",
+		"note_id": "non-existent-note",
+	})
+	if err == nil {
+		t.Error("expected error for non-existent note")
+	}
+}
+
+func TestHandleToolCall_RulesSync(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add some learnings
+	server.HandleToolCall("tk_learn", map[string]interface{}{
+		"insight": "Test learning for rules sync",
+	})
+
+	// Create .claude directory (the detection looks for .claude/, not .claude/rules/)
+	dir := filepath.Dir(server.store.Path())
+	claudeDir := filepath.Join(dir, ".claude")
+	os.MkdirAll(claudeDir, 0755)
+
+	// Change to the test directory so rules sync can find .claude/
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	// Sync rules
+	result, err := server.HandleToolCall("tk_rules_sync", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("rules sync error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	// handleRulesSync returns "results", "total_files", and "message"
+	if r["message"] == nil {
+		t.Error("expected message in result")
+	}
+	if r["total_files"] == nil {
+		t.Error("expected total_files in result")
+	}
+}
+
+func TestHandleToolCall_ClaudeMdLint(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Create a test CLAUDE.md
+	dir := filepath.Dir(server.store.Path())
+	claudemdPath := filepath.Join(dir, "CLAUDE.md")
+	content := `# Project
+
+## Overview
+This is a test project.
+
+## Architecture
+Some architecture details.
+`
+	os.WriteFile(claudemdPath, []byte(content), 0644)
+
+	// Change to directory so lint can find CLAUDE.md
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	// Run lint
+	result, err := server.HandleToolCall("tk_claudemd_lint", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("lint error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["file"] == nil {
+		t.Error("expected file in result")
+	}
+	if r["total_lines"] == nil {
+		t.Error("expected total_lines in result")
+	}
+}
+
+func TestHandleToolCall_ClaudeMdLintCustomPath(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Create a test file at custom path
+	dir := filepath.Dir(server.store.Path())
+	customPath := filepath.Join(dir, "custom.md")
+	content := "# Custom\n\nSome content.\n"
+	os.WriteFile(customPath, []byte(content), 0644)
+
+	// Run lint with custom path
+	result, err := server.HandleToolCall("tk_claudemd_lint", map[string]interface{}{
+		"file": customPath,
+	})
+	if err != nil {
+		t.Fatalf("lint error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["file"] != customPath {
+		t.Errorf("expected file %s, got %v", customPath, r["file"])
+	}
+}
+
+func TestHandleToolCall_ClaudeMdStats(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Create a test CLAUDE.md
+	dir := filepath.Dir(server.store.Path())
+	claudemdPath := filepath.Join(dir, "CLAUDE.md")
+	content := `# Project
+
+## Overview
+This is a test project.
+
+## Architecture
+Some architecture details here.
+
+## Testing
+Testing section content.
+`
+	os.WriteFile(claudemdPath, []byte(content), 0644)
+
+	// Change to directory so stats can find CLAUDE.md
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	// Run stats
+	result, err := server.HandleToolCall("tk_claudemd_stats", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("stats error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["file"] == nil {
+		t.Error("expected file in result")
+	}
+	if r["total_lines"] == nil {
+		t.Error("expected total_lines in result")
+	}
+	if r["sections"] == nil {
+		t.Error("expected sections in result")
+	}
+}
+
+func TestHandleToolCall_ClaudeMdStatsNoFile(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Don't create CLAUDE.md - test with non-existent file
+	_, err := server.HandleToolCall("tk_claudemd_stats", map[string]interface{}{
+		"file": "/nonexistent/path/CLAUDE.md",
+	})
+	if err == nil {
+		t.Error("expected error for non-existent file")
+	}
+}
+
+func TestCountFileLines(t *testing.T) {
+	server, _ := setupTestServer(t)
+	dir := t.TempDir()
+	testFile := filepath.Join(dir, "test.txt")
+	os.WriteFile(testFile, []byte("line1\nline2\nline3\n"), 0644)
+
+	lines := server.countFileLines(testFile)
+	if lines != 3 {
+		t.Errorf("expected 3 lines, got %d", lines)
+	}
+}
+
+func TestCountFileLinesEmpty(t *testing.T) {
+	server, _ := setupTestServer(t)
+	dir := t.TempDir()
+	testFile := filepath.Join(dir, "empty.txt")
+	os.WriteFile(testFile, []byte(""), 0644)
+
+	lines := server.countFileLines(testFile)
+	if lines != 0 {
+		t.Errorf("expected 0 lines, got %d", lines)
+	}
+}
+
+func TestCountFileLinesNotFound(t *testing.T) {
+	server, _ := setupTestServer(t)
+	lines := server.countFileLines("/nonexistent/file.txt")
+	if lines != 0 {
+		t.Errorf("expected 0 lines for non-existent file, got %d", lines)
+	}
+}
+
+func TestCountRulesFiles(t *testing.T) {
+	server, _ := setupTestServer(t)
+	dir := filepath.Dir(server.store.Path())
+	rulesDir := filepath.Join(dir, ".claude", "rules")
+	os.MkdirAll(rulesDir, 0755)
+
+	// Create some rule files
+	os.WriteFile(filepath.Join(rulesDir, "rule1.md"), []byte("# Rule 1\n"), 0644)
+	os.WriteFile(filepath.Join(rulesDir, "rule2.md"), []byte("# Rule 2\n"), 0644)
+	os.WriteFile(filepath.Join(rulesDir, "not-md.txt"), []byte("not a rule\n"), 0644)
+
+	// Change to the directory where .claude/rules is
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	count := server.countRulesFiles()
+	if count != 2 {
+		t.Errorf("expected 2 rule files, got %d", count)
+	}
+}
+
+func TestCountRulesFilesEmpty(t *testing.T) {
+	server, _ := setupTestServer(t)
+	dir := filepath.Dir(server.store.Path())
+	rulesDir := filepath.Join(dir, ".claude", "rules")
+	os.MkdirAll(rulesDir, 0755)
+
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	count := server.countRulesFiles()
+	if count != 0 {
+		t.Errorf("expected 0 rule files, got %d", count)
+	}
+}
+
+func TestDetectContextFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create CLAUDE.md
+	claudemdPath := filepath.Join(dir, "CLAUDE.md")
+	os.WriteFile(claudemdPath, []byte("# Project\n"), 0644)
+
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	path := detectContextFile()
+	if path != "CLAUDE.md" {
+		t.Errorf("expected CLAUDE.md, got %s", path)
+	}
+}
+
+func TestDetectContextFileDefault(t *testing.T) {
+	dir := t.TempDir()
+
+	// Don't create any context file
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	// When no context file exists, it defaults to CLAUDE.md
+	path := detectContextFile()
+	if path != "CLAUDE.md" {
+		t.Errorf("expected CLAUDE.md as default, got %s", path)
+	}
+}
+
+func TestAppendToContextFile(t *testing.T) {
+	dir := t.TempDir()
+	contextFile := filepath.Join(dir, "CLAUDE.md")
+	os.WriteFile(contextFile, []byte("# Project\n\n## Learnings\n\n"), 0644)
+
+	err := appendToContextFile(contextFile, "New learning content")
+	if err != nil {
+		t.Fatalf("append error: %v", err)
+	}
+
+	content, _ := os.ReadFile(contextFile)
+	if !strings.Contains(string(content), "New learning content") {
+		t.Error("expected appended content in file")
+	}
+}
+
+func TestAppendToContextFileNewSection(t *testing.T) {
+	dir := t.TempDir()
+	contextFile := filepath.Join(dir, "CLAUDE.md")
+	os.WriteFile(contextFile, []byte("# Project\n\nSome content.\n"), 0644)
+
+	err := appendToContextFile(contextFile, "New learning that creates section")
+	if err != nil {
+		t.Fatalf("append error: %v", err)
+	}
+
+	content, _ := os.ReadFile(contextFile)
+	if !strings.Contains(string(content), "## Learnings") {
+		t.Error("expected Learnings section header in file")
+	}
+	if !strings.Contains(string(content), "New learning that creates section") {
+		t.Error("expected new learning content in file")
+	}
+}
+
+func TestSendError(t *testing.T) {
+	var buf bytes.Buffer
+	server := &Server{out: &buf}
+
+	server.sendError(123, -32600, "Test error message", nil)
+
+	var response struct {
+		Jsonrpc string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+		Error   struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	if err := json.NewDecoder(&buf).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Jsonrpc != "2.0" {
+		t.Errorf("expected jsonrpc '2.0', got %s", response.Jsonrpc)
+	}
+	if response.ID != 123 {
+		t.Errorf("expected id 123, got %d", response.ID)
+	}
+	if response.Error.Code != -32600 {
+		t.Errorf("expected error code -32600, got %d", response.Error.Code)
+	}
+	if response.Error.Message != "Test error message" {
+		t.Errorf("expected error message 'Test error message', got %s", response.Error.Message)
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }

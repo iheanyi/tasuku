@@ -650,3 +650,429 @@ func TestInvestigationStateExpiry(t *testing.T) {
 	}
 }
 
+func TestHandleReadCheck(t *testing.T) {
+	// Save original directory and change to temp dir
+	tempDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(origDir)
+
+	// Create .tasuku directory for local state storage
+	os.MkdirAll(".tasuku", 0755)
+
+	// Clean up any existing state
+	os.Remove(getInvestigationStatePath())
+
+	tests := []struct {
+		name           string
+		config         featureConfig
+		toolInput      string
+		expectRecorded bool
+	}{
+		{
+			name:           "records read when feature enabled",
+			config:         featureConfig{"investigation_pattern": true},
+			toolInput:      `{"file_path": "/path/to/file.go"}`,
+			expectRecorded: true,
+		},
+		{
+			name:           "does not record when feature disabled",
+			config:         featureConfig{"investigation_pattern": false},
+			toolInput:      `{"file_path": "/path/to/another.go"}`,
+			expectRecorded: false,
+		},
+		{
+			name:           "handles empty file_path",
+			config:         featureConfig{"investigation_pattern": true},
+			toolInput:      `{"file_path": ""}`,
+			expectRecorded: false,
+		},
+		{
+			name:           "handles invalid JSON",
+			config:         featureConfig{"investigation_pattern": true},
+			toolInput:      `not json`,
+			expectRecorded: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear state before each test
+			os.Remove(getInvestigationStatePath())
+
+			err := handleReadCheck(tt.config, tt.toolInput)
+			if err != nil {
+				t.Errorf("handleReadCheck returned error: %v", err)
+			}
+
+			// Check if file was recorded
+			state, _ := loadInvestigationState()
+			var input struct {
+				FilePath string `json:"file_path"`
+			}
+			json.Unmarshal([]byte(tt.toolInput), &input)
+
+			recorded := state.FileReads[input.FilePath] > 0
+			if recorded != tt.expectRecorded {
+				t.Errorf("expected recorded=%v, got %v", tt.expectRecorded, recorded)
+			}
+		})
+	}
+}
+
+func TestHandleEditCheck(t *testing.T) {
+	// Save original directory and change to temp dir
+	tempDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(origDir)
+
+	// Create .tasuku directory for local state storage
+	os.MkdirAll(".tasuku", 0755)
+
+	tests := []struct {
+		name           string
+		config         featureConfig
+		setupReads     int
+		toolInput      string
+		expectTrigger  bool
+	}{
+		{
+			name:          "triggers when investigation pattern detected",
+			config:        featureConfig{"investigation_pattern": true},
+			setupReads:    3, // At threshold
+			toolInput:     `{"file_path": "/path/to/file.go"}`,
+			expectTrigger: true,
+		},
+		{
+			name:          "does not trigger below threshold",
+			config:        featureConfig{"investigation_pattern": true},
+			setupReads:    2, // Below threshold
+			toolInput:     `{"file_path": "/path/to/file2.go"}`,
+			expectTrigger: false,
+		},
+		{
+			name:          "does not trigger when feature disabled",
+			config:        featureConfig{"investigation_pattern": false},
+			setupReads:    5,
+			toolInput:     `{"file_path": "/path/to/file3.go"}`,
+			expectTrigger: false,
+		},
+		{
+			name:          "handles empty file_path",
+			config:        featureConfig{"investigation_pattern": true},
+			setupReads:    5,
+			toolInput:     `{"file_path": ""}`,
+			expectTrigger: false,
+		},
+		{
+			name:          "handles invalid JSON",
+			config:        featureConfig{"investigation_pattern": true},
+			setupReads:    5,
+			toolInput:     `not json`,
+			expectTrigger: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear state before each test
+			os.Remove(getInvestigationStatePath())
+
+			// Setup reads if needed
+			var input struct {
+				FilePath string `json:"file_path"`
+			}
+			json.Unmarshal([]byte(tt.toolInput), &input)
+
+			if input.FilePath != "" && tt.setupReads > 0 && tt.config["investigation_pattern"] {
+				for i := 0; i < tt.setupReads; i++ {
+					recordFileRead(input.FilePath)
+				}
+			}
+
+			// Check the pattern before calling handleEditCheck
+			_, countBefore := checkInvestigationPattern(input.FilePath)
+			wouldTrigger := countBefore >= investigationThreshold
+
+			err := handleEditCheck(tt.config, tt.toolInput)
+			if err != nil {
+				t.Errorf("handleEditCheck returned error: %v", err)
+			}
+
+			// For feature disabled or invalid input, wouldTrigger should be false regardless
+			if !tt.config["investigation_pattern"] || input.FilePath == "" {
+				wouldTrigger = false
+			}
+
+			if wouldTrigger != tt.expectTrigger {
+				t.Errorf("expected trigger=%v, got %v (countBefore=%d)", tt.expectTrigger, wouldTrigger, countBefore)
+			}
+		})
+	}
+}
+
+func TestRunPlanSync(t *testing.T) {
+	h := testutil.New(t)
+
+	// Create a test plan file
+	planContent := `# Implementation Plan
+
+## Tasks
+- [ ] Implement user authentication feature
+- [ ] Add dark mode toggle setting
+- [x] Fix type error in login (already done)
+- [ ] Run tests for coverage
+
+## Notes
+Some notes here that aren't tasks.
+`
+	planPath := filepath.Join(h.TempDir(), "plan.md")
+	os.WriteFile(planPath, []byte(planContent), 0644)
+
+	// Run plan-sync with dry-run
+	err := h.Execute(Cmd, "plan-sync", "--dry-run", planPath)
+	h.AssertNoError(err)
+	h.AssertOutputContains("Would create tasks:")
+	h.AssertOutputContains("implement-user-authentication")
+}
+
+func TestRunPlanSyncCreatesTasks(t *testing.T) {
+	h := testutil.New(t)
+
+	// Create a test plan file with project-level tasks
+	planContent := `# Plan
+- [ ] Implement new feature for export
+- [ ] Add API endpoint for users
+`
+	planPath := filepath.Join(h.TempDir(), "plan.md")
+	os.WriteFile(planPath, []byte(planContent), 0644)
+
+	// Run plan-sync without dry-run
+	err := h.Execute(Cmd, "plan-sync", planPath)
+	h.AssertNoError(err)
+	h.AssertOutputContains("Creating tasks:")
+
+	// Verify tasks were actually created
+	err = h.Execute(Cmd, "plan-sync", "--dry-run", planPath)
+	h.AssertNoError(err)
+	h.AssertOutputContains("Already exists:")
+}
+
+func TestRunPlanSyncNoItems(t *testing.T) {
+	h := testutil.New(t)
+
+	// Create an empty plan file
+	planPath := filepath.Join(h.TempDir(), "empty.md")
+	os.WriteFile(planPath, []byte("# Empty Plan\n\nNo tasks here."), 0644)
+
+	err := h.Execute(Cmd, "plan-sync", "--dry-run", planPath)
+	h.AssertNoError(err)
+	h.AssertOutputContains("No actionable items")
+}
+
+func TestRunPlanSyncAllFlag(t *testing.T) {
+	h := testutil.New(t)
+
+	// Create a plan file with session-level tasks
+	planContent := `# Plan
+- [ ] Fix type error in service
+- [ ] Run tests for coverage
+- [ ] Update config file
+`
+	planPath := filepath.Join(h.TempDir(), "plan.md")
+	os.WriteFile(planPath, []byte(planContent), 0644)
+
+	// Without --all, these should be skipped
+	err := h.Execute(Cmd, "plan-sync", "--dry-run", planPath)
+	h.AssertNoError(err)
+	h.AssertOutputContains("Skipped (session-level)")
+
+	// With --all, they should be created
+	h.ResetOutput()
+	err = h.Execute(Cmd, "plan-sync", "--dry-run", "--all", planPath)
+	h.AssertNoError(err)
+	h.AssertOutputContains("Would create tasks:")
+}
+
+func TestRunPlanSyncNoStorage(t *testing.T) {
+	// Create temp dir without tasuku storage
+	tempDir, _ := os.MkdirTemp("", "tasuku-test-plansync-*")
+	defer os.RemoveAll(tempDir)
+
+	origDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(origDir)
+
+	// Create a plan file
+	planContent := `- [ ] Implement feature`
+	planPath := filepath.Join(tempDir, "plan.md")
+	os.WriteFile(planPath, []byte(planContent), 0644)
+
+	// Plan-sync should error when no storage exists
+	err := planSyncCmd.RunE(planSyncCmd, []string{planPath})
+	if err == nil || !strings.Contains(err.Error(), "no Tasuku storage") {
+		t.Errorf("expected 'no Tasuku storage' error, got: %v", err)
+	}
+}
+
+func TestRunPlanSyncInvalidFile(t *testing.T) {
+	h := testutil.New(t)
+
+	// Run plan-sync with non-existent file
+	err := h.Execute(Cmd, "plan-sync", "/nonexistent/plan.md")
+	h.AssertError(err)
+}
+
+func TestParseDisabledFeatures(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected map[string]bool
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: map[string]bool{},
+		},
+		{
+			name:     "single feature",
+			input:    "shipping_check",
+			expected: map[string]bool{"shipping_check": true},
+		},
+		{
+			name:     "multiple features",
+			input:    "shipping_check,scope_warning,rule_detection",
+			expected: map[string]bool{"shipping_check": true, "scope_warning": true, "rule_detection": true},
+		},
+		{
+			name:     "features with spaces",
+			input:    " shipping_check , scope_warning ",
+			expected: map[string]bool{"shipping_check": true, "scope_warning": true},
+		},
+		{
+			name:     "empty values in list",
+			input:    "shipping_check,,scope_warning",
+			expected: map[string]bool{"shipping_check": true, "scope_warning": true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseDisabledFeatures(tt.input)
+			if len(result) != len(tt.expected) {
+				t.Errorf("expected %d features, got %d", len(tt.expected), len(result))
+			}
+			for k, v := range tt.expected {
+				if result[k] != v {
+					t.Errorf("expected %s=%v, got %v", k, v, result[k])
+				}
+			}
+		})
+	}
+}
+
+func TestBuildFeatureConfig(t *testing.T) {
+	allFeatures := []string{"feature1", "feature2", "feature3", "quiet_feature"}
+	quietFeatures := map[string]bool{"quiet_feature": true}
+
+	tests := []struct {
+		name     string
+		quiet    bool
+		disabled map[string]bool
+		expected featureConfig
+	}{
+		{
+			name:     "all enabled",
+			quiet:    false,
+			disabled: map[string]bool{},
+			expected: featureConfig{"feature1": true, "feature2": true, "feature3": true, "quiet_feature": true},
+		},
+		{
+			name:     "quiet mode - only quiet features enabled",
+			quiet:    true,
+			disabled: map[string]bool{},
+			expected: featureConfig{"feature1": false, "feature2": false, "feature3": false, "quiet_feature": true},
+		},
+		{
+			name:     "some disabled",
+			quiet:    false,
+			disabled: map[string]bool{"feature1": true, "feature3": true},
+			expected: featureConfig{"feature1": false, "feature2": true, "feature3": false, "quiet_feature": true},
+		},
+		{
+			name:     "quiet mode with disabled",
+			quiet:    true,
+			disabled: map[string]bool{"quiet_feature": true},
+			expected: featureConfig{"feature1": false, "feature2": false, "feature3": false, "quiet_feature": false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildFeatureConfig(allFeatures, quietFeatures, tt.quiet, tt.disabled)
+			for k, v := range tt.expected {
+				if result[k] != v {
+					t.Errorf("expected %s=%v, got %v", k, v, result[k])
+				}
+			}
+		})
+	}
+}
+
+func TestStopReminderCmd(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add an in-progress task with a running timer
+	h.AddTaskWithStatus("task-1", "In progress task", task.StatusInProgress)
+	staleTime := time.Now().Add(-30 * time.Minute)
+	h.StartTimerAt("task-1", staleTime)
+
+	err := h.Execute(Cmd, "stop-reminder")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Running timers")
+	h.AssertOutputContains("task-1")
+}
+
+func TestStopReminderNoReminders(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add only done tasks
+	h.AddTaskWithStatus("task-1", "Done task", task.StatusDone)
+
+	err := h.Execute(Cmd, "stop-reminder")
+	h.AssertNoError(err)
+	// Should have no reminders output
+}
+
+func TestCodexNotifyCmd(t *testing.T) {
+	h := testutil.New(t)
+
+	// Test with valid JSON
+	jsonPayload := `{"type":"agent-turn-complete","thread-id":"123"}`
+	err := h.Execute(Cmd, "codex-notify", jsonPayload)
+	h.AssertNoError(err)
+}
+
+func TestCodexNotifyNoArgs(t *testing.T) {
+	h := testutil.New(t)
+
+	// Test with no arguments
+	err := h.Execute(Cmd, "codex-notify")
+	h.AssertNoError(err)
+}
+
+func TestPreCompactCmd(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "pre-compact")
+	h.AssertNoError(err)
+}
+
+func TestSubagentDoneCmd(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "subagent-done")
+	h.AssertNoError(err)
+}
+

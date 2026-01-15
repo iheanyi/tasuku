@@ -1,8 +1,10 @@
 package learning
 
 import (
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iheanyi/tasuku/internal/cmd/testutil"
 )
@@ -249,4 +251,245 @@ func TestLearningAddWithScope(t *testing.T) {
 	err := h.Execute(Cmd, "add", "--scope", "src/api/**", "API error handling pattern")
 	h.AssertNoError(err)
 	h.AssertOutputContains("Learning added")
+}
+
+func TestLearningPromoteByID(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add a learning
+	id, _ := h.AddLearning("Important insight to promote")
+
+	// Create CLAUDE.md in the test directory
+	claudePath := h.TempDir() + "/CLAUDE.md"
+	if err := writeTestFile(claudePath, "# Project\n\n## Learnings\n\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := h.Execute(Cmd, "promote", "--to", claudePath, id)
+	h.AssertNoError(err)
+	h.AssertOutputContains("Promoted to")
+	h.AssertOutputContains("Important insight")
+
+	// Verify learning was removed (default behavior)
+	err = h.Execute(Cmd, "list")
+	h.AssertNoError(err)
+	h.AssertOutputNotContains("Important insight")
+}
+
+func TestLearningPromoteByText(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add a learning
+	h.AddLearning("Unique learning about caching")
+
+	// Create CLAUDE.md in the test directory
+	claudePath := h.TempDir() + "/CLAUDE.md"
+	if err := writeTestFile(claudePath, "# Project\n\n## Learnings\n\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := h.Execute(Cmd, "promote", "--to", claudePath, "caching")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Promoted to")
+}
+
+func TestLearningPromoteWithKeep(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add a learning
+	id, _ := h.AddLearning("Keep this learning after promote")
+
+	// Create CLAUDE.md in the test directory
+	claudePath := h.TempDir() + "/CLAUDE.md"
+	if err := writeTestFile(claudePath, "# Project\n\n## Learnings\n\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := h.Execute(Cmd, "promote", "--to", claudePath, "--keep", id)
+	h.AssertNoError(err)
+	h.AssertOutputContains("kept in learnings")
+
+	// Verify learning still exists
+	err = h.Execute(Cmd, "list")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Keep this learning")
+}
+
+func TestLearningPromoteNotFound(t *testing.T) {
+	h := testutil.New(t)
+
+	claudePath := h.TempDir() + "/CLAUDE.md"
+	if err := writeTestFile(claudePath, "# Project\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := h.Execute(Cmd, "promote", "--to", claudePath, "nonexistent")
+	h.AssertError(err)
+	if !strings.Contains(err.Error(), "no learning found") {
+		t.Errorf("expected 'no learning found' error, got: %v", err)
+	}
+}
+
+func TestLearningPromoteNoArgs(t *testing.T) {
+	h := testutil.New(t)
+
+	err := h.Execute(Cmd, "promote")
+	h.AssertError(err)
+}
+
+func TestFormatAge(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration time.Duration
+		expected string
+	}{
+		{"just now", 30 * time.Second, "just now"},
+		{"minutes", 5 * time.Minute, "5m ago"},
+		{"hours", 3 * time.Hour, "3h ago"},
+		{"days", 48 * time.Hour, "2d ago"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testTime := time.Now().Add(-tt.duration)
+			result := formatAge(testTime)
+			if result != tt.expected {
+				t.Errorf("formatAge(%v) = %q, want %q", tt.duration, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatAgeZero(t *testing.T) {
+	result := formatAge(time.Time{})
+	if result != "" {
+		t.Errorf("formatAge(zero) = %q, want empty string", result)
+	}
+}
+
+func TestDetectContextFile(t *testing.T) {
+	// Save original directory
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	// Create temp directory
+	dir := t.TempDir()
+	os.Chdir(dir)
+
+	// With no context files, should default to CLAUDE.md
+	result := detectContextFile()
+	if result != "CLAUDE.md" {
+		t.Errorf("expected CLAUDE.md as default, got %s", result)
+	}
+}
+
+func TestDetectContextFileClaude(t *testing.T) {
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	dir := t.TempDir()
+	os.Chdir(dir)
+
+	// Create CLAUDE.md
+	os.WriteFile("CLAUDE.md", []byte("# Project\n"), 0644)
+
+	result := detectContextFile()
+	if result != "CLAUDE.md" {
+		t.Errorf("expected CLAUDE.md, got %s", result)
+	}
+}
+
+func TestDetectContextFileGemini(t *testing.T) {
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	dir := t.TempDir()
+	os.Chdir(dir)
+
+	// Create GEMINI.md (no CLAUDE.md)
+	os.WriteFile("GEMINI.md", []byte("# Project\n"), 0644)
+
+	result := detectContextFile()
+	if result != "GEMINI.md" {
+		t.Errorf("expected GEMINI.md, got %s", result)
+	}
+}
+
+func TestDetectContextFileCursor(t *testing.T) {
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+
+	dir := t.TempDir()
+	os.Chdir(dir)
+
+	// Create .cursorrules (no CLAUDE.md or GEMINI.md)
+	os.WriteFile(".cursorrules", []byte("# Rules\n"), 0644)
+
+	result := detectContextFile()
+	if result != ".cursorrules" {
+		t.Errorf("expected .cursorrules, got %s", result)
+	}
+}
+
+func TestAppendToContextFileWithLearningsSection(t *testing.T) {
+	dir := t.TempDir()
+	filePath := dir + "/CLAUDE.md"
+
+	// Create file with existing Learnings section
+	os.WriteFile(filePath, []byte("# Project\n\n## Learnings\n\n- Existing learning\n"), 0644)
+
+	err := appendToContextFile(filePath, "New learning to append")
+	if err != nil {
+		t.Fatalf("appendToContextFile error: %v", err)
+	}
+
+	content, _ := os.ReadFile(filePath)
+	if !strings.Contains(string(content), "New learning to append") {
+		t.Error("expected new learning in file")
+	}
+	if !strings.Contains(string(content), "Existing learning") {
+		t.Error("expected existing learning to be preserved")
+	}
+}
+
+func TestAppendToContextFileWithoutLearningsSection(t *testing.T) {
+	dir := t.TempDir()
+	filePath := dir + "/CLAUDE.md"
+
+	// Create file without Learnings section
+	os.WriteFile(filePath, []byte("# Project\n\nSome content.\n"), 0644)
+
+	err := appendToContextFile(filePath, "First learning")
+	if err != nil {
+		t.Fatalf("appendToContextFile error: %v", err)
+	}
+
+	content, _ := os.ReadFile(filePath)
+	if !strings.Contains(string(content), "## Learnings") {
+		t.Error("expected Learnings section to be created")
+	}
+	if !strings.Contains(string(content), "First learning") {
+		t.Error("expected learning in file")
+	}
+}
+
+func TestAppendToContextFileNewFile(t *testing.T) {
+	dir := t.TempDir()
+	filePath := dir + "/NEW_FILE.md"
+
+	// File doesn't exist yet
+	err := appendToContextFile(filePath, "Learning for new file")
+	if err != nil {
+		t.Fatalf("appendToContextFile error: %v", err)
+	}
+
+	content, _ := os.ReadFile(filePath)
+	if !strings.Contains(string(content), "Learning for new file") {
+		t.Error("expected learning in new file")
+	}
+}
+
+// Helper function to write test files
+func writeTestFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0644)
 }
