@@ -423,6 +423,8 @@ Features (all enabled by default):
   - learning_capture:   Capture "TIL"/"I learned" as learnings
   - decision_capture:   Prompt to record "X or Y" decisions
   - scope_warning:      Warn about scope expansion mid-task
+  - architecture_explanation: Detect "because we"/"why" explanations for decisions
+  - preference_stated:  Capture user preferences for consistency
 
 Configuration:
   --quiet           Minimal output (context only, no nudges)
@@ -462,23 +464,27 @@ var promptCheckFeatures = []string{
 	"learning_capture",
 	"decision_capture",
 	"scope_warning",
+	"architecture_explanation",
+	"preference_stated",
 }
 
 // Features kept in quiet mode (context surfacing only)
 var promptCheckQuietFeatures = map[string]bool{
-	"session_continuity": true,
-	"decision_lookup":    true,
-	"learning_lookup":    true,
-	"task_reference":     true,
-	"task_surfacing":     true,
-	"rule_detection":     true, // Rules are important enough to keep
-	"bug_detection":      false,
-	"work_detection":     false,
-	"stuck_detection":    false,
-	"shipping_check":     false,
-	"learning_capture":   true, // Direct capture is low noise
-	"decision_capture":   false,
-	"scope_warning":      false,
+	"session_continuity":       true,
+	"decision_lookup":          true,
+	"learning_lookup":          true,
+	"task_reference":           true,
+	"task_surfacing":           true,
+	"rule_detection":           true,  // Rules are important enough to keep
+	"bug_detection":            false,
+	"work_detection":           false,
+	"stuck_detection":          false,
+	"shipping_check":           false,
+	"learning_capture":         true,  // Direct capture is low noise
+	"decision_capture":         false,
+	"scope_warning":            false,
+	"architecture_explanation": true,  // Important for decision capture
+	"preference_stated":        true,  // Low noise preference capture
 }
 
 func runPromptCheck(cmd *cobra.Command, args []string) error {
@@ -490,7 +496,7 @@ func runPromptCheck(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  - %s\n", f)
 		}
 		fmt.Println("\nNudges:")
-		for _, f := range []string{"rule_detection", "bug_detection", "work_detection", "stuck_detection", "shipping_check", "learning_capture", "decision_capture", "scope_warning"} {
+		for _, f := range []string{"rule_detection", "bug_detection", "work_detection", "stuck_detection", "shipping_check", "learning_capture", "decision_capture", "scope_warning", "architecture_explanation", "preference_stated"} {
 			fmt.Printf("  - %s\n", f)
 		}
 		return nil
@@ -1295,6 +1301,38 @@ func hookPromptCheck(config featureConfig) error {
 		}
 	}
 
+	// === 14. ARCHITECTURE EXPLANATION DETECTION ===
+	// Detect when user explains "why" or "because we" about design decisions
+	if config["architecture_explanation"] && outputCount < maxOutputs && detectArchitectureExplanation(userPrompt) {
+		decisionContent := extractDecisionContent(userPrompt)
+		if decisionContent != "" {
+			fmt.Println("🏛️  This sounds like an architectural decision.")
+			fmt.Println("   Record it so future agents understand WHY:")
+			fmt.Printf("   → tk decide --id <name> --chose \"...\" --over \"...\" --because \"%s\"\n", escapeForShell(truncateString(decisionContent, 60)))
+			fmt.Println()
+			fmt.Println("   Agent: If you just learned this, call tk_decide to capture it.")
+			fmt.Println()
+			outputCount++
+		}
+	}
+
+	// === 15. USER PREFERENCE DETECTION ===
+	// Detect when user states preferences about approach, style, or tooling
+	if config["preference_stated"] && outputCount < maxOutputs && detectUserPreference(userPrompt) {
+		preferenceContent := extractPreferenceContent(userPrompt)
+		if preferenceContent != "" && !hasSimilarLearning(f.Context.Learnings, preferenceContent) {
+			fmt.Println("✨ User preference detected:")
+			fmt.Printf("   \"%s\"\n", truncateString(preferenceContent, 70))
+			fmt.Println()
+			fmt.Println("   Capture for consistency across sessions:")
+			fmt.Printf("   → /tasuku:learn \"%s\"\n", escapeForShell(preferenceContent))
+			fmt.Println()
+			fmt.Println("   Agent: If you acknowledge this, call tk_learn to record it.")
+			fmt.Println()
+			outputCount++
+		}
+	}
+
 	return nil
 }
 
@@ -1648,6 +1686,107 @@ func detectSignificantWork(prompt string) bool {
 		}
 	}
 	return false
+}
+
+// detectArchitectureExplanation checks if user is explaining an architectural decision
+func detectArchitectureExplanation(prompt string) bool {
+	lower := strings.ToLower(prompt)
+	explanationPatterns := []string{
+		"because we", "because it", "because they",
+		"we chose", "we decided", "we use",
+		"the reason is", "the reason we", "reason being",
+		"that's why", "this is why", "which is why",
+		"we went with", "we opted for", "we picked",
+		"the decision was", "decided to use", "chose to use",
+		"designed it this way", "built it this way",
+		"architecture is", "pattern is",
+		"trade-off", "tradeoff",
+	}
+	for _, pattern := range explanationPatterns {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractDecisionContent extracts the decision reasoning from a prompt
+func extractDecisionContent(prompt string) string {
+	lower := strings.ToLower(prompt)
+	// Try to find the explanation portion
+	indicators := []string{
+		"because ", "the reason is ", "reason being ",
+		"that's why ", "this is why ", "which is why ",
+	}
+	for _, ind := range indicators {
+		if idx := strings.Index(lower, ind); idx != -1 {
+			content := prompt[idx+len(ind):]
+			content = strings.TrimSpace(content)
+			// Take first sentence
+			if endIdx := strings.IndexAny(content, ".!?"); endIdx != -1 && endIdx < 150 {
+				content = content[:endIdx+1]
+			} else if len(content) > 150 {
+				content = content[:150]
+			}
+			if len(content) > 15 {
+				return content
+			}
+		}
+	}
+	return ""
+}
+
+// detectUserPreference checks if user is stating a preference
+func detectUserPreference(prompt string) bool {
+	lower := strings.ToLower(prompt)
+	preferencePatterns := []string{
+		"i prefer", "i like to", "i always",
+		"i don't like", "i hate", "i avoid",
+		"please always", "please never", "please don't",
+		"always use", "never use", "don't use",
+		"my preference", "my style", "my approach",
+		"i want you to", "i'd like you to",
+		"from now on", "going forward",
+		"use this style", "follow this pattern",
+	}
+	for _, pattern := range preferencePatterns {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractPreferenceContent extracts the preference from a prompt
+func extractPreferenceContent(prompt string) string {
+	lower := strings.ToLower(prompt)
+	// Try to find preference indicators and extract content
+	indicators := []string{
+		"i prefer ", "i like to ", "i always ",
+		"please always ", "please never ", "always use ",
+		"never use ", "from now on ", "going forward ",
+	}
+	for _, ind := range indicators {
+		if idx := strings.Index(lower, ind); idx != -1 {
+			// Get the rest starting from this indicator
+			content := prompt[idx:]
+			content = strings.TrimSpace(content)
+			// Take first sentence or clause
+			if endIdx := strings.IndexAny(content, ".!?,;"); endIdx != -1 && endIdx < 120 {
+				content = content[:endIdx]
+			} else if len(content) > 120 {
+				content = content[:120]
+			}
+			if len(content) > 15 {
+				// Clean up and capitalize first letter
+				content = strings.TrimSpace(content)
+				if len(content) > 0 {
+					return strings.ToUpper(string(content[0])) + content[1:]
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // getStatusIcon returns an icon for the task status

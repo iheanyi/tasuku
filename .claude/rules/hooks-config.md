@@ -97,6 +97,8 @@ The `prompt-check` hook runs on `UserPromptSubmit` and analyzes user messages.
 | `learning_capture` | Captures "TIL"/"I learned" as learnings |
 | `decision_capture` | Prompts to record "X or Y" decision points |
 | `scope_warning` | Warns about scope expansion mid-task |
+| `architecture_explanation` | Detects "because we"/"why" explanations, prompts `tk_decide` |
+| `preference_stated` | Captures user preferences ("I prefer", "always use") |
 
 ```bash
 tk hooks prompt-check --list-features     # List all features

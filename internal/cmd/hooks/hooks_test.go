@@ -1076,3 +1076,95 @@ func TestSubagentDoneCmd(t *testing.T) {
 	h.AssertNoError(err)
 }
 
+func TestDetectArchitectureExplanation(t *testing.T) {
+	tests := []struct {
+		prompt        string
+		isArchitecture bool
+	}{
+		{"we chose Go because it compiles to a single binary", true},
+		{"because we need fast startup for CLI tools", true},
+		{"the reason is that JSON parses faster than YAML", true},
+		{"that's why we use flock for file locking", true},
+		{"we went with MCP over REST for native integration", true},
+		{"we opted for local-first design", true},
+		{"the decision was to use constructor pattern", true},
+		{"implement user login", false},
+		{"fix the bug in payment", false},
+		{"add dark mode support", false},
+		{"what is the purpose of this function", false},
+	}
+
+	for _, tt := range tests {
+		got := detectArchitectureExplanation(tt.prompt)
+		if got != tt.isArchitecture {
+			t.Errorf("detectArchitectureExplanation(%q) = %v, want %v", tt.prompt, got, tt.isArchitecture)
+		}
+	}
+}
+
+func TestExtractDecisionContent(t *testing.T) {
+	tests := []struct {
+		prompt   string
+		expected string
+	}{
+		{"we chose Go because it compiles to a single binary", "it compiles to a single binary"},
+		{"the reason is that JSON parses faster", "that JSON parses faster"},
+		{"that's why we use flock for file locking", "we use flock for file locking"},
+		{"implement user login", ""}, // No decision content
+		{"", ""}, // Empty prompt
+	}
+
+	for _, tt := range tests {
+		got := extractDecisionContent(tt.prompt)
+		if got != tt.expected {
+			t.Errorf("extractDecisionContent(%q) = %q, want %q", tt.prompt, got, tt.expected)
+		}
+	}
+}
+
+func TestDetectUserPreference(t *testing.T) {
+	tests := []struct {
+		prompt       string
+		isPreference bool
+	}{
+		{"i prefer explicit error handling over panic", true},
+		{"please always use descriptive variable names", true},
+		{"never use magic numbers in the code", true},
+		{"always use context for cancellation", true},
+		{"from now on use early returns", true},
+		{"i'd like you to follow the existing patterns", true},
+		{"my preference is for smaller functions", true},
+		{"implement user login", false},
+		{"fix the bug in payment", false},
+		{"what does this code do", false},
+	}
+
+	for _, tt := range tests {
+		got := detectUserPreference(tt.prompt)
+		if got != tt.isPreference {
+			t.Errorf("detectUserPreference(%q) = %v, want %v", tt.prompt, got, tt.isPreference)
+		}
+	}
+}
+
+func TestExtractPreferenceContent(t *testing.T) {
+	tests := []struct {
+		prompt   string
+		hasContent bool
+	}{
+		{"i prefer explicit error handling over panic", true},
+		{"please always use descriptive variable names", true},
+		{"from now on use early returns for guard clauses", true},
+		{"implement user login", false}, // No preference content
+		{"", false}, // Empty prompt
+	}
+
+	for _, tt := range tests {
+		got := extractPreferenceContent(tt.prompt)
+		hasContent := got != ""
+		if hasContent != tt.hasContent {
+			t.Errorf("extractPreferenceContent(%q) hasContent=%v, want %v (got: %q)", tt.prompt, hasContent, tt.hasContent, got)
+		}
+	}
+}
+
