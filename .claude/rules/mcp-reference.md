@@ -116,6 +116,81 @@ Launch the TUI with `tk ui`. The following keybindings are available:
 | `?` | Help | Show keybinding help |
 | `q` | Quit | Exit TUI |
 
+## ToolSearchTool Integration (Claude API)
+
+When using Tasuku with Claude's [ToolSearchTool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool), you can optimize context usage by deferring loading of less frequently used tools. This is configured at the API client level, not in Tasuku itself.
+
+### How It Works
+
+1. Tasuku's MCP server provides 45+ tools via standard MCP protocol
+2. API clients mark tools with `defer_loading: true` when calling Claude's Messages API
+3. Claude searches through deferred tools on-demand instead of loading all into context
+4. This saves ~10-20K tokens while maintaining tool selection accuracy
+
+### Recommended Configuration
+
+Keep these **5 core tools always loaded** (most frequently used):
+
+| Tool | Why Keep Loaded |
+|------|-----------------|
+| `tk_list` | Session start orientation, checking task state |
+| `tk_add` | Creating tasks is fundamental |
+| `tk_done` | Completing tasks is frequent |
+| `tk_context` | Full context dump at session start |
+| `tk_learn` | Recording learnings (used proactively) |
+
+**Defer all other tools** - they'll be discovered via search when needed.
+
+### Example API Configuration
+
+```json
+{
+  "tools": [
+    {
+      "type": "tool_search_tool_bm25_20251119",
+      "name": "tool_search_tool_bm25"
+    },
+    {
+      "type": "mcp_toolset",
+      "mcp_server_name": "tasuku",
+      "default_config": {
+        "defer_loading": true
+      },
+      "configs": {
+        "tk_list": { "defer_loading": false },
+        "tk_add": { "defer_loading": false },
+        "tk_done": { "defer_loading": false },
+        "tk_context": { "defer_loading": false },
+        "tk_learn": { "defer_loading": false }
+      }
+    }
+  ]
+}
+```
+
+### Tool Categories for Search
+
+Tasuku tools are named semantically for good search discoverability:
+
+| Category | Pattern | Example Tools |
+|----------|---------|---------------|
+| Core CRUD | `tk_list`, `tk_add`, `tk_done` | Task lifecycle |
+| Blocking | `tk_block`, `tk_unblock` | Dependency management |
+| Ownership | `tk_owner`, `tk_claim`, `tk_release`, `tk_who` | Multi-agent coordination |
+| Time tracking | `tk_timer_*` | `tk_timer_start`, `tk_timer_stop` |
+| Archiving | `tk_archive*` | `tk_archive`, `tk_archive_list` |
+| Learnings | `tk_learn`, `tk_learning_*` | Knowledge capture |
+| Decisions | `tk_decide`, `tk_decision_*` | Architectural decisions |
+| Notes | `tk_note`, `tk_note_*` | Task annotations |
+
+Claude can search for tools using natural language queries like "time tracking", "archive completed tasks", or "record a decision".
+
+### Requirements
+
+- **Models**: Claude Opus 4.5, Claude Sonnet 4.5
+- **Beta headers**: `advanced-tool-use-2025-11-20`, `mcp-client-2025-11-20`
+- **Claude Code**: Handles this automatically when ToolSearchTool is enabled
+
 ## Running the Server
 
 ```bash
