@@ -245,7 +245,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_learn",
-			Description: "Record a learning or insight discovered while working. Use PROACTIVELY when: (1) Debugging reveals undocumented behavior, (2) Finding gotchas or edge cases, (3) Discovering patterns that work well (or poorly), (4) API behaviors differ from expectations, (5) Performance insights. Use 'Never X' or 'Always Y' prefixes for rules. Use 'scope' to apply learnings to specific file patterns. These persist across sessions and auto-sync to editor rules (e.g., .claude/rules/, .gemini/rules/).",
+			Description: "Record a learning or insight discovered while working. Use PROACTIVELY when: (1) Debugging reveals undocumented behavior, (2) Finding gotchas or edge cases, (3) Discovering patterns that work well (or poorly), (4) API behaviors differ from expectations, (5) Performance insights. Use 'Never X' or 'Always Y' prefixes for rules. Use 'scope' to apply learnings to specific file patterns. These persist across sessions and auto-sync to editor rules (e.g., .claude/rules/, .gemini/rules/). AGENT SELF-AWARENESS: Call this tool immediately when you: (a) Say 'got it', 'I see', 'now I understand' after user clarification, (b) Say 'you're right', 'my mistake' after being corrected, (c) Discover something unexpected ('turns out', 'interesting'). Capture the insight while context is fresh - don't wait!",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"insight"},
@@ -263,7 +263,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_decide",
-			Description: "Record an architectural decision with the choice made, alternatives considered, and reasoning. Use PROACTIVELY when: (1) Selecting technologies or libraries, (2) Choosing between implementation approaches, (3) Making trade-offs (performance vs simplicity, etc.), (4) Deciding on patterns or conventions. Decisions help future agents understand WHY things were built a certain way.",
+			Description: "Record an architectural decision with the choice made, alternatives considered, and reasoning. Use PROACTIVELY when: (1) Selecting technologies or libraries, (2) Choosing between implementation approaches, (3) Making trade-offs (performance vs simplicity, etc.), (4) Deciding on patterns or conventions. Decisions help future agents understand WHY things were built a certain way. AGENT SELF-AWARENESS: Call this immediately when user explains 'because we...', 'we chose X over Y because...', or 'the reason is...'. Record the decision while context is fresh!",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id", "chose", "over", "because"},
