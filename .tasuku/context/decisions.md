@@ -55,3 +55,8 @@
 **Over**: Skills format (SKILL.md), No slash commands (MCP only)
 **Because**: Plugins support namespaced commands like /tasuku:add via the commands/ directory structure. Skills only support flat /skill-name format without colon namespacing. Plugin marketplace also enables easy installation from GitHub URLs.
 
+## agent-initiated-learning - 2026-01-15T22:42:54Z
+**Chose**: Agent-initiated learning capture as primary, nudges as safety net
+**Over**: Nudge-only (reactive, misses self-discovered insights), Manual-only (relies on human memory), Auto-capture everything (noise, low quality)
+**Because**: Agents have context about WHY something matters at moment of learning. Self-classification produces higher quality learnings. Creates compounding knowledge flywheel - each session smarter than last. Nudges catch moments agent misses. Promotion to rules makes valuable knowledge permanent.
+

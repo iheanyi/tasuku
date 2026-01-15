@@ -7,6 +7,61 @@
       "file": "tasks/fix-tui-string-truncation-for-an.md",
       "updated_at": "2026-01-09T02:39:16.233324Z"
     },
+    "nudge-acknowledgment-detection": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks",
+        "learning-capture"
+      ],
+      "file": "tasks/nudge-acknowledgment-detection.md",
+      "updated_at": "2026-01-15T22:48:25.02979Z"
+    },
+    "nudge-architecture-explanation": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks",
+        "learning-capture"
+      ],
+      "file": "tasks/nudge-architecture-explanation.md",
+      "updated_at": "2026-01-15T22:48:26.065626Z"
+    },
+    "nudge-correction-acceptance": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks",
+        "learning-capture"
+      ],
+      "file": "tasks/nudge-correction-acceptance.md",
+      "updated_at": "2026-01-15T22:48:25.423091Z"
+    },
+    "nudge-discovery-signal": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks",
+        "learning-capture"
+      ],
+      "file": "tasks/nudge-discovery-signal.md",
+      "updated_at": "2026-01-15T22:48:25.74213Z"
+    },
+    "nudge-preference-stated": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "hooks",
+        "learning-capture"
+      ],
+      "file": "tasks/nudge-preference-stated.md",
+      "updated_at": "2026-01-15T22:48:26.443409Z"
+    },
     "optimize-storage-interface-for-g": {
       "status": "ready",
       "priority": 1,
@@ -21,7 +76,7 @@
     }
   },
   "archived_count": 196,
-  "learnings_count": 13,
-  "decisions_count": 11,
-  "updated_at": "2026-01-15T01:58:38.816933Z"
+  "learnings_count": 14,
+  "decisions_count": 12,
+  "updated_at": "2026-01-15T22:48:26.4435Z"
 }

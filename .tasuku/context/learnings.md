@@ -39,3 +39,6 @@ Charmbracelet ecosystem essentials for TUIs: (1) lipgloss for styling - use Plac
 ## a64c8c - 2026-01-09T15:50:27Z
 BubbleTea async I/O pattern: (1) Define message types for results (TasksLoadedMsg, ActionResultMsg); (2) Create command constructors that wrap I/O in tea.Cmd closures; (3) New() starts with empty state and loading=true; (4) Init() returns the load command; (5) Update() handles result messages and chains commands (action → reload); (6) In tests, process Init() command before checking state: cmd := m.Init(); msg := cmd(); m.Update(msg).
 
+## 30b116 - 2026-01-15T22:48:33Z
+Claude Code hooks (UserPromptSubmit, PostToolUse, etc.) can only analyze user messages and tool calls, not agent responses. For agent self-awareness (detecting "got it", "you're right", "turns out"), embed guidance directly in MCP tool descriptions under "AGENT SELF-AWARENESS" sections rather than trying to hook agent responses.
+

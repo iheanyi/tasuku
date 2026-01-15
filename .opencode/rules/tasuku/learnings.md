@@ -2,17 +2,6 @@
 
 _Auto-synced from .tasuku/context/learnings.md_
 
-## Rules
-
-- Always force UTC timezone in golden tests (os.Setenv("TZ", "UTC") in init()) when testing time-dependent output. Local timezone varies between CI and developer machines, causing spurious test failures.
-- Never manually manipulate ANSI-styled strings with rune/character operations. ANSI escape codes (e.g., \x1b[31m) are counted as characters, corrupting position calculations. Always use lipgloss.Place(), lipgloss.Width(), lipgloss.Height() which properly handle escape sequences.
-- Never iterate over a map while modifying it (e.g., archiving tasks while looping over m.file.Tasks). Always collect IDs/keys first into a slice, then iterate over the slice to perform modifications.
-- In BubbleTea TUIs, always save both the selected item ID AND index before refresh/reinitializing lists. After refresh, restore by ID first (item may have moved), fall back to index position (item may be deleted), or clamp to list bounds.
-- Always use `tk list` to verify task IDs before calling `tk done`, as the ID might differ from the description slug or be truncated.
-- In BubbleTea TUIs, when using pointer receiver methods like runAction(*Model), always return a dereferenced value (*m) not the pointer (m) to match the tea.Model interface contract. Returning a pointer causes type assertion panics (interface conversion: *Model is not Model).
-- Never assume lipgloss functions exist without checking documentation. lipgloss does NOT have Truncate() - use charmbracelet/x/ansi.Truncate instead for ANSI-aware string truncation. Verify API existence before using charmbracelet libraries.
-- Claude Code skills use `skill-name/SKILL.md` structure for `/skill-name` invocation (no colon namespacing). Plugins use `commands/name.md` in a directory with `.claude-plugin/plugin.json` for `/plugin:name` invocation. For namespaced commands like `/tasuku:add`, you must use the plugin format with a commands/ directory.
-
 ## Insights
 
 - CLI command is 'tk' to avoid collisions
@@ -28,4 +17,5 @@ _Auto-synced from .tasuku/context/learnings.md_
 - syscall.Flock (file locking) is Unix-only. Windows builds will fail if using it directly. Either use build tags with platform-specific implementations or exclude Windows from build targets.
 - Charmbracelet ecosystem essentials for TUIs: (1) lipgloss for styling - use Place() for centering modals on ANSI-aware backgrounds; (2) bubbles/list for filterable lists with custom delegates; (3) bubbles/progress for progress bars; (4) bubbles/textarea for multi-line input; (5) bubbles/key for keybinding definitions; (6) glamour for Markdown rendering in views; (7) charmbracelet/x/ansi.Truncate for ANSI-aware string truncation (handles wide chars, graphemes); (8) x/exp/teatest for golden file testing.
 - BubbleTea async I/O pattern: (1) Define message types for results (TasksLoadedMsg, ActionResultMsg); (2) Create command constructors that wrap I/O in tea.Cmd closures; (3) New() starts with empty state and loading=true; (4) Init() returns the load command; (5) Update() handles result messages and chains commands (action → reload); (6) In tests, process Init() command before checking state: cmd := m.Init(); msg := cmd(); m.Update(msg).
+- Claude Code hooks (UserPromptSubmit, PostToolUse, etc.) can only analyze user messages and tool calls, not agent responses. For agent self-awareness (detecting "got it", "you're right", "turns out"), embed guidance directly in MCP tool descriptions under "AGENT SELF-AWARENESS" sections rather than trying to hook agent responses.
 
