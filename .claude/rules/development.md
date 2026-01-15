@@ -111,6 +111,44 @@ Check if the new feature should trigger or be triggered by:
 ### 6. Plugin Commands (Optional)
 If the feature is frequently used, consider adding a skill (slash command).
 
+## Agent Self-Awareness for Knowledge Capture
+
+**Agents are the PRIMARY mechanism for capturing learnings. Nudges are the safety net.**
+
+### Self-Detection Signals
+
+Call `tk_learn` IMMEDIATELY when you catch yourself saying:
+
+| Signal | What it means | Action |
+|--------|---------------|--------|
+| "Got it", "I see", "Now I understand" | User just clarified something | Record the clarification |
+| "You're right", "My mistake" | User corrected a misconception | Record as rule ("Never X") |
+| "Turns out", "Interesting", "Apparently" | Discovery of unexpected behavior | Record the discovery |
+| "Ah, that makes sense" | Architecture/design understanding | Consider `tk_decide` |
+
+### Self-Detection Flow
+
+```
+You acknowledge something → STOP → Ask: "Did I just learn something?"
+                                    ↓
+                              YES → tk_learn immediately
+                                    ↓
+                              Capture while context is fresh
+```
+
+### Example Self-Captures
+
+```bash
+# After user corrects you about plugin marketplace
+tk_learn "Plugin marketplace is for cloud-backed MCP servers with remote connections, not local tools that use filesystem storage"
+
+# After discovering unexpected behavior
+tk_learn "Never assume lipgloss functions exist - it does NOT have Truncate(). Use charmbracelet/x/ansi.Truncate"
+
+# After user explains architecture decision
+tk_decide --id "plugin-marketplace" --chose "Not using marketplace for distribution" --over "Marketplace distribution" --because "Tasuku is local-first with no remote dependencies; marketplace is for cloud services"
+```
+
 ## Mandatory Learning Documentation
 
 **CRITICAL: Document learnings IMMEDIATELY when they occur, not at session end.**
@@ -137,6 +175,11 @@ Record a learning using `tk_learn` or `tk learn` **IMMEDIATELY** after ANY of th
 4. **Workaround Required**: When standard approach doesn't work:
    - Library limitation requiring different approach
    - Framework quirk needing special handling
+
+5. **User Clarification**: When user corrects or explains something:
+   - Misconceptions you had
+   - Architectural decisions you didn't understand
+   - Preferences the user expresses
 
 ### Learning Format
 
