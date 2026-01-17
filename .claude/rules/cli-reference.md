@@ -13,7 +13,8 @@ tk init                    # Create .tasuku/ directory (V4 Markdown)
 ```bash
 tk task list               # List all tasks (aliases: tk t ls, tk tasks)
 tk task list --tree        # Show hierarchical subtask view
-tk task list --status ready  # Filter by status
+tk task list --status ready  # Filter by status (ready, in_progress, blocked, done, archived)
+tk task list --status archived  # Show archived tasks
 tk task list --tag backend   # Filter by tag
 tk task add "description"  # Add a task
 tk task add "desc" --parent <id>  # Add subtask
@@ -67,10 +68,13 @@ tk task timer status       # Show running timers
 ## Archiving
 
 ```bash
-tk task archive add <id>   # Archive a done task
-tk task archive list       # List archived tasks
-tk task archive restore <id>  # Restore archived task
-tk task archive all --older-than 7d  # Bulk archive old done tasks
+tk task archive <id>              # Archive a done task
+tk task archive <id> --summary "notes"  # Archive with summary
+tk task archive --older-than 7d   # Bulk archive old done tasks
+tk task list --status archived    # List archived tasks
+tk task restore <id>              # Restore archived task to active
+tk task archive show <id>         # Show archived task details
+tk task archive clear             # Permanently delete all archived
 ```
 
 ## Context & Learnings

@@ -59,10 +59,10 @@
 | `tk_timer_stop` | `tk task timer stop` | Stop timer, record elapsed time |
 | `tk_timer_status` | `tk task timer status` | Get status of running timers |
 | **Archiving** |||
-| `tk_archive` | `tk task archive add` | Archive a done task |
-| `tk_archive_restore` | `tk task archive restore` | Restore archived task |
-| `tk_archive_list` | `tk task archive list` | List archived tasks |
-| `tk_archive_all` | `tk task archive all` | Archive all done tasks older than duration |
+| `tk_archive` | `tk task archive <id>` | Archive a done task |
+| `tk_archive_restore` | `tk task restore <id>` | Restore archived task |
+| `tk_archive_list` | `tk task list --status archived` | List archived tasks |
+| `tk_archive_all` | `tk task archive --older-than` | Archive all done tasks older than duration |
 | **Learning Management** |||
 | `tk_learning_list` | `tk learning list` | List all learnings |
 | `tk_learning_promote` | `tk learning promote` | Promote learning to permanent docs |

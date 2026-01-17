@@ -60,3 +60,8 @@
 **Over**: Nudge-only (reactive, misses self-discovered insights), Manual-only (relies on human memory), Auto-capture everything (noise, low quality)
 **Because**: Agents have context about WHY something matters at moment of learning. Self-classification produces higher quality learnings. Creates compounding knowledge flywheel - each session smarter than last. Nudges catch moments agent misses. Promotion to rules makes valuable knowledge permanent.
 
+## archive-as-state - 2026-01-17T15:09:19Z
+**Chose**: Archive as lifecycle state (verb pattern)
+**Over**: Archive as collection (noun-with-verbs pattern), Keep current nested subcommand structure
+**Because**: Archiving is conceptually a task lifecycle state, not a sub-resource. Users think "mark as archived" not "add to archive collection." The verb pattern (`tk task archive <id>`) is consistent with other lifecycle commands (start, done, pause, block). The `--status archived` flag abstracts storage implementation and fits the existing list filtering pattern.
+

@@ -143,3 +143,31 @@ func indexOf(s, substr string) int {
 	}
 	return -1
 }
+
+func TestListCmd_ArchivedStatus(t *testing.T) {
+	h := testutil.New(t)
+
+	// Add a task, mark it done, then archive it
+	h.AddTaskWithStatus("archived-task", "Archived task", itask.StatusDone)
+	h.AddTaskWithStatus("active-task", "Active task", itask.StatusReady)
+
+	// Archive the done task
+	err := h.Store().ArchiveTask("archived-task", "")
+	if err != nil {
+		t.Fatalf("failed to archive task: %v", err)
+	}
+
+	// List with --status archived should show only archived tasks
+	err = h.Execute(Cmd, "list", "--status", "archived")
+	h.AssertNoError(err)
+	h.AssertOutputContains("archived-task")
+	h.AssertOutputContains("⌂") // archived icon
+	h.AssertOutputNotContains("active-task")
+
+	// Regular list should not show archived tasks
+	h.ResetOutput()
+	err = h.Execute(Cmd, "list")
+	h.AssertNoError(err)
+	h.AssertOutputContains("active-task")
+	h.AssertOutputNotContains("archived-task")
+}

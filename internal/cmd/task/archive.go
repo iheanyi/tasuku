@@ -3,7 +3,6 @@ package task
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,38 +15,38 @@ import (
 
 func newArchiveCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "archive",
-		Short: "Manage archived tasks",
+		Use:   "archive [task-id]",
+		Short: "Archive a completed task",
 		Long: `Archive completed tasks to reduce clutter while preserving history.
 
-Archiving moves done tasks out of the active task list into a separate
-archive section. Archived tasks can be listed, viewed, or restored.
+Archive a single task by ID, or use --older-than to bulk archive
+done tasks older than a specified duration.
 
-Subcommands:
-  add       Archive a specific done task
-  all       Archive all done tasks older than a duration
-  list      List archived tasks
-  show      Show details of an archived task
-  restore   Restore an archived task to active tasks
-  clear     Permanently delete all archived tasks
+Archived tasks can be listed with 'tk task list --status archived'
+and restored with 'tk task restore <id>'.
+
+Duration format for --older-than: 1h (hours), 1d (days), 1w (weeks)
 
 Examples:
-  tk task archive add my-task              # Archive a done task
-  tk task archive add my-task --summary "Implemented auth feature"
-  tk task archive all --older-than 7d      # Archive tasks done 7+ days ago
-  tk task archive list                     # List archived tasks
-  tk task archive restore my-task          # Restore to active tasks
-  tk task archive clear                    # Clear all archived tasks`,
+  tk task archive my-task                # Archive a done task
+  tk task archive my-task --summary "Implemented auth feature"
+  tk task archive --older-than 7d        # Archive tasks done 7+ days ago
+  tk task archive --older-than 24h       # Archive tasks done 24+ hours ago
+  tk task list --status archived         # List archived tasks
+  tk task restore my-task                # Restore to active tasks
+
+Subcommands:
+  show      Show details of an archived task
+  clear     Permanently delete all archived tasks`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: runArchive,
 	}
 
-	addCmd := newArchiveAddCmd()
-	allCmd := newArchiveAllCmd()
+	cmd.Flags().String("summary", "", "Summary of what was accomplished (only with task ID)")
+	cmd.Flags().String("older-than", "", "Archive all done tasks older than duration (e.g., 7d, 24h, 2w)")
 
-	cmd.AddCommand(addCmd)
-	cmd.AddCommand(allCmd)
-	cmd.AddCommand(archiveListCmd)
+	// Keep show and clear as subcommands
 	cmd.AddCommand(archiveShowCmd)
-	cmd.AddCommand(archiveRestoreCmd)
 	cmd.AddCommand(archiveClearCmd)
 
 	return cmd
@@ -55,89 +54,70 @@ Examples:
 
 var archiveCmd = newArchiveCmd()
 
-func newArchiveAddCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "add <task-id>",
-		Short: "Archive a completed task",
-		Long: `Archive a completed task by moving it to the archive.
+func runArchive(cmd *cobra.Command, args []string) error {
+	olderThan, _ := cmd.Flags().GetString("older-than")
+	summary, _ := cmd.Flags().GetString("summary")
 
-The task must have status "done" to be archived. You can optionally
-provide a summary that describes what was accomplished.
-
-Examples:
-  tk task archive add auth-feature
-  tk task archive add auth-feature --summary "Added OAuth2 login flow"`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			taskID := args[0]
-			summary, _ := cmd.Flags().GetString("summary")
-			s := store.DefaultStorageWithWarning()
-
-			if err := s.ArchiveTask(taskID, summary); err != nil {
-				return err
-			}
-
-			if summary != "" {
-				fmt.Printf("Archived task %s with summary: %s\n", taskID, summary)
-			} else {
-				fmt.Printf("Archived task %s\n", taskID)
-			}
-			return nil
-		},
+	// Validate: can't use both task ID and --older-than
+	if len(args) > 0 && olderThan != "" {
+		return fmt.Errorf("cannot use both task ID and --older-than; use one or the other")
 	}
 
-	cmd.Flags().String("summary", "", "Summary of what was accomplished")
+	// Validate: must provide either task ID or --older-than
+	if len(args) == 0 && olderThan == "" {
+		return fmt.Errorf("provide a task ID to archive, or use --older-than for bulk archiving")
+	}
 
-	return cmd
+	// Validate: --summary only makes sense with single task
+	if summary != "" && olderThan != "" {
+		return fmt.Errorf("--summary can only be used when archiving a single task")
+	}
+
+	s := store.DefaultStorageWithWarning()
+
+	// Bulk archive mode
+	if olderThan != "" {
+		return archiveBulk(s, olderThan)
+	}
+
+	// Single task archive mode
+	taskID := args[0]
+	return archiveSingle(s, taskID, summary)
 }
 
-func newArchiveAllCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "all",
-		Short: "Archive all done tasks older than a duration",
-		Long: `Archive all completed tasks that are older than the specified duration.
-
-The duration is measured from when the task was last updated (marked done).
-
-Duration format: 1h (hours), 1d (days), 1w (weeks)
-  Examples: 24h, 7d, 2w, 30d
-
-Examples:
-  tk task archive all --older-than 7d    # Archive tasks done 7+ days ago
-  tk task archive all --older-than 24h   # Archive tasks done 24+ hours ago
-  tk task archive all --older-than 30d   # Archive tasks done 30+ days ago`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			olderThan, _ := cmd.Flags().GetString("older-than")
-			if olderThan == "" {
-				return fmt.Errorf("--older-than is required (e.g., 7d, 24h, 2w)")
-			}
-
-			duration, err := parseArchiveDuration(olderThan)
-			if err != nil {
-				return fmt.Errorf("invalid duration %q: %w", olderThan, err)
-			}
-
-			s := store.DefaultStorageWithWarning()
-			archived, err := s.ArchiveDoneTasks(duration)
-			if err != nil {
-				return err
-			}
-
-			if len(archived) == 0 {
-				fmt.Printf("No done tasks older than %s to archive\n", olderThan)
-			} else {
-				fmt.Printf("Archived %d tasks:\n", len(archived))
-				for _, id := range archived {
-					fmt.Printf("  - %s\n", id)
-				}
-			}
-			return nil
-		},
+func archiveSingle(s store.Storage, taskID, summary string) error {
+	if err := s.ArchiveTask(taskID, summary); err != nil {
+		return err
 	}
 
-	cmd.Flags().String("older-than", "", "Archive tasks older than duration (e.g., 7d, 24h, 2w)")
+	if summary != "" {
+		fmt.Printf("Archived task %s with summary: %s\n", taskID, summary)
+	} else {
+		fmt.Printf("Archived task %s\n", taskID)
+	}
+	return nil
+}
 
-	return cmd
+func archiveBulk(s store.Storage, olderThan string) error {
+	duration, err := parseArchiveDuration(olderThan)
+	if err != nil {
+		return fmt.Errorf("invalid duration %q: %w", olderThan, err)
+	}
+
+	archived, err := s.ArchiveDoneTasks(duration)
+	if err != nil {
+		return err
+	}
+
+	if len(archived) == 0 {
+		fmt.Printf("No done tasks older than %s to archive\n", olderThan)
+	} else {
+		fmt.Printf("Archived %d tasks:\n", len(archived))
+		for _, id := range archived {
+			fmt.Printf("  - %s\n", id)
+		}
+	}
+	return nil
 }
 
 func parseArchiveDuration(s string) (time.Duration, error) {
@@ -172,75 +152,6 @@ type archivedTaskInfo struct {
 	TotalTime   string    `json:"total_time,omitempty" yaml:"total_time,omitempty"`
 	ArchivedAt  time.Time `json:"archived_at" yaml:"archived_at"`
 	CompletedAt time.Time `json:"completed_at" yaml:"completed_at"`
-}
-
-var archiveListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List archived tasks",
-	Long: `List all archived tasks.
-
-Shows task ID, description, summary (if any), total time spent,
-and when the task was archived.
-
-Examples:
-  tk task archive list
-  tk task archive list -f json
-  tk task archive list -f yaml`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.DefaultStorageWithWarning()
-		archived, err := s.GetArchivedTasks()
-		if err != nil {
-			return err
-		}
-
-		if len(archived) == 0 {
-			fmt.Println("No archived tasks")
-			return nil
-		}
-
-		var items []archivedTaskInfo
-		for id, t := range archived {
-			item := archivedTaskInfo{
-				ID:          id,
-				Description: t.Description,
-				Summary:     t.Summary,
-				ArchivedAt:  t.ArchivedAt,
-				CompletedAt: t.UpdatedAt,
-			}
-			if t.TotalTime > 0 {
-				item.TotalTime = task.Duration(t.TotalTime).FormatHumanReadable()
-			}
-			items = append(items, item)
-		}
-
-		sort.Slice(items, func(i, j int) bool {
-			return items[i].ArchivedAt.After(items[j].ArchivedAt)
-		})
-
-		switch config.OutputFormat {
-		case "json":
-			data, _ := json.MarshalIndent(items, "", "  ")
-			fmt.Println(string(data))
-		case "yaml":
-			data, _ := yaml.Marshal(items)
-			fmt.Print(string(data))
-		default:
-			fmt.Printf("Archived tasks (%d):\n", len(items))
-			for _, item := range items {
-				timeStr := ""
-				if item.TotalTime != "" {
-					timeStr = fmt.Sprintf(" [%s]", item.TotalTime)
-				}
-				summaryStr := ""
-				if item.Summary != "" {
-					summaryStr = fmt.Sprintf("\n      Summary: %s", item.Summary)
-				}
-				fmt.Printf("  %s: %s%s%s\n", item.ID, item.Description, timeStr, summaryStr)
-				fmt.Printf("      Archived: %s\n", task.FormatLocalTime(item.ArchivedAt))
-			}
-		}
-		return nil
-	},
 }
 
 var archiveShowCmd = &cobra.Command{
@@ -297,29 +208,6 @@ Examples:
 				fmt.Printf("  Tags: %v\n", archived.Tags)
 			}
 		}
-		return nil
-	},
-}
-
-var archiveRestoreCmd = &cobra.Command{
-	Use:   "restore <task-id>",
-	Short: "Restore an archived task to active tasks",
-	Long: `Restore an archived task back to the active task list.
-
-The restored task will have status "ready" and can be worked on again.
-
-Examples:
-  tk task archive restore auth-feature`,
-	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		taskID := args[0]
-		s := store.DefaultStorageWithWarning()
-
-		if err := s.RestoreTask(taskID); err != nil {
-			return err
-		}
-
-		fmt.Printf("Restored task %s (status: ready)\n", taskID)
 		return nil
 	},
 }

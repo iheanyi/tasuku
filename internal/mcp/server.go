@@ -428,7 +428,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_archive",
-			Description: "Archive a done task to keep the active task list lean. Use after tasks are verified complete and no longer need visibility. Archived tasks are preserved in .tasuku/archive/ for history. The task must be in 'done' status.",
+			Description: "Archive a done task to keep the active task list lean. Use after tasks are verified complete and no longer need visibility. Archived tasks are preserved in .tasuku/archive/ for history. The task must be in 'done' status. CLI equivalent: tk task archive <id>",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"task_id"},
@@ -446,7 +446,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_archive_restore",
-			Description: "Restore an archived task back to active tasks with 'ready' status. Use when archived work needs to be revisited or was archived prematurely.",
+			Description: "Restore an archived task back to active tasks with 'ready' status. Use when archived work needs to be revisited or was archived prematurely. CLI equivalent: tk task restore <id>",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"task_id"},
@@ -460,7 +460,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_archive_list",
-			Description: "List all archived tasks. Use to find historical tasks, reference past work, or locate tasks to restore.",
+			Description: "List all archived tasks. Use to find historical tasks, reference past work, or locate tasks to restore. CLI equivalent: tk task list --status archived",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
@@ -468,7 +468,7 @@ func (s *Server) Tools() []Tool {
 		},
 		{
 			Name:        "tk_archive_all",
-			Description: "Archive all done tasks older than a specified duration. Use for bulk cleanup to reduce clutter. Duration format: 1h (hours), 1d (days), 1w (weeks). Example: '7d' archives tasks done more than 7 days ago.",
+			Description: "Archive all done tasks older than a specified duration. Use for bulk cleanup to reduce clutter. Duration format: 1h (hours), 1d (days), 1w (weeks). Example: '7d' archives tasks done more than 7 days ago. CLI equivalent: tk task archive --older-than <duration>",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"older_than"},

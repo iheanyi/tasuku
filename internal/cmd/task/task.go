@@ -27,7 +27,7 @@ func newTaskCmd() *cobra.Command {
 		Long: `Manage tasks in your Tasuku project.
 
 Subcommands:
-  list      List all tasks
+  list      List all tasks (use --status archived for archived tasks)
   add       Create a new task
   show      Show task details
   start     Mark task as in_progress
@@ -47,15 +47,20 @@ Subcommands:
   tag       Manage task tags
   field     Manage custom fields
   timer     Track time spent on tasks
+  archive   Archive a completed task
+  restore   Restore an archived task
 
 Examples:
-  tk task list                 # List all tasks
-  tk task add "New feature"    # Add a new task
-  tk task start my-task        # Start working on a task
-  tk task claim my-task agent1 # Claim task for agent1
-  tk task list --tag backend   # Filter by tag
-  tk t ls                      # Short alias for list
-  tk tasks ready               # Show ready tasks`,
+  tk task list                    # List all tasks
+  tk task add "New feature"       # Add a new task
+  tk task start my-task           # Start working on a task
+  tk task claim my-task agent1    # Claim task for agent1
+  tk task list --tag backend      # Filter by tag
+  tk task list --status archived  # Show archived tasks
+  tk task archive my-task         # Archive a done task
+  tk task restore my-task         # Restore archived task
+  tk t ls                         # Short alias for list
+  tk tasks ready                  # Show ready tasks`,
 	}
 
 	// Register all task subcommands
@@ -82,6 +87,7 @@ Examples:
 	cmd.AddCommand(statsCmd)
 	cmd.AddCommand(depsCmd)
 	cmd.AddCommand(archiveCmd)
+	cmd.AddCommand(restoreCmd)
 
 	return cmd
 }
@@ -91,8 +97,10 @@ var Cmd = newTaskCmd()
 
 // taskEntry holds a task with its ID for sorting/display
 type taskEntry struct {
-	ID   string
-	Task task.Task
+	ID         string
+	Task       task.Task
+	Archived   bool      // true if this is an archived task
+	ArchivedAt time.Time // when the task was archived (only set if Archived is true)
 }
 
 // outputTasks outputs tasks in the configured format
@@ -101,14 +109,30 @@ func outputTasks(tasks []taskEntry) error {
 	case "json":
 		output := make(map[string]interface{})
 		for _, t := range tasks {
-			output[t.ID] = t.Task
+			if t.Archived {
+				output[t.ID] = map[string]interface{}{
+					"task":        t.Task,
+					"archived":    true,
+					"archived_at": t.ArchivedAt,
+				}
+			} else {
+				output[t.ID] = t.Task
+			}
 		}
 		data, _ := json.MarshalIndent(output, "", "  ")
 		fmt.Println(string(data))
 	case "yaml":
 		output := make(map[string]interface{})
 		for _, t := range tasks {
-			output[t.ID] = t.Task
+			if t.Archived {
+				output[t.ID] = map[string]interface{}{
+					"task":        t.Task,
+					"archived":    true,
+					"archived_at": t.ArchivedAt,
+				}
+			} else {
+				output[t.ID] = t.Task
+			}
 		}
 		data, _ := yaml.Marshal(output)
 		fmt.Print(string(data))
@@ -120,13 +144,17 @@ func outputTasks(tasks []taskEntry) error {
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		for _, t := range tasks {
-			icon := getStatusIcon(t.Task.Status)
+			icon := getStatusIconForEntry(t)
 			desc := truncate(t.Task.Description, 50)
 
 			// Build info parts
 			var parts []string
-			if len(t.Task.BlockedBy) > 0 {
-				parts = append(parts, fmt.Sprintf("blocked by: %s", strings.Join(t.Task.BlockedBy, ", ")))
+			if t.Archived {
+				parts = append(parts, fmt.Sprintf("archived: %s", formatRelativeTime(t.ArchivedAt)))
+			} else {
+				if len(t.Task.BlockedBy) > 0 {
+					parts = append(parts, fmt.Sprintf("blocked by: %s", strings.Join(t.Task.BlockedBy, ", ")))
+				}
 			}
 			if len(t.Task.Tags) > 0 {
 				parts = append(parts, fmt.Sprintf("tags: %s", strings.Join(t.Task.Tags, ", ")))
@@ -291,6 +319,14 @@ func getStatusIcon(status task.Status) string {
 	default:
 		return "?"
 	}
+}
+
+// getStatusIconForEntry returns the status icon, handling archived tasks specially
+func getStatusIconForEntry(t taskEntry) string {
+	if t.Archived {
+		return "⌂"
+	}
+	return getStatusIcon(t.Task.Status)
 }
 
 func truncate(s string, maxLen int) string {

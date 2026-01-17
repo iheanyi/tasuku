@@ -125,9 +125,10 @@ tk task list --format json    # Output as JSON
 
 | Command | Description |
 |---------|-------------|
-| `tk task archive add <id>` | Archive a completed task |
-| `tk task archive list` | List archived tasks |
-| `tk task archive restore <id>` | Restore an archived task |
+| `tk task archive <id>` | Archive a completed task |
+| `tk task archive --older-than 7d` | Bulk archive old done tasks |
+| `tk task list --status archived` | List archived tasks |
+| `tk task restore <id>` | Restore an archived task |
 
 ### Context & Knowledge
 
