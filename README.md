@@ -41,7 +41,7 @@ Works with Claude Code, Cursor, Codex, and OpenCode. Restart your editor after i
 
 ### 2. Your AI agent now has access to
 
-**MCP Tools** (40+ tools, see `.claude/rules/mcp-reference.md`):
+**MCP Tools** (40+ tools, see `docs/mcp.md`):
 - `tk_add` / `tk_list` / `tk_done` - Task management
 - `tk_learn` / `tk_decide` - Knowledge capture
 - `tk_context` - Load full project state
@@ -76,7 +76,7 @@ tk ui                        # Terminal UI (j/k to navigate, ? for help)
 | `tk task claim/release <id>` | Multi-agent coordination |
 | `tk task timer start/stop <id>` | Time tracking |
 
-Full reference: `.claude/rules/cli-reference.md`
+Full reference: `docs/cli.md`
 
 ## Data Format
 
@@ -101,11 +101,11 @@ tk migrate beads --dry-run # Preview first
 
 ## Documentation
 
-Detailed docs in `.claude/rules/`:
-- `cli-reference.md` - Complete CLI commands
-- `mcp-reference.md` - MCP tools and TUI keybindings
-- `hooks-config.md` - Hook configuration
-- `data-model.md` - Storage format
+Detailed docs in `docs/`:
+- `cli.md` - Complete CLI commands
+- `mcp.md` - MCP tools and TUI keybindings
+- `hooks.md` - Hook configuration
+- `storage.md` - Storage format
 
 ## Development
 

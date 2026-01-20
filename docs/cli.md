@@ -1,20 +1,19 @@
 # CLI Reference
 
-The main CLI command is `tk`. Here's the complete reference:
+The main CLI command is `tk`. Here's the complete reference.
 
 ## Initialization
 
 ```bash
-tk init                    # Create .tasuku/ directory (V4 Markdown)
+tk init                    # Create .tasuku/ directory
 ```
 
-## Task Management (noun-verb style)
+## Task Management
 
 ```bash
 tk task list               # List all tasks (aliases: tk t ls, tk tasks)
 tk task list --tree        # Show hierarchical subtask view
 tk task list --status ready  # Filter by status (ready, in_progress, blocked, done, archived)
-tk task list --status archived  # Show archived tasks
 tk task list --tag backend   # Filter by tag
 tk task add "description"  # Add a task
 tk task add "desc" --parent <id>  # Add subtask
@@ -38,7 +37,7 @@ tk task deps <id>          # Show task dependency tree
 tk task stats              # Show task statistics and progress
 ```
 
-## Ownership & Claims (multi-agent coordination)
+## Ownership & Claims
 
 ```bash
 tk task owner <id> "name"  # Set task owner
@@ -73,11 +72,9 @@ tk task archive <id> --summary "notes"  # Archive with summary
 tk task archive --older-than 7d   # Bulk archive old done tasks
 tk task list --status archived    # List archived tasks
 tk task restore <id>              # Restore archived task to active
-tk task archive show <id>         # Show archived task details
-tk task archive clear             # Permanently delete all archived
 ```
 
-## Context & Learnings
+## Knowledge Capture
 
 ```bash
 tk learn "insight"         # Add a learning (shortcut)
@@ -96,7 +93,7 @@ tk context show            # Dump full context (for agent consumption)
 tk suggest "description"   # Check if task should persist to tk
 ```
 
-## Rules Sync (for Claude Code, Cursor)
+## Rules Sync
 
 ```bash
 tk rules sync              # Sync learnings/decisions to editor rules
@@ -113,7 +110,7 @@ tk serve http              # Start HTTP REST API on :3000
 tk serve http --port 8080  # Start HTTP on custom port
 ```
 
-## MCP Configuration
+## MCP & Hooks
 
 ```bash
 tk mcp install             # Auto-detect and install to all AI tools
@@ -121,25 +118,12 @@ tk mcp install --tool claude  # Install to Claude Code only
 tk mcp install --tool cursor  # Install to Cursor only
 tk mcp install --local     # Project-local config
 tk mcp uninstall           # Remove MCP configuration
-```
 
-## Hooks
-
-```bash
 tk hooks install              # Install all hooks (git + AI tools)
 tk hooks install --claude     # Install Claude Code hooks only
-tk hooks install --codex      # Install Codex hooks only
-tk hooks install --opencode   # Install OpenCode hooks only
 tk hooks install --local      # Install to project instead of global
 tk hooks install --force      # Reinstall/update hooks
 tk hooks uninstall            # Remove all Tasuku hooks
-tk hooks session              # Display context summary
-tk hooks stop-reminder        # Check for running timers/in-progress
-tk hooks plan-sync plan.md    # Extract tasks from plan file
-tk hooks prompt-check         # Detect task intent in prompts
-tk hooks todo-check           # Check if TodoWrite items should persist
-tk hooks pre-compact          # Capture insights before compaction
-tk hooks subagent-done        # Capture insights from subagent
 ```
 
 ## UI & Diagnostics
@@ -154,7 +138,5 @@ tk validate                # Validate storage for correctness
 ## Migration
 
 ```bash
-tk migrate v3              # Migrate from .tasuku.json to .tasuku/ (JSON)
-tk migrate v4              # Migrate from V3 JSON to V4 Markdown
 tk migrate beads           # Migrate from Beads format
 ```

@@ -27,23 +27,26 @@ tasuku/
 │   ├── context/         # learnings.md, decisions.md
 │   ├── config.json      # Version marker (version: 4)
 │   └── index.json       # Auto-generated index for fast queries
-└── CLAUDE.md            # This file (kept minimal - details in .claude/rules/)
+└── docs/                # User documentation
 ```
 
-## Reference Documentation
+## Parity Principle
 
-Detailed documentation is split into modular files in `.claude/rules/`:
+**Every capability must be accessible through all interfaces.** This is critical for agent-first design.
 
-| File | Contents |
-|------|----------|
-| `cli-reference.md` | Complete `tk` CLI command reference |
-| `mcp-reference.md` | MCP tools table, TUI keybindings, parity principle |
-| `data-model.md` | V4/V3/V2 storage formats, file locking |
-| `testing.md` | Test strategy, commands, verification checklist |
-| `development.md` | Code style, workflow, learning documentation rules |
-| `hooks-config.md` | Session hooks, MCP installation, hook features |
-| `tasuku/learnings.md` | Auto-synced learnings from .tasuku |
-| `tasuku/decisions.md` | Auto-synced decisions from .tasuku |
+| Interface | Users | Example |
+|-----------|-------|---------|
+| CLI | Humans in terminal | `tk task list` |
+| MCP | AI agents | `tk_list` tool |
+| TUI | Humans who prefer visual | `tk ui` |
+| Plugin | AI agents (slash commands) | `/tasuku:list` |
+
+**When adding functionality:**
+1. New CLI command → Add MCP tool
+2. New MCP tool → Consider CLI equivalent
+3. Core operations → Add to TUI
+4. Frequent operations → Consider Plugin command
+5. Same behavior across all interfaces
 
 ## Quick Reference
 
@@ -62,6 +65,24 @@ tk decide --id X --chose Y --over Z --because "reason"
 
 Use `tk suggest "description"` to check which to use.
 
+## Documentation
+
+### User Documentation (docs/)
+| File | Contents |
+|------|----------|
+| `docs/cli.md` | Complete CLI command reference |
+| `docs/mcp.md` | MCP tools and TUI keybindings |
+| `docs/hooks.md` | Hook configuration |
+| `docs/storage.md` | Storage format details |
+
+### Development Documentation (.claude/rules/)
+| File | Contents |
+|------|----------|
+| `development.md` | Code style, workflow, learning documentation rules |
+| `testing.md` | Test strategy, commands, verification checklist |
+| `tasuku/learnings.md` | Auto-synced learnings from .tasuku |
+| `tasuku/decisions.md` | Auto-synced decisions from .tasuku |
+
 ## Key Decisions
 
 1. **JSON over YAML** - Faster parsing, no ambiguity, better for agents
@@ -75,7 +96,6 @@ Use `tk suggest "description"` to check which to use.
 
 ## Learnings (Key Rules)
 
-- TUI/CLI/MCP/Plugin Parity: Every capability accessible through all interfaces
 - Always audit MCP tools, hooks, and nudges when adding new functionality
 - Never use O(n²) algorithms when O(n log n) alternatives exist
 - Always ensure MCP tool schema properties match handler parameters
