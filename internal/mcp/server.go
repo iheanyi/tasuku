@@ -854,6 +854,163 @@ func (s *Server) Tools() []Tool {
 				},
 			},
 		},
+		// Plugin management
+		{
+			Name:        "tk_plugin_install",
+			Description: "Install Tasuku plugins/skills to AI tools. Use to enable /tasuku:* slash commands in AI tools. By default installs to all detected tools; use 'tool' parameter to target specific tools.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"tool": map[string]interface{}{
+						"type":        "string",
+						"description": "Target specific tool: claude, cursor, copilot, codex (default: all detected)",
+					},
+					"local": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Install to project-local directory instead of global (default: false)",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_plugin_uninstall",
+			Description: "Remove Tasuku plugins/skills from AI tools. Removes /tasuku:* slash commands.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"tool": map[string]interface{}{
+						"type":        "string",
+						"description": "Target specific tool: claude, cursor, copilot, codex (default: all detected)",
+					},
+					"local": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Uninstall from project-local directory instead of global (default: false)",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_plugin_list",
+			Description: "List available Tasuku plugin commands/skills. Shows workflow commands (pickup, complete, reflect) and basic commands (add, list, done).",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		{
+			Name:        "tk_plugin_status",
+			Description: "Show plugin installation status. Lists detected AI tools and whether Tasuku is installed in each (local and global).",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		// MCP management
+		{
+			Name:        "tk_mcp_install",
+			Description: "Install Tasuku MCP server configuration to AI tools. Enables the tk_* tools in Claude Code, Cursor, Codex, Copilot CLI, OpenCode, and Gemini.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"tool": map[string]interface{}{
+						"type":        "string",
+						"description": "Target specific tool: claude, cursor, copilot, codex, opencode, gemini (default: all detected)",
+					},
+					"local": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Install to project-local config instead of global (default: false)",
+					},
+					"force": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Force reinstall even if already configured (default: false)",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_mcp_uninstall",
+			Description: "Remove Tasuku MCP server configuration from AI tools. Removes only Tasuku config; other MCP servers are preserved.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"local": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Remove from project-local config instead of global (default: false)",
+					},
+				},
+			},
+		},
+		// Hooks management
+		{
+			Name:        "tk_hooks_install",
+			Description: "Install Tasuku hooks for git and AI tools. Provides SessionStart context, Stop reminders, plan sync, and more. By default installs all hooks.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"git": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Install git hooks only (pre-commit, post-commit)",
+					},
+					"claude": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Install Claude Code hooks only",
+					},
+					"codex": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Install Codex hooks only",
+					},
+					"opencode": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Install OpenCode hooks only",
+					},
+					"copilot": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Install Copilot CLI hooks only (always local)",
+					},
+					"local": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Install to project instead of global (default: false)",
+					},
+					"force": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Overwrite existing hooks (default: false)",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_hooks_uninstall",
+			Description: "Remove Tasuku hooks from git and AI tools.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"git": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Remove git hooks only",
+					},
+					"claude": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Remove Claude Code hooks only",
+					},
+					"codex": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Remove Codex hooks only",
+					},
+					"opencode": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Remove OpenCode hooks only",
+					},
+					"copilot": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Remove Copilot CLI hooks only",
+					},
+					"local": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Remove from project instead of global (default: false)",
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -954,6 +1111,22 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleClaudeMdLint(args)
 	case "tk_claudemd_stats":
 		return s.handleClaudeMdStats(args)
+	case "tk_plugin_install":
+		return s.handlePluginInstall(args)
+	case "tk_plugin_uninstall":
+		return s.handlePluginUninstall(args)
+	case "tk_plugin_list":
+		return s.handlePluginList(args)
+	case "tk_plugin_status":
+		return s.handlePluginStatus(args)
+	case "tk_mcp_install":
+		return s.handleMCPInstall(args)
+	case "tk_mcp_uninstall":
+		return s.handleMCPUninstall(args)
+	case "tk_hooks_install":
+		return s.handleHooksInstall(args)
+	case "tk_hooks_uninstall":
+		return s.handleHooksUninstall(args)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
