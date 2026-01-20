@@ -42,3 +42,6 @@ BubbleTea async I/O pattern: (1) Define message types for results (TasksLoadedMs
 ## 30b116 - 2026-01-15T22:48:33Z
 Claude Code hooks (UserPromptSubmit, PostToolUse, etc.) can only analyze user messages and tool calls, not agent responses. For agent self-awareness (detecting "got it", "you're right", "turns out"), embed guidance directly in MCP tool descriptions under "AGENT SELF-AWARENESS" sections rather than trying to hook agent responses.
 
+## 9fd1b2 - 2026-01-20T17:19:32Z
+Cursor commands use plain Markdown files in .cursor/commands/ without YAML frontmatter. Format: H1 title, description paragraph, then ## Instructions section. Different from Claude Code (YAML frontmatter with description/argument-hint) and Copilot/Codex (SKILL.md with name/description frontmatter).
+

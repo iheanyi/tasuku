@@ -1,11 +1,63 @@
 {
   "version": "v4",
   "tasks": {
+    "copilot-hooks": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "feature",
+        "copilot",
+        "research"
+      ],
+      "file": "tasks/copilot-hooks.md",
+      "updated_at": "2026-01-20T17:20:04.521935Z"
+    },
+    "copilot-mcp": {
+      "status": "done",
+      "priority": 1,
+      "tags": [
+        "feature",
+        "copilot"
+      ],
+      "file": "tasks/copilot-mcp.md",
+      "updated_at": "2026-01-20T16:59:53.827623Z"
+    },
+    "copilot-rules-sync": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "feature",
+        "copilot",
+        "rules"
+      ],
+      "file": "tasks/copilot-rules-sync.md",
+      "updated_at": "2026-01-20T17:19:56.461378Z"
+    },
+    "cursor-skills": {
+      "status": "done",
+      "priority": 3,
+      "tags": [
+        "feature",
+        "cursor",
+        "research"
+      ],
+      "file": "tasks/cursor-skills.md",
+      "updated_at": "2026-01-20T17:17:57.674027Z"
+    },
     "fix-tui-string-truncation-for-an": {
       "status": "ready",
       "priority": 2,
       "file": "tasks/fix-tui-string-truncation-for-an.md",
       "updated_at": "2026-01-09T02:39:16.233324Z"
+    },
+    "multi-tool-docs": {
+      "status": "done",
+      "priority": 3,
+      "tags": [
+        "docs"
+      ],
+      "file": "tasks/multi-tool-docs.md",
+      "updated_at": "2026-01-20T17:19:25.070385Z"
     },
     "nudge-acknowledgment-detection": {
       "status": "done",
@@ -73,10 +125,21 @@
       "priority": 1,
       "file": "tasks/refactor-tui-to-use-nonblocking.md",
       "updated_at": "2026-01-09T02:39:06.160536Z"
+    },
+    "skills-abstraction": {
+      "status": "done",
+      "priority": 2,
+      "tags": [
+        "feature",
+        "skills",
+        "abstraction"
+      ],
+      "file": "tasks/skills-abstraction.md",
+      "updated_at": "2026-01-20T17:13:37.756284Z"
     }
   },
   "archived_count": 203,
-  "learnings_count": 14,
+  "learnings_count": 15,
   "decisions_count": 14,
-  "updated_at": "2026-01-17T15:43:00.98116Z"
+  "updated_at": "2026-01-20T17:20:04.522043Z"
 }
