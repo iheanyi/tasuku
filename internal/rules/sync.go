@@ -78,6 +78,15 @@ func GetTargets() []EditorTarget {
 		})
 	}
 
+	// Copilot CLI: detect via .github/hooks/ (hooks installed) or .copilot/
+	if dirExists(".github/hooks") || dirExists(".copilot") {
+		targets = append(targets, EditorTarget{
+			Name:       "Copilot CLI",
+			RulesDir:   ".github/rules/tasuku",
+			DetectDirs: []string{".github/hooks", ".copilot"},
+		})
+	}
+
 	return targets
 }
 
@@ -126,20 +135,24 @@ func SyncToTool(learnings []task.Learning, decisions []task.Decision, tool strin
 
 	// Map tool aliases to canonical names
 	toolMap := map[string]string{
-		"claude":     "Claude Code",
+		"claude":      "Claude Code",
 		"claude-code": "Claude Code",
-		"claudecode": "Claude Code",
-		"cursor":     "Cursor",
-		"codex":      "Codex",
-		"opencode":   "OpenCode",
-		"open-code":  "OpenCode",
-		"gemini":     "Gemini",
-		"google":     "Gemini",
+		"claudecode":  "Claude Code",
+		"cursor":      "Cursor",
+		"codex":       "Codex",
+		"opencode":    "OpenCode",
+		"open-code":   "OpenCode",
+		"gemini":      "Gemini",
+		"google":      "Gemini",
+		"copilot":     "Copilot CLI",
+		"copilot-cli": "Copilot CLI",
+		"copilotcli":  "Copilot CLI",
+		"github":      "Copilot CLI",
 	}
 
 	targetName, ok := toolMap[toolLower]
 	if !ok {
-		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini)", tool)
+		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini, copilot)", tool)
 	}
 
 	// Get the specific target configuration (even if not detected)
@@ -184,6 +197,12 @@ func getTargetByName(name string) *EditorTarget {
 			Name:       "Gemini",
 			RulesDir:   ".gemini/rules/tasuku",
 			DetectDirs: []string{".gemini", "GEMINI.md"},
+		}
+	case "Copilot CLI":
+		return &EditorTarget{
+			Name:       "Copilot CLI",
+			RulesDir:   ".github/rules/tasuku",
+			DetectDirs: []string{".github/hooks", ".copilot"},
 		}
 	default:
 		return nil
@@ -394,11 +413,15 @@ func CleanTool(tool string) ([]string, error) {
 		"open-code":   "OpenCode",
 		"gemini":      "Gemini",
 		"google":      "Gemini",
+		"copilot":     "Copilot CLI",
+		"copilot-cli": "Copilot CLI",
+		"copilotcli":  "Copilot CLI",
+		"github":      "Copilot CLI",
 	}
 
 	targetName, ok := toolMap[toolLower]
 	if !ok {
-		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini)", tool)
+		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini, copilot)", tool)
 	}
 
 	target := getTargetByName(targetName)

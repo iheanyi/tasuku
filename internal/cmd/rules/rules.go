@@ -16,12 +16,16 @@ func newRulesCmd() *cobra.Command {
 		Short: "Sync learnings and decisions to editor rules",
 		Long: `Sync Tasuku learnings and decisions to editor-specific rules directories.
 
-This enables automatic loading of learnings by Claude Code (.claude/rules/)
-and Cursor (.cursor/rules/) without manual intervention.
+This enables automatic loading of learnings by Claude Code (.claude/rules/),
+Cursor (.cursor/rules/), and other AI tools without manual intervention.
 
 Detected editors (based on project files):
   - Claude Code: .claude/ directory or CLAUDE.md file
   - Cursor: .cursor/ directory or .cursorrules file
+  - Codex: .codex/ directory or CODEX.md file
+  - OpenCode: .opencode/ directory or opencode.json file
+  - Copilot CLI: .github/hooks/ or .copilot/ directory
+  - Gemini: .gemini/ directory or GEMINI.md file
 
 Subcommands:
   sync   - Sync learnings and decisions to detected editors
@@ -51,7 +55,8 @@ This creates or updates:
   - .claude/rules/tasuku/decisions.md (all decisions)
 
 Same structure for Cursor (.cursor/rules/tasuku/), Codex (.codex/rules/tasuku/),
-and OpenCode (.opencode/rules/tasuku/).
+OpenCode (.opencode/rules/tasuku/), Copilot CLI (.github/rules/tasuku/),
+and Gemini (.gemini/rules/tasuku/).
 
 Path-scoped learnings are written to separate files with YAML frontmatter
 containing the 'paths' field, which editors use for conditional application.
@@ -60,11 +65,12 @@ Examples:
   tk rules sync                    # Sync to all detected editors
   tk rules sync --tool claude      # Sync only to Claude Code
   tk rules sync --tool cursor      # Sync only to Cursor
+  tk rules sync --tool copilot     # Sync only to Copilot CLI
   tk learn "insight" && tk rules sync  # Add and sync`,
 		RunE: runSync,
 	}
 
-	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode")
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode, copilot, gemini")
 
 	return cmd
 }
@@ -80,16 +86,19 @@ This removes files from:
   - .cursor/rules/tasuku/
   - .codex/rules/tasuku/
   - .opencode/rules/tasuku/
+  - .github/rules/tasuku/ (Copilot CLI)
+  - .gemini/rules/tasuku/
 
 The source learnings and decisions in .tasuku/ are preserved.
 
 Examples:
   tk rules clean                # Clean all detected editors
-  tk rules clean --tool claude  # Clean only Claude Code rules`,
+  tk rules clean --tool claude  # Clean only Claude Code rules
+  tk rules clean --tool copilot # Clean only Copilot CLI rules`,
 		RunE: runClean,
 	}
 
-	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode")
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode, copilot, gemini")
 
 	return cmd
 }
