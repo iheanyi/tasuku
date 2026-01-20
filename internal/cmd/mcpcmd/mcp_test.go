@@ -80,8 +80,8 @@ func TestGetSupportedAITools(t *testing.T) {
 
 	// Test local tools
 	localTools := getSupportedAITools(true)
-	if len(localTools) != 4 {
-		t.Errorf("expected 4 local tools, got %d", len(localTools))
+	if len(localTools) != 5 {
+		t.Errorf("expected 5 local tools, got %d", len(localTools))
 	}
 	// Check Claude Code (project) - should detect via .claude/ OR CLAUDE.md
 	if localTools[0].Name != "Claude Code (project)" {
@@ -96,32 +96,57 @@ func TestGetSupportedAITools(t *testing.T) {
 	if localTools[0].DetectPaths[0] != ".claude" || localTools[0].DetectPaths[1] != "CLAUDE.md" {
 		t.Errorf("expected DetectPaths ['.claude', 'CLAUDE.md'], got %v", localTools[0].DetectPaths)
 	}
+	// Check Copilot CLI (project) - should detect via .copilot/
+	if localTools[1].Name != "Copilot CLI (project)" {
+		t.Errorf("expected 'Copilot CLI (project)', got %s", localTools[1].Name)
+	}
+	if localTools[1].SettingsPath != ".copilot/mcp-config.json" {
+		t.Errorf("expected '.copilot/mcp-config.json', got %s", localTools[1].SettingsPath)
+	}
+	if len(localTools[1].DetectPaths) != 1 || localTools[1].DetectPaths[0] != ".copilot" {
+		t.Errorf("expected DetectPaths ['.copilot'], got %v", localTools[1].DetectPaths)
+	}
 	// Check Cursor (project) - should detect via .cursorrules OR .cursor/
-	if localTools[1].Name != "Cursor (project)" {
-		t.Errorf("expected 'Cursor (project)', got %s", localTools[1].Name)
+	if localTools[2].Name != "Cursor (project)" {
+		t.Errorf("expected 'Cursor (project)', got %s", localTools[2].Name)
 	}
-	if len(localTools[1].DetectPaths) != 2 {
-		t.Errorf("expected 2 DetectPaths for Cursor, got %d", len(localTools[1].DetectPaths))
+	if len(localTools[2].DetectPaths) != 2 {
+		t.Errorf("expected 2 DetectPaths for Cursor, got %d", len(localTools[2].DetectPaths))
 	}
-	if localTools[1].DetectPaths[0] != ".cursorrules" || localTools[1].DetectPaths[1] != ".cursor" {
-		t.Errorf("expected DetectPaths ['.cursorrules', '.cursor'], got %v", localTools[1].DetectPaths)
+	if localTools[2].DetectPaths[0] != ".cursorrules" || localTools[2].DetectPaths[1] != ".cursor" {
+		t.Errorf("expected DetectPaths ['.cursorrules', '.cursor'], got %v", localTools[2].DetectPaths)
 	}
 	// Check OpenCode (project) - should detect via opencode.json
-	if localTools[2].Name != "OpenCode (project)" {
-		t.Errorf("expected 'OpenCode (project)', got %s", localTools[2].Name)
+	if localTools[3].Name != "OpenCode (project)" {
+		t.Errorf("expected 'OpenCode (project)', got %s", localTools[3].Name)
 	}
-	if localTools[2].MCPKey != "mcp" {
-		t.Errorf("expected MCPKey 'mcp', got %s", localTools[2].MCPKey)
+	if localTools[3].MCPKey != "mcp" {
+		t.Errorf("expected MCPKey 'mcp', got %s", localTools[3].MCPKey)
 	}
 	// Check Gemini (project)
-	if localTools[3].Name != "Gemini (project)" {
-		t.Errorf("expected 'Gemini (project)', got %s", localTools[3].Name)
+	if localTools[4].Name != "Gemini (project)" {
+		t.Errorf("expected 'Gemini (project)', got %s", localTools[4].Name)
 	}
-	if len(localTools[3].DetectPaths) != 2 {
-		t.Errorf("expected 2 DetectPaths for Gemini, got %d", len(localTools[3].DetectPaths))
+	if len(localTools[4].DetectPaths) != 2 {
+		t.Errorf("expected 2 DetectPaths for Gemini, got %d", len(localTools[4].DetectPaths))
 	}
-	if localTools[3].DetectPaths[0] != ".gemini" || localTools[3].DetectPaths[1] != "GEMINI.md" {
-		t.Errorf("expected DetectPaths ['.gemini', 'GEMINI.md'], got %v", localTools[3].DetectPaths)
+	if localTools[4].DetectPaths[0] != ".gemini" || localTools[4].DetectPaths[1] != "GEMINI.md" {
+		t.Errorf("expected DetectPaths ['.gemini', 'GEMINI.md'], got %v", localTools[4].DetectPaths)
+	}
+
+	// Check global tools include Copilot CLI
+	foundCopilot := false
+	for _, tool := range tools {
+		if tool.Name == "Copilot CLI" {
+			foundCopilot = true
+			if tool.MCPKey != "mcpServers" {
+				t.Errorf("expected MCPKey 'mcpServers' for Copilot CLI, got %s", tool.MCPKey)
+			}
+			break
+		}
+	}
+	if !foundCopilot {
+		t.Error("expected Copilot CLI in global supported tools")
 	}
 }
 
@@ -241,6 +266,20 @@ func TestBuildMCPEntry(t *testing.T) {
 	args, ok := entry["args"].([]string)
 	if !ok || len(args) != 2 || args[0] != "serve" || args[1] != "mcp" {
 		t.Errorf("expected args ['serve', 'mcp'], got %v", entry["args"])
+	}
+
+	// Test Copilot CLI entry (local type with separate command and args)
+	copilotTool := AITool{Name: "Copilot CLI", MCPKey: "mcpServers"}
+	entry = buildMCPEntry(copilotTool, executable)
+	if entry["type"] != "local" {
+		t.Errorf("expected type 'local' for Copilot CLI, got %v", entry["type"])
+	}
+	if entry["command"] != executable {
+		t.Errorf("expected command '%s' for Copilot CLI, got %v", executable, entry["command"])
+	}
+	args, ok = entry["args"].([]string)
+	if !ok || len(args) != 2 || args[0] != "serve" || args[1] != "mcp" {
+		t.Errorf("expected args ['serve', 'mcp'] for Copilot CLI, got %v", entry["args"])
 	}
 
 	// Test OpenCode entry (local type with command array)
@@ -558,6 +597,52 @@ func TestInstallWithExistingJSONConfig(t *testing.T) {
 	}
 	if _, exists := mcpServers["tasuku"]; !exists {
 		t.Error("expected tasuku to be added")
+	}
+}
+
+func TestInstallLocalWithCopilot(t *testing.T) {
+	h := testutil.New(t)
+	dir := h.TempDir()
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// Create .copilot/ directory
+	os.MkdirAll(filepath.Join(dir, ".copilot"), 0755)
+
+	err := h.Execute(Cmd, "install", "--local", "--tool", "copilot")
+	h.AssertNoError(err)
+
+	// Should detect Copilot CLI and create .copilot/mcp-config.json
+	h.AssertOutputContains("Copilot")
+
+	// Verify .copilot/mcp-config.json was created
+	configPath := filepath.Join(dir, ".copilot", "mcp-config.json")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Error("expected .copilot/mcp-config.json to be created")
+	}
+
+	// Verify config content
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read config: %v", err)
+	}
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	mcpServers, ok := config["mcpServers"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected mcpServers key")
+	}
+	tasuku, ok := mcpServers["tasuku"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected tasuku entry")
+	}
+	if tasuku["type"] != "local" {
+		t.Errorf("expected type 'local', got %v", tasuku["type"])
 	}
 }
 
