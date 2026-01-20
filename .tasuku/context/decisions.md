@@ -65,3 +65,8 @@
 **Over**: Archive as collection (noun-with-verbs pattern), Keep current nested subcommand structure
 **Because**: Archiving is conceptually a task lifecycle state, not a sub-resource. Users think "mark as archived" not "add to archive collection." The verb pattern (`tk task archive <id>`) is consistent with other lifecycle commands (start, done, pause, block). The `--status archived` flag abstracts storage implementation and fits the existing list filtering pattern.
 
+## docs-structure - 2026-01-20T01:31:31Z
+**Chose**: Split docs/ for users and .claude/rules/ for agents
+**Over**: All docs in .claude/rules/, All docs in docs/, Duplicate in both locations
+**Because**: User documentation (CLI reference, MCP tools, hooks config, storage format) belongs where users expect it - in docs/. Agent development context (code style, testing, learnings, decisions) belongs in .claude/rules/ where Claude loads it automatically. Parity principle goes in CLAUDE.md directly since it's a critical agent instruction, not user docs.
+
