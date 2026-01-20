@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
@@ -85,7 +86,7 @@ Examples:
 			if strings.Contains(strings.ToLower(id), query) ||
 				strings.Contains(strings.ToLower(t.Description), query) {
 				icon := getStatusIcon(t.Status)
-				fmt.Printf("  [%s] %s: %s\n", icon, id, truncate(t.Description, 50))
+				fmt.Printf("  [%s] %s: %s\n", icon, id, cmdutil.Truncate(t.Description, 50))
 				found = true
 			}
 		}
@@ -98,7 +99,7 @@ Examples:
 		found = false
 		for _, l := range f.Context.Learnings {
 			if strings.Contains(strings.ToLower(l.Text), query) {
-				fmt.Printf("  - %s\n", truncate(l.Text, 60))
+				fmt.Printf("  - %s\n", cmdutil.Truncate(l.Text, 60))
 				found = true
 			}
 		}
@@ -113,7 +114,7 @@ Examples:
 			if strings.Contains(strings.ToLower(d.ID), query) ||
 				strings.Contains(strings.ToLower(d.Chose), query) ||
 				strings.Contains(strings.ToLower(d.Because), query) {
-				fmt.Printf("  - %s: chose %s\n", d.ID, truncate(d.Chose, 40))
+				fmt.Printf("  - %s: chose %s\n", d.ID, cmdutil.Truncate(d.Chose, 40))
 				found = true
 			}
 		}

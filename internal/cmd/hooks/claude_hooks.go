@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/iheanyi/tasuku/internal/version"
 )
@@ -161,7 +162,7 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 				"hooks": []map[string]string{
 					{
 						"type":    "command",
-						"command": fmt.Sprintf("%s hooks plan-sync \"$PLAN_FILE\" --dry-run %s", executable, tasukuHookMarker),
+						"command": fmt.Sprintf("%s hooks plan-sync '$PLAN_FILE' --dry-run %s", executable, tasukuHookMarker),
 					},
 				},
 			},
@@ -552,18 +553,5 @@ func uninstallClaudeHooks(local bool) error {
 }
 
 func containsTasukuMarker(command string) bool {
-	return len(command) > 0 && (contains(command, tasukuHookMarker) || contains(command, "tk hooks"))
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
-}
-
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(command, tasukuHookMarker) || strings.Contains(command, "tk hooks")
 }

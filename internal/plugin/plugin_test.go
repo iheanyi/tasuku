@@ -362,32 +362,6 @@ func TestGetDetectedTools(t *testing.T) {
 	}
 }
 
-func TestGenerateSkillIndex(t *testing.T) {
-	commands := []Command{
-		{Name: "pickup", Description: "Pick up a task"},
-		{Name: "add", Description: "Add a task"},
-		{Name: "help", Description: "Show help"},
-	}
-
-	index := GenerateSkillIndex(commands)
-
-	if len(index) == 0 {
-		t.Error("expected non-empty index")
-	}
-
-	// Check for expected content
-	indexStr := string(index)
-	if !contains(indexStr, "# Tasuku Skills") {
-		t.Error("expected '# Tasuku Skills' header")
-	}
-	if !contains(indexStr, "pickup") {
-		t.Error("expected 'pickup' command in index")
-	}
-	if !contains(indexStr, "add") {
-		t.Error("expected 'add' command in index")
-	}
-}
-
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
 }

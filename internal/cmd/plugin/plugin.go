@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/plugin"
 )
 
@@ -59,14 +60,12 @@ Examples:
   tk plugin install                    # Install to all detected tools
   tk plugin install --tool copilot     # Install to Copilot CLI only
   tk plugin install --tool codex       # Install to Codex only
-  tk plugin install --local            # Install locally instead of globally
-  tk plugin install --global           # Install globally (default)`,
+  tk plugin install --local            # Install locally instead of globally`,
 		RunE: runInstall,
 	}
 
 	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, copilot, codex")
 	cmd.Flags().Bool("local", false, "Install to project-local directory")
-	cmd.Flags().Bool("global", false, "Install to global user directory (default)")
 
 	return cmd
 }
@@ -221,12 +220,12 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Workflow Commands (Recommended):")
 	for _, c := range workflow {
-		fmt.Printf("  %-12s - %s\n", c.Name, truncate(c.Description, 60))
+		fmt.Printf("  %-12s - %s\n", c.Name, cmdutil.Truncate(c.Description, 60))
 	}
 
 	fmt.Println("\nBasic Commands:")
 	for _, c := range basic {
-		fmt.Printf("  %-12s - %s\n", c.Name, truncate(c.Description, 60))
+		fmt.Printf("  %-12s - %s\n", c.Name, cmdutil.Truncate(c.Description, 60))
 	}
 
 	fmt.Printf("\nTotal: %d commands\n", len(commands))
@@ -299,13 +298,6 @@ func checkInstalled(dir string) bool {
 		}
 	}
 	return false
-}
-
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
 }
 
 func min(a, b int) int {

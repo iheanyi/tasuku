@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/store"
 )
 
@@ -112,7 +113,7 @@ func runPlanSync(cmd *cobra.Command, args []string) error {
 		}
 		for _, item := range toCreate {
 			id := generateID(item.Description)
-			fmt.Printf("  + %s: %s\n", id, truncate(item.Description, 50))
+			fmt.Printf("  + %s: %s\n", id, cmdutil.Truncate(item.Description, 50))
 			if !dryRun {
 				if err := s.AddTask(id, item.Description); err != nil {
 					fmt.Printf("    Error: %v\n", err)
@@ -125,7 +126,7 @@ func runPlanSync(cmd *cobra.Command, args []string) error {
 	if len(skipped) > 0 {
 		fmt.Println("Skipped (session-level):")
 		for _, item := range skipped {
-			fmt.Printf("  - %s\n", truncate(item.Description, 60))
+			fmt.Printf("  - %s\n", cmdutil.Truncate(item.Description, 60))
 		}
 		fmt.Println()
 	}
@@ -230,10 +231,3 @@ func ParsePlanFile(path string) ([]PlanItem, error) {
 	return items, nil
 }
 
-// truncate shortens a string to maxLen, adding "..." if truncated
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
-}

@@ -20,9 +20,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
+	"sync"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
+
+	"github.com/iheanyi/tasuku/internal/tools"
 )
 
 //go:embed commands/*.md
@@ -121,34 +125,37 @@ func GetDetectedTools() []ToolTarget {
 
 // GetToolByName returns a tool target by name (case-insensitive).
 func GetToolByName(name string) *ToolTarget {
-	nameLower := strings.ToLower(name)
-	aliases := map[string]string{
-		"claude":      "Claude Code",
-		"claude-code": "Claude Code",
-		"claudecode":  "Claude Code",
-		"cursor":      "Cursor",
-		"copilot":     "Copilot CLI",
-		"copilot-cli": "Copilot CLI",
-		"copilotcli":  "Copilot CLI",
-		"github":      "Copilot CLI",
-		"codex":       "Codex",
-	}
-
-	targetName := aliases[nameLower]
-	if targetName == "" {
+	tool, ok := tools.Resolve(name)
+	if !ok {
 		return nil
 	}
 
-	for _, tool := range GetSupportedTools() {
-		if tool.Name == targetName {
-			return &tool
+	for _, t := range GetSupportedTools() {
+		if t.Name == tool.String() {
+			return &t
 		}
 	}
 	return nil
 }
 
+// Cached embedded commands (immutable at runtime, so safe to cache)
+var (
+	cachedCommands    []Command
+	cachedCommandsErr error
+	loadCommandsOnce  sync.Once
+)
+
 // LoadEmbeddedCommands loads commands from the embedded filesystem.
+// Results are cached since embedded content never changes at runtime.
 func LoadEmbeddedCommands() ([]Command, error) {
+	loadCommandsOnce.Do(func() {
+		cachedCommands, cachedCommandsErr = loadEmbeddedCommandsInternal()
+	})
+	return cachedCommands, cachedCommandsErr
+}
+
+// loadEmbeddedCommandsInternal does the actual loading (called once via sync.Once).
+func loadEmbeddedCommandsInternal() ([]Command, error) {
 	commands := []Command{}
 
 	err := fs.WalkDir(embeddedCommands, "commands", func(path string, d fs.DirEntry, err error) error {
@@ -217,6 +224,9 @@ func ConvertToSkillMD(cmd Command) []byte {
 	return buf.Bytes()
 }
 
+// titleCaser is a reusable title case converter for English.
+var titleCaser = cases.Title(language.English)
+
 // ConvertToCursorCommand converts a Claude command to Cursor command format.
 // Cursor commands are plain Markdown files without frontmatter.
 // Format: # Title\n\nDescription\n\n## Instructions\n\nContent
@@ -224,7 +234,7 @@ func ConvertToCursorCommand(cmd Command) []byte {
 	var buf bytes.Buffer
 
 	// Write title (convert name to Title Case)
-	title := strings.Title(strings.ReplaceAll(cmd.Name, "-", " "))
+	title := titleCaser.String(strings.ReplaceAll(cmd.Name, "-", " "))
 	buf.WriteString(fmt.Sprintf("# %s\n\n", title))
 
 	// Write description as overview
@@ -284,7 +294,7 @@ This provides all /tasuku:* commands.`)
 			filename := fmt.Sprintf("tasuku-%s.md", cmd.Name)
 			path := filepath.Join(targetDir, filename)
 
-			if err := os.WriteFile(path, cmdData, 0644); err != nil {
+			if err := safeWriteFile(path, cmdData, 0644); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("failed to write %s: %v", filename, err))
 			} else {
 				result.FilesAdded = append(result.FilesAdded, path)
@@ -304,7 +314,7 @@ This provides all /tasuku:* commands.`)
 			filename := fmt.Sprintf("%s.md", cmd.Name)
 			path := filepath.Join(targetDir, filename)
 
-			if err := os.WriteFile(path, skillData, 0644); err != nil {
+			if err := safeWriteFile(path, skillData, 0644); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("failed to write %s: %v", filename, err))
 			} else {
 				result.FilesAdded = append(result.FilesAdded, path)
@@ -376,40 +386,6 @@ func UninstallFromTool(tool ToolTarget, local bool) InstallResult {
 	return result
 }
 
-// GenerateSkillIndex generates an index file for skills (useful for some tools).
-func GenerateSkillIndex(commands []Command) []byte {
-	var buf bytes.Buffer
-
-	buf.WriteString("# Tasuku Skills\n\n")
-	buf.WriteString("Task management skills for AI agents.\n\n")
-	buf.WriteString("## Available Commands\n\n")
-
-	// Group by type
-	workflow := []Command{}
-	basic := []Command{}
-
-	for _, cmd := range commands {
-		switch cmd.Name {
-		case "pickup", "complete", "reflect", "help":
-			workflow = append(workflow, cmd)
-		default:
-			basic = append(basic, cmd)
-		}
-	}
-
-	buf.WriteString("### Workflow Skills (Recommended)\n\n")
-	for _, cmd := range workflow {
-		buf.WriteString(fmt.Sprintf("- **%s** - %s\n", cmd.Name, cmd.Description))
-	}
-
-	buf.WriteString("\n### Basic Skills\n\n")
-	for _, cmd := range basic {
-		buf.WriteString(fmt.Sprintf("- **%s** - %s\n", cmd.Name, cmd.Description))
-	}
-
-	return buf.Bytes()
-}
-
 // Helper functions
 
 func exists(path string) bool {
@@ -417,11 +393,13 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// SkillTemplate is a template for generating skill files.
-var SkillTemplate = template.Must(template.New("skill").Parse(`---
-name: {{ .Name }}
-description: {{ .Description }}
----
-
-{{ .Content }}
-`))
+// safeWriteFile writes content to a file, refusing to follow symlinks for security.
+func safeWriteFile(path string, content []byte, perm os.FileMode) error {
+	// Check if path exists and is a symlink
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing to write to symlink: %s", path)
+		}
+	}
+	return os.WriteFile(path, content, perm)
+}

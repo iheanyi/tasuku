@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/iheanyi/tasuku/internal/cmd/testutil"
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
@@ -427,9 +428,9 @@ func TestTruncateString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := truncateString(tt.input, tt.maxLen)
+		got := cmdutil.Truncate(tt.input, tt.maxLen)
 		if got != tt.expected {
-			t.Errorf("truncateString(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.expected)
+			t.Errorf("cmdutil.Truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.expected)
 		}
 	}
 }

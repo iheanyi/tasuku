@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/iheanyi/tasuku/internal/task"
+	"github.com/iheanyi/tasuku/internal/tools"
 )
 
 // EditorTarget represents a supported editor for rules sync.
@@ -129,36 +130,16 @@ func Sync(learnings []task.Learning, decisions []task.Decision) ([]SyncResult, e
 
 // SyncToTool synchronizes learnings and decisions to a specific tool.
 // Tool names: "claude", "cursor", "codex", "opencode", "gemini"
-func SyncToTool(learnings []task.Learning, decisions []task.Decision, tool string) ([]SyncResult, error) {
-	// Normalize tool name
-	toolLower := strings.ToLower(tool)
-
-	// Map tool aliases to canonical names
-	toolMap := map[string]string{
-		"claude":      "Claude Code",
-		"claude-code": "Claude Code",
-		"claudecode":  "Claude Code",
-		"cursor":      "Cursor",
-		"codex":       "Codex",
-		"opencode":    "OpenCode",
-		"open-code":   "OpenCode",
-		"gemini":      "Gemini",
-		"google":      "Gemini",
-		"copilot":     "Copilot CLI",
-		"copilot-cli": "Copilot CLI",
-		"copilotcli":  "Copilot CLI",
-		"github":      "Copilot CLI",
-	}
-
-	targetName, ok := toolMap[toolLower]
+func SyncToTool(learnings []task.Learning, decisions []task.Decision, toolName string) ([]SyncResult, error) {
+	tool, ok := tools.Resolve(toolName)
 	if !ok {
-		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini, copilot)", tool)
+		return nil, fmt.Errorf("unknown tool: %s (valid: %s)", toolName, tools.ValidNames())
 	}
 
 	// Get the specific target configuration (even if not detected)
-	target := getTargetByName(targetName)
+	target := getTargetByName(tool.String())
 	if target == nil {
-		return nil, fmt.Errorf("tool %s not detected in current directory", targetName)
+		return nil, fmt.Errorf("tool %s not detected in current directory", tool)
 	}
 
 	result := syncToTarget(*target, learnings, decisions)
@@ -352,6 +333,9 @@ func generateDecisionsMarkdown(decisions []task.Decision) []byte {
 	return buf.Bytes()
 }
 
+// slugSanitizeRegex is pre-compiled for performance (used in scopeToSlug).
+var slugSanitizeRegex = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+
 // scopeToSlug converts a scope pattern to a filename-safe slug.
 // e.g., "src/api/**" -> "api", "src/components/**/*.tsx" -> "components"
 func scopeToSlug(scope string) string {
@@ -370,8 +354,7 @@ func scopeToSlug(scope string) string {
 		// Found a meaningful directory name
 		slug := strings.ToLower(part)
 		// Sanitize: only alphanumeric and hyphens
-		reg := regexp.MustCompile(`[^a-zA-Z0-9]+`)
-		slug = reg.ReplaceAllString(slug, "-")
+		slug = slugSanitizeRegex.ReplaceAllString(slug, "-")
 		slug = strings.Trim(slug, "-")
 		if slug != "" {
 			return slug
@@ -398,33 +381,13 @@ func Clean() ([]string, error) {
 }
 
 // CleanTool removes Tasuku-generated rules files from a specific tool.
-func CleanTool(tool string) ([]string, error) {
-	// Normalize tool name
-	toolLower := strings.ToLower(tool)
-
-	// Map tool aliases to canonical names
-	toolMap := map[string]string{
-		"claude":      "Claude Code",
-		"claude-code": "Claude Code",
-		"claudecode":  "Claude Code",
-		"cursor":      "Cursor",
-		"codex":       "Codex",
-		"opencode":    "OpenCode",
-		"open-code":   "OpenCode",
-		"gemini":      "Gemini",
-		"google":      "Gemini",
-		"copilot":     "Copilot CLI",
-		"copilot-cli": "Copilot CLI",
-		"copilotcli":  "Copilot CLI",
-		"github":      "Copilot CLI",
-	}
-
-	targetName, ok := toolMap[toolLower]
+func CleanTool(toolName string) ([]string, error) {
+	tool, ok := tools.Resolve(toolName)
 	if !ok {
-		return nil, fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini, copilot)", tool)
+		return nil, fmt.Errorf("unknown tool: %s (valid: %s)", toolName, tools.ValidNames())
 	}
 
-	target := getTargetByName(targetName)
+	target := getTargetByName(tool.String())
 	if target == nil {
 		return nil, nil
 	}

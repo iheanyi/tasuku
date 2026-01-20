@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
@@ -862,7 +863,7 @@ func handleTodoWriteCheck(config featureConfig, toolInput string) error {
 		fmt.Println("🎯 BUG FIX COMPLETED - RECORD YOUR LEARNINGS NOW!")
 		fmt.Println()
 		for _, fix := range completedBugFixes {
-			fmt.Printf("   ✓ %s\n", truncateString(fix, 60))
+			fmt.Printf("   ✓ %s\n", cmdutil.Truncate(fix, 60))
 		}
 		fmt.Println()
 		fmt.Println("📝 Document what you learned:")
@@ -875,7 +876,7 @@ func handleTodoWriteCheck(config featureConfig, toolInput string) error {
 	if len(suggestions) > 0 {
 		fmt.Println("💡 Some TodoWrite items look project-level:")
 		for _, s := range suggestions {
-			fmt.Printf("   → %s\n", truncateString(s, 60))
+			fmt.Printf("   → %s\n", cmdutil.Truncate(s, 60))
 		}
 		fmt.Println()
 		fmt.Println("Consider: /tasuku:add \"description\" --priority high")
@@ -1026,7 +1027,7 @@ func handleGitCommitLink(output string) {
 	if len(inProgress) == 1 {
 		item := inProgress[0]
 		fmt.Printf("📝 Commit may relate to: %s\n", item.id)
-		fmt.Printf("   %s\n", truncateString(item.task.Description, 50))
+		fmt.Printf("   %s\n", cmdutil.Truncate(item.task.Description, 50))
 		fmt.Println("   Mark as done?")
 		fmt.Printf("   → tk task done %s\n", item.id)
 		fmt.Println()
@@ -1153,10 +1154,10 @@ func hookPromptCheck(config featureConfig) error {
 		if len(inProgressTasks) > 0 {
 			fmt.Println("🔄 Continuing session - in-progress tasks:")
 			for _, item := range inProgressTasks {
-				fmt.Printf("   - %s: %s\n", item.id, truncateString(item.task.Description, 50))
+				fmt.Printf("   - %s: %s\n", item.id, cmdutil.Truncate(item.task.Description, 50))
 				if notes := f.Context.Notes[item.id]; len(notes) > 0 {
 					lastNote := notes[len(notes)-1]
-					fmt.Printf("     Last note: %s\n", truncateString(lastNote.Text, 60))
+					fmt.Printf("     Last note: %s\n", cmdutil.Truncate(lastNote.Text, 60))
 				}
 			}
 			fmt.Println()
@@ -1170,9 +1171,9 @@ func hookPromptCheck(config featureConfig) error {
 		if len(relevantDecisions) > 0 {
 			fmt.Println("📚 Related decisions found:")
 			for _, d := range relevantDecisions {
-				fmt.Printf("   - %s: Chose %s\n", d.ID, truncateString(d.Chose, 40))
+				fmt.Printf("   - %s: Chose %s\n", d.ID, cmdutil.Truncate(d.Chose, 40))
 				if d.Because != "" {
-					fmt.Printf("     Because: %s\n", truncateString(d.Because, 50))
+					fmt.Printf("     Because: %s\n", cmdutil.Truncate(d.Because, 50))
 				}
 			}
 			fmt.Println()
@@ -1186,7 +1187,7 @@ func hookPromptCheck(config featureConfig) error {
 		if len(relevantLearnings) > 0 {
 			fmt.Println("💡 Related learnings found:")
 			for _, l := range relevantLearnings {
-				fmt.Printf("   - %s\n", truncateString(l.Text, 70))
+				fmt.Printf("   - %s\n", cmdutil.Truncate(l.Text, 70))
 			}
 			fmt.Println()
 			outputCount++
@@ -1198,7 +1199,7 @@ func hookPromptCheck(config featureConfig) error {
 		rulePortion := extractRulePortion(userPrompt)
 		if rulePortion != "" && !hasSimilarLearning(f.Context.Learnings, rulePortion) {
 			fmt.Println("📝 RULE DETECTED in your message:")
-			fmt.Printf("   \"%s\"\n", truncateString(rulePortion, 80))
+			fmt.Printf("   \"%s\"\n", cmdutil.Truncate(rulePortion, 80))
 			fmt.Println()
 			fmt.Println("   Record this as a project rule:")
 			fmt.Printf("   → /tasuku:learn \"%s\"\n", escapeForShell(rulePortion))
@@ -1235,7 +1236,7 @@ func hookPromptCheck(config featureConfig) error {
 			if strings.Contains(promptLower, strings.ToLower(id)) {
 				fmt.Printf("📋 Task referenced: %s\n", id)
 				fmt.Printf("   Status: %s\n", t.Status)
-				fmt.Printf("   %s\n", truncateString(t.Description, 50))
+				fmt.Printf("   %s\n", cmdutil.Truncate(t.Description, 50))
 				if t.Status == task.StatusReady {
 					fmt.Printf("   → Consider: tk task start %s\n", id)
 				}
@@ -1252,7 +1253,7 @@ func hookPromptCheck(config featureConfig) error {
 			fmt.Println("📋 Related tasks found:")
 			for _, item := range relatedTasks {
 				statusIcon := getStatusIcon(item.task.Status)
-				fmt.Printf("   %s %s: %s\n", statusIcon, item.id, truncateString(item.task.Description, 45))
+				fmt.Printf("   %s %s: %s\n", statusIcon, item.id, cmdutil.Truncate(item.task.Description, 45))
 			}
 			fmt.Println()
 			outputCount++
@@ -1335,7 +1336,7 @@ func hookPromptCheck(config featureConfig) error {
 		if decisionContent != "" {
 			fmt.Println("🏛️  This sounds like an architectural decision.")
 			fmt.Println("   Record it so future agents understand WHY:")
-			fmt.Printf("   → tk decide --id <name> --chose \"...\" --over \"...\" --because \"%s\"\n", escapeForShell(truncateString(decisionContent, 60)))
+			fmt.Printf("   → tk decide --id <name> --chose \"...\" --over \"...\" --because \"%s\"\n", escapeForShell(cmdutil.Truncate(decisionContent, 60)))
 			fmt.Println()
 			fmt.Println("   Agent: If you just learned this, call tk_decide to capture it.")
 			fmt.Println()
@@ -1349,7 +1350,7 @@ func hookPromptCheck(config featureConfig) error {
 		preferenceContent := extractPreferenceContent(userPrompt)
 		if preferenceContent != "" && !hasSimilarLearning(f.Context.Learnings, preferenceContent) {
 			fmt.Println("✨ User preference detected:")
-			fmt.Printf("   \"%s\"\n", truncateString(preferenceContent, 70))
+			fmt.Printf("   \"%s\"\n", cmdutil.Truncate(preferenceContent, 70))
 			fmt.Println()
 			fmt.Println("   Capture for consistency across sessions:")
 			fmt.Printf("   → /tasuku:learn \"%s\"\n", escapeForShell(preferenceContent))
@@ -1830,17 +1831,6 @@ func getStatusIcon(status task.Status) string {
 	default:
 		return "?"
 	}
-}
-
-// truncateString truncates a string to maxLen with ellipsis
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-	return s[:maxLen-3] + "..."
 }
 
 // looksLikeInstruction checks if a message looks like an instruction to an agent
