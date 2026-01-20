@@ -446,3 +446,35 @@ func TestGolden_BlockedTaskView(t *testing.T) {
 	// Compare with golden file
 	teatest.RequireEqualOutput(t, []byte(output))
 }
+
+// TestGolden_CreateTaskView tests the task creation textarea view (n key)
+func TestGolden_CreateTaskView(t *testing.T) {
+	s := setupGoldenTestStore(t)
+	m := createTestModel(t, s)
+
+	// Press 'n' to open the create task view
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m = newModel.(Model)
+
+	// Render the view directly for golden comparison
+	output := m.View()
+
+	// Compare with golden file
+	teatest.RequireEqualOutput(t, []byte(output))
+}
+
+// TestGolden_EditTaskView tests the task editing textarea view (e key)
+func TestGolden_EditTaskView(t *testing.T) {
+	s := setupGoldenTestStore(t)
+	m := createTestModel(t, s)
+
+	// Press 'e' to open the edit task view for the currently selected task
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	m = newModel.(Model)
+
+	// Render the view directly for golden comparison
+	output := m.View()
+
+	// Compare with golden file
+	teatest.RequireEqualOutput(t, []byte(output))
+}
