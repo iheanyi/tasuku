@@ -116,14 +116,29 @@ tk serve http --port 8080  # Start HTTP on custom port
 tk mcp install             # Auto-detect and install to all AI tools
 tk mcp install --tool claude  # Install to Claude Code only
 tk mcp install --tool cursor  # Install to Cursor only
+tk mcp install --tool copilot # Install to Copilot CLI only
 tk mcp install --local     # Project-local config
 tk mcp uninstall           # Remove MCP configuration
 
 tk hooks install              # Install all hooks (git + AI tools)
 tk hooks install --claude     # Install Claude Code hooks only
+tk hooks install --copilot    # Install Copilot CLI hooks only
 tk hooks install --local      # Install to project instead of global
 tk hooks install --force      # Reinstall/update hooks
 tk hooks uninstall            # Remove all Tasuku hooks
+```
+
+## Plugins & Skills
+
+```bash
+tk plugin install              # Install slash commands to all detected tools
+tk plugin install --tool cursor  # Install to Cursor only
+tk plugin install --tool copilot # Install to Copilot CLI only
+tk plugin install --tool codex   # Install to Codex only
+tk plugin install --local        # Install to project-local directory
+tk plugin uninstall            # Remove plugins/skills
+tk plugin list                 # List available commands
+tk plugin status               # Show installation status
 ```
 
 ## UI & Diagnostics

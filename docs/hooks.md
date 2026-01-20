@@ -7,6 +7,7 @@ Hooks automatically integrate Tasuku into your AI tool workflow.
 | Tool | Support |
 |------|---------|
 | Claude Code | Full hooks (SessionStart, Stop, PreCompact, etc.) |
+| Copilot CLI | Full hooks (sessionStart, sessionEnd, userPromptSubmitted, postToolUse) |
 | Cursor | MCP server + rules sync |
 | Codex | MCP server + notify hook |
 | OpenCode | MCP server + plugin hooks |
@@ -16,6 +17,7 @@ Hooks automatically integrate Tasuku into your AI tool workflow.
 ```bash
 tk hooks install              # Install all hooks
 tk hooks install --claude     # Claude Code only
+tk hooks install --copilot    # Copilot CLI only (always local)
 tk hooks install --codex      # Codex only
 tk hooks install --opencode   # OpenCode only
 tk hooks install --local      # Project-local instead of global
@@ -28,15 +30,23 @@ tk hooks uninstall            # Remove all hooks
 ```bash
 tk mcp install                # Auto-detect and install to all AI tools
 tk mcp install --tool claude  # Claude Code only
+tk mcp install --tool copilot # Copilot CLI only
 tk mcp install --tool cursor  # Cursor only
 tk mcp install --local        # Project-local config
 ```
 
 **Configuration file locations:**
 - Claude Code: `~/.claude.json` or `./.claude.json`
+- Copilot CLI: `~/.copilot/mcp-config.json` or `./.copilot/mcp-config.json`
 - Cursor: `~/.cursor/mcp.json` or `./.cursor/mcp.json`
 - Codex: `~/.codex/config.toml`
 - OpenCode: `~/.config/opencode/opencode.json` or `./opencode.json`
+
+**Hook file locations:**
+- Claude Code: `~/.claude/settings.json` or `./.claude/settings.json`
+- Copilot CLI: `.github/hooks/tasuku.json` (always local)
+- Codex: `~/.codex/config.toml`
+- OpenCode: `~/.config/opencode/plugin/` or `.opencode/plugin/`
 
 ## What Hooks Do
 
