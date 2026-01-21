@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/iheanyi/tasuku/internal/cmd/config"
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
@@ -224,7 +225,7 @@ func outputActiveTimers(timers map[string]task.Task) error {
 		fmt.Printf("Active timers (%d):\n\n", len(infos))
 		for _, info := range infos {
 			fmt.Printf("  %s\n", info.TaskID)
-			fmt.Printf("    Description: %s\n", truncate(info.Description, 50))
+			fmt.Printf("    Description: %s\n", cmdutil.Truncate(info.Description, 50))
 			fmt.Printf("    Running:     %s\n", info.Elapsed)
 			fmt.Printf("    Total:       %s\n", info.Total)
 			fmt.Println()

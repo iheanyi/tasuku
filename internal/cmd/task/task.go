@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/iheanyi/tasuku/internal/cmd/config"
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
@@ -145,7 +146,7 @@ func outputTasks(tasks []taskEntry) error {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		for _, t := range tasks {
 			icon := getStatusIconForEntry(t)
-			desc := truncate(t.Task.Description, 50)
+			desc := cmdutil.Truncate(t.Task.Description, 50)
 
 			// Build info parts
 			var parts []string
@@ -200,7 +201,7 @@ func outputTasksTree(tasks []taskEntry) error {
 		printTree = func(entries []taskEntry, indent string) {
 			for i, t := range entries {
 				icon := getStatusIcon(t.Task.Status)
-				desc := truncate(t.Task.Description, 50-len(indent))
+				desc := cmdutil.Truncate(t.Task.Description, 50-len(indent))
 
 				// Determine tree character
 				prefix := "├── "
@@ -327,13 +328,6 @@ func getStatusIconForEntry(t taskEntry) string {
 		return "⌂"
 	}
 	return getStatusIcon(t.Task.Status)
-}
-
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
 }
 
 func formatRelativeTime(t time.Time) string {

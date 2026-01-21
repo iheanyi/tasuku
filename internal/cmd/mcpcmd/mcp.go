@@ -22,7 +22,7 @@ func newMCPCmd() *cobra.Command {
 		Long: `Model Context Protocol (MCP) configuration for AI tool integration.
 
 Available subcommands:
-  install    Auto-configure Tasuku MCP in Claude Code, Cursor, Codex, OpenCode
+  install    Auto-configure Tasuku MCP in Claude Code, Cursor, Codex, Copilot CLI, OpenCode
   uninstall  Remove Tasuku MCP configuration from AI tools
   config     Display MCP configuration JSON for manual setup
   serve      Alias for 'tk serve mcp' (backwards compatibility)
@@ -75,6 +75,7 @@ func newInstallCmd() *cobra.Command {
 
 Supported tools:
   - Claude Code (~/.claude.json or ./.claude.json with --local)
+  - Copilot CLI (~/.copilot/mcp-config.json or ./.copilot/mcp-config.json with --local)
   - Cursor (~/.cursor/mcp.json or ./.cursor/mcp.json with --local)
   - Codex (~/.codex/config.toml)
   - OpenCode (~/.config/opencode/opencode.json or ./opencode.json with --local)
@@ -82,6 +83,7 @@ Supported tools:
 
 Detection signals (local install):
   - Claude Code: .claude/ directory OR CLAUDE.md file
+  - Copilot CLI: .copilot/ directory
   - Cursor: .cursorrules file OR .cursor/ directory
   - OpenCode: opencode.json file
   - Gemini: .gemini/ directory OR GEMINI.md file
@@ -91,7 +93,7 @@ overwriting other MCP servers or configurations.
 
 Use --local to install to project-level config instead of global.
 Use --force to reinstall even if already configured.
-Use --tool to target a specific tool (claude, cursor, codex, opencode, gemini).`,
+Use --tool to target a specific tool (claude, copilot, cursor, codex, opencode, gemini).`,
 		RunE: runInstall,
 	}
 
@@ -157,7 +159,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if len(filtered) == 0 {
-			return fmt.Errorf("unknown tool: %s (valid: claude, cursor, codex, opencode, gemini)", toolFilter)
+			return fmt.Errorf("unknown tool: %s (valid: claude, copilot, cursor, codex, opencode, gemini)", toolFilter)
 		}
 		tools = filtered
 	}
@@ -544,11 +546,20 @@ func installToTOML(tool AITool, executable string, force, settingsExist bool) (b
 
 // buildMCPEntry creates the appropriate MCP entry structure for a tool
 func buildMCPEntry(tool AITool, executable string) map[string]interface{} {
+	nameLower := strings.ToLower(tool.Name)
 	// OpenCode uses "type": "local" and "command" as array
-	if strings.Contains(strings.ToLower(tool.Name), "opencode") {
+	if strings.Contains(nameLower, "opencode") {
 		return map[string]interface{}{
 			"type":    "local",
 			"command": []string{executable, "serve", "mcp"},
+		}
+	}
+	// Copilot CLI uses "type": "local" with separate command and args
+	if strings.Contains(nameLower, "copilot") {
+		return map[string]interface{}{
+			"type":    "local",
+			"command": executable,
+			"args":    []string{"serve", "mcp"},
 		}
 	}
 	// Claude Code, Cursor use "type": "stdio"
@@ -563,10 +574,12 @@ func getSupportedAITools(local bool) []AITool {
 	if local {
 		// Local installation targets project-level config files
 		// Detect Claude Code by .claude/ directory OR CLAUDE.md file
+		// Detect Copilot CLI by .copilot/ directory
 		// Detect Cursor by .cursorrules file OR .cursor/ directory
 		// Detect OpenCode by opencode.json file
 		return []AITool{
 			{"Claude Code (project)", ".claude.json", "mcpServers", []string{".claude", "CLAUDE.md"}, FormatJSON, "tasuku"},
+			{"Copilot CLI (project)", ".copilot/mcp-config.json", "mcpServers", []string{".copilot"}, FormatJSON, "tasuku"},
 			{"Cursor (project)", ".cursor/mcp.json", "mcpServers", []string{".cursorrules", ".cursor"}, FormatJSON, "tasuku"},
 			{"OpenCode (project)", "opencode.json", "mcp", []string{"opencode.json"}, FormatJSON, "tasuku"},
 			{"Gemini (project)", ".gemini/mcp.json", "mcpServers", []string{".gemini", "GEMINI.md"}, FormatJSON, "tasuku"},
@@ -581,9 +594,17 @@ func getSupportedAITools(local bool) []AITool {
 		configDir = xdg
 	}
 
+	// Copilot CLI respects XDG_CONFIG_HOME for its config location
+	copilotConfigDir := home + "/.copilot"
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		copilotConfigDir = xdg + "/copilot"
+	}
+
 	return []AITool{
 		// Claude Code: detect by ~/.claude/ directory, config at ~/.claude.json
 		{"Claude Code", home + "/.claude.json", "mcpServers", []string{home + "/.claude"}, FormatJSON, "tasuku"},
+		// Copilot CLI: detect by ~/.copilot/ directory, config at ~/.copilot/mcp-config.json
+		{"Copilot CLI", copilotConfigDir + "/mcp-config.json", "mcpServers", []string{copilotConfigDir}, FormatJSON, "tasuku"},
 		// Cursor: detect by ~/.cursor/ directory
 		{"Cursor", home + "/.cursor/mcp.json", "mcpServers", []string{home + "/.cursor"}, FormatJSON, "tasuku"},
 		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers", []string{home + "/Library/Application Support/Cursor"}, FormatJSON, "tasuku"},

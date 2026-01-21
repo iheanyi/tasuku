@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 )
 
 func TestParsePlanFile(t *testing.T) {
@@ -156,9 +158,9 @@ func TestTruncate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := truncate(tt.input, tt.maxLen)
+		got := cmdutil.Truncate(tt.input, tt.maxLen)
 		if got != tt.expected {
-			t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.expected)
+			t.Errorf("cmdutil.Truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.expected)
 		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
@@ -23,8 +24,8 @@ func newHooksCmd() *cobra.Command {
 		Long: `Manage hooks for git and AI tool integration with Tasuku.
 
 Install/Uninstall:
-  install    Install hooks (git, Claude Code, Codex, OpenCode)
-  uninstall  Remove hooks (git, Claude Code, Codex, OpenCode)
+  install    Install hooks (git, Claude Code, Codex, OpenCode, Copilot CLI)
+  uninstall  Remove hooks (git, Claude Code, Codex, OpenCode, Copilot CLI)
 
 Utility Commands:
   session        Display Tasuku context summary at session start
@@ -99,13 +100,20 @@ OpenCode hooks (via plugin in ~/.config/opencode/plugin/ or .opencode/plugin/):
   - session.idle: Reminds about running timers
   - todo.updated: Checks for project-level tasks
 
+Copilot CLI hooks (always local in .github/hooks/):
+  - sessionStart: Shows project context summary when session begins
+  - sessionEnd: Reminds about running timers and in-progress tasks
+  - userPromptSubmitted: Detects task intent in prompts
+  - postToolUse: Checks if TodoWrite items should persist
+
 Examples:
-  tk hooks install              # Git + Claude + Codex + OpenCode (global)
+  tk hooks install              # Git + Claude + Codex + OpenCode + Copilot (global where applicable)
   tk hooks install --local      # Git + Claude + OpenCode (local to project)
   tk hooks install --git        # Install only git hooks
   tk hooks install --claude     # Install only Claude Code hooks (global)
   tk hooks install --codex      # Install only Codex hooks
   tk hooks install --opencode   # Install only OpenCode hooks (global)
+  tk hooks install --copilot    # Install only Copilot CLI hooks (always local)
   tk hooks install --opencode --local  # OpenCode hooks local to project`,
 		RunE: runInstall,
 	}
@@ -114,6 +122,7 @@ Examples:
 	cmd.Flags().Bool("claude", false, "Install Claude Code hooks only")
 	cmd.Flags().Bool("codex", false, "Install Codex hooks only")
 	cmd.Flags().Bool("opencode", false, "Install OpenCode hooks only")
+	cmd.Flags().Bool("copilot", false, "Install Copilot CLI hooks only (always local)")
 	cmd.Flags().Bool("force", false, "Overwrite existing hooks")
 	cmd.Flags().Bool("local", false, "Install hooks to project instead of global")
 
@@ -124,7 +133,7 @@ func newUninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove Tasuku hooks",
-		Long: `Remove Tasuku hooks from git and AI tools (Claude Code, Codex, OpenCode).
+		Long: `Remove Tasuku hooks from git and AI tools (Claude Code, Codex, OpenCode, Copilot CLI).
 
 By default, removes all hooks. Use flags to remove specific hooks only.
 
@@ -135,7 +144,8 @@ Examples:
   tk hooks uninstall --claude --local    # Remove Claude Code hooks (project)
   tk hooks uninstall --codex             # Remove Codex hooks
   tk hooks uninstall --opencode          # Remove OpenCode hooks (global)
-  tk hooks uninstall --opencode --local  # Remove OpenCode hooks (project)`,
+  tk hooks uninstall --opencode --local  # Remove OpenCode hooks (project)
+  tk hooks uninstall --copilot           # Remove Copilot CLI hooks`,
 		RunE: runUninstall,
 	}
 
@@ -143,6 +153,7 @@ Examples:
 	cmd.Flags().Bool("claude", false, "Remove Claude Code hooks only")
 	cmd.Flags().Bool("codex", false, "Remove Codex hooks only")
 	cmd.Flags().Bool("opencode", false, "Remove OpenCode hooks only")
+	cmd.Flags().Bool("copilot", false, "Remove Copilot CLI hooks only")
 	cmd.Flags().Bool("local", false, "Remove hooks from project instead of global")
 
 	return cmd
@@ -153,15 +164,17 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	claudeOnly, _ := cmd.Flags().GetBool("claude")
 	codexOnly, _ := cmd.Flags().GetBool("codex")
 	opencodeOnly, _ := cmd.Flags().GetBool("opencode")
+	copilotOnly, _ := cmd.Flags().GetBool("copilot")
 	force, _ := cmd.Flags().GetBool("force")
 	local, _ := cmd.Flags().GetBool("local")
 
 	// Determine what to install based on flags
-	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly
+	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly || copilotOnly
 	installGit := !anySpecific || gitOnly
 	installClaude := !anySpecific || claudeOnly
 	installCodex := !anySpecific || codexOnly
 	installOpenCode := !anySpecific || opencodeOnly
+	installCopilot := !anySpecific || copilotOnly
 
 	var errors []string
 
@@ -190,6 +203,13 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if installCopilot {
+		// Copilot CLI hooks are always local (in .github/hooks/)
+		if err := installCopilotHooks(force); err != nil {
+			errors = append(errors, fmt.Sprintf("copilot: %v", err))
+		}
+	}
+
 	if len(errors) > 0 {
 		return fmt.Errorf("some hooks failed to install:\n  %s", strings.Join(errors, "\n  "))
 	}
@@ -202,14 +222,16 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	claudeOnly, _ := cmd.Flags().GetBool("claude")
 	codexOnly, _ := cmd.Flags().GetBool("codex")
 	opencodeOnly, _ := cmd.Flags().GetBool("opencode")
+	copilotOnly, _ := cmd.Flags().GetBool("copilot")
 	local, _ := cmd.Flags().GetBool("local")
 
 	// Determine what to uninstall based on flags
-	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly
+	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly || copilotOnly
 	uninstallGit := !anySpecific || gitOnly
 	uninstallClaude := !anySpecific || claudeOnly
 	uninstallCodex := !anySpecific || codexOnly
 	uninstallOpenCode := !anySpecific || opencodeOnly
+	uninstallCopilot := !anySpecific || copilotOnly
 
 	var errors []string
 
@@ -234,6 +256,12 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	if uninstallOpenCode {
 		if err := uninstallOpenCodeHooks(local); err != nil {
 			errors = append(errors, fmt.Sprintf("opencode: %v", err))
+		}
+	}
+
+	if uninstallCopilot {
+		if err := uninstallCopilotHooks(); err != nil {
+			errors = append(errors, fmt.Sprintf("copilot: %v", err))
 		}
 	}
 
@@ -835,7 +863,7 @@ func handleTodoWriteCheck(config featureConfig, toolInput string) error {
 		fmt.Println("🎯 BUG FIX COMPLETED - RECORD YOUR LEARNINGS NOW!")
 		fmt.Println()
 		for _, fix := range completedBugFixes {
-			fmt.Printf("   ✓ %s\n", truncateString(fix, 60))
+			fmt.Printf("   ✓ %s\n", cmdutil.Truncate(fix, 60))
 		}
 		fmt.Println()
 		fmt.Println("📝 Document what you learned:")
@@ -848,7 +876,7 @@ func handleTodoWriteCheck(config featureConfig, toolInput string) error {
 	if len(suggestions) > 0 {
 		fmt.Println("💡 Some TodoWrite items look project-level:")
 		for _, s := range suggestions {
-			fmt.Printf("   → %s\n", truncateString(s, 60))
+			fmt.Printf("   → %s\n", cmdutil.Truncate(s, 60))
 		}
 		fmt.Println()
 		fmt.Println("Consider: /tasuku:add \"description\" --priority high")
@@ -999,7 +1027,7 @@ func handleGitCommitLink(output string) {
 	if len(inProgress) == 1 {
 		item := inProgress[0]
 		fmt.Printf("📝 Commit may relate to: %s\n", item.id)
-		fmt.Printf("   %s\n", truncateString(item.task.Description, 50))
+		fmt.Printf("   %s\n", cmdutil.Truncate(item.task.Description, 50))
 		fmt.Println("   Mark as done?")
 		fmt.Printf("   → tk task done %s\n", item.id)
 		fmt.Println()
@@ -1126,10 +1154,10 @@ func hookPromptCheck(config featureConfig) error {
 		if len(inProgressTasks) > 0 {
 			fmt.Println("🔄 Continuing session - in-progress tasks:")
 			for _, item := range inProgressTasks {
-				fmt.Printf("   - %s: %s\n", item.id, truncateString(item.task.Description, 50))
+				fmt.Printf("   - %s: %s\n", item.id, cmdutil.Truncate(item.task.Description, 50))
 				if notes := f.Context.Notes[item.id]; len(notes) > 0 {
 					lastNote := notes[len(notes)-1]
-					fmt.Printf("     Last note: %s\n", truncateString(lastNote.Text, 60))
+					fmt.Printf("     Last note: %s\n", cmdutil.Truncate(lastNote.Text, 60))
 				}
 			}
 			fmt.Println()
@@ -1143,9 +1171,9 @@ func hookPromptCheck(config featureConfig) error {
 		if len(relevantDecisions) > 0 {
 			fmt.Println("📚 Related decisions found:")
 			for _, d := range relevantDecisions {
-				fmt.Printf("   - %s: Chose %s\n", d.ID, truncateString(d.Chose, 40))
+				fmt.Printf("   - %s: Chose %s\n", d.ID, cmdutil.Truncate(d.Chose, 40))
 				if d.Because != "" {
-					fmt.Printf("     Because: %s\n", truncateString(d.Because, 50))
+					fmt.Printf("     Because: %s\n", cmdutil.Truncate(d.Because, 50))
 				}
 			}
 			fmt.Println()
@@ -1159,7 +1187,7 @@ func hookPromptCheck(config featureConfig) error {
 		if len(relevantLearnings) > 0 {
 			fmt.Println("💡 Related learnings found:")
 			for _, l := range relevantLearnings {
-				fmt.Printf("   - %s\n", truncateString(l.Text, 70))
+				fmt.Printf("   - %s\n", cmdutil.Truncate(l.Text, 70))
 			}
 			fmt.Println()
 			outputCount++
@@ -1171,7 +1199,7 @@ func hookPromptCheck(config featureConfig) error {
 		rulePortion := extractRulePortion(userPrompt)
 		if rulePortion != "" && !hasSimilarLearning(f.Context.Learnings, rulePortion) {
 			fmt.Println("📝 RULE DETECTED in your message:")
-			fmt.Printf("   \"%s\"\n", truncateString(rulePortion, 80))
+			fmt.Printf("   \"%s\"\n", cmdutil.Truncate(rulePortion, 80))
 			fmt.Println()
 			fmt.Println("   Record this as a project rule:")
 			fmt.Printf("   → /tasuku:learn \"%s\"\n", escapeForShell(rulePortion))
@@ -1208,7 +1236,7 @@ func hookPromptCheck(config featureConfig) error {
 			if strings.Contains(promptLower, strings.ToLower(id)) {
 				fmt.Printf("📋 Task referenced: %s\n", id)
 				fmt.Printf("   Status: %s\n", t.Status)
-				fmt.Printf("   %s\n", truncateString(t.Description, 50))
+				fmt.Printf("   %s\n", cmdutil.Truncate(t.Description, 50))
 				if t.Status == task.StatusReady {
 					fmt.Printf("   → Consider: tk task start %s\n", id)
 				}
@@ -1225,7 +1253,7 @@ func hookPromptCheck(config featureConfig) error {
 			fmt.Println("📋 Related tasks found:")
 			for _, item := range relatedTasks {
 				statusIcon := getStatusIcon(item.task.Status)
-				fmt.Printf("   %s %s: %s\n", statusIcon, item.id, truncateString(item.task.Description, 45))
+				fmt.Printf("   %s %s: %s\n", statusIcon, item.id, cmdutil.Truncate(item.task.Description, 45))
 			}
 			fmt.Println()
 			outputCount++
@@ -1308,7 +1336,7 @@ func hookPromptCheck(config featureConfig) error {
 		if decisionContent != "" {
 			fmt.Println("🏛️  This sounds like an architectural decision.")
 			fmt.Println("   Record it so future agents understand WHY:")
-			fmt.Printf("   → tk decide --id <name> --chose \"...\" --over \"...\" --because \"%s\"\n", escapeForShell(truncateString(decisionContent, 60)))
+			fmt.Printf("   → tk decide --id <name> --chose \"...\" --over \"...\" --because \"%s\"\n", escapeForShell(cmdutil.Truncate(decisionContent, 60)))
 			fmt.Println()
 			fmt.Println("   Agent: If you just learned this, call tk_decide to capture it.")
 			fmt.Println()
@@ -1322,7 +1350,7 @@ func hookPromptCheck(config featureConfig) error {
 		preferenceContent := extractPreferenceContent(userPrompt)
 		if preferenceContent != "" && !hasSimilarLearning(f.Context.Learnings, preferenceContent) {
 			fmt.Println("✨ User preference detected:")
-			fmt.Printf("   \"%s\"\n", truncateString(preferenceContent, 70))
+			fmt.Printf("   \"%s\"\n", cmdutil.Truncate(preferenceContent, 70))
 			fmt.Println()
 			fmt.Println("   Capture for consistency across sessions:")
 			fmt.Printf("   → /tasuku:learn \"%s\"\n", escapeForShell(preferenceContent))
@@ -1803,17 +1831,6 @@ func getStatusIcon(status task.Status) string {
 	default:
 		return "?"
 	}
-}
-
-// truncateString truncates a string to maxLen with ellipsis
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-	return s[:maxLen-3] + "..."
 }
 
 // looksLikeInstruction checks if a message looks like an instruction to an agent

@@ -21,6 +21,7 @@ import (
 	"github.com/iheanyi/tasuku/internal/cmd/migrate"
 	"github.com/iheanyi/tasuku/internal/cmd/claudemd"
 	"github.com/iheanyi/tasuku/internal/cmd/note"
+	plugincmd "github.com/iheanyi/tasuku/internal/cmd/plugin"
 	"github.com/iheanyi/tasuku/internal/cmd/pr"
 	rulescmd "github.com/iheanyi/tasuku/internal/cmd/rules"
 	"github.com/iheanyi/tasuku/internal/cmd/serve"
@@ -78,6 +79,7 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.AddCommand(pr.Cmd)
 	cmd.AddCommand(ui.Cmd)
 	cmd.AddCommand(skills.Cmd)
+	cmd.AddCommand(plugincmd.Cmd)
 	cmd.AddCommand(rulescmd.Cmd)
 	cmd.AddCommand(claudemd.Cmd)
 

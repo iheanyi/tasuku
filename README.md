@@ -37,7 +37,7 @@ tk hooks install           # Context at session start, reminders at end
 git add .tasuku/           # Tasks travel with your code
 ```
 
-Works with Claude Code, Cursor, Codex, and OpenCode. Restart your editor after installing.
+Works with Claude Code, Cursor, Copilot CLI, Codex, and OpenCode. Restart your editor after installing.
 
 ### 2. Your AI agent now has access to
 
@@ -75,6 +75,8 @@ tk ui                        # Terminal UI (j/k to navigate, ? for help)
 | `tk decide --id X --chose Y --over Z --because "..."` | Record decision |
 | `tk task claim/release <id>` | Multi-agent coordination |
 | `tk task timer start/stop <id>` | Time tracking |
+| `tk plugin install` | Install slash commands to AI tools |
+| `tk rules sync` | Sync learnings to editor rules |
 
 Full reference: `docs/cli.md`
 
@@ -105,6 +107,7 @@ Detailed docs in `docs/`:
 - `cli.md` - Complete CLI commands
 - `mcp.md` - MCP tools and TUI keybindings
 - `hooks.md` - Hook configuration
+- `plugins.md` - Slash commands for AI tools
 - `storage.md` - Storage format
 
 ## Development

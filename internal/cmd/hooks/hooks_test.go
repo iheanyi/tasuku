@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/iheanyi/tasuku/internal/cmd/testutil"
+	"github.com/iheanyi/tasuku/internal/cmdutil"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
@@ -427,9 +428,9 @@ func TestTruncateString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := truncateString(tt.input, tt.maxLen)
+		got := cmdutil.Truncate(tt.input, tt.maxLen)
 		if got != tt.expected {
-			t.Errorf("truncateString(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.expected)
+			t.Errorf("cmdutil.Truncate(%q, %d) = %q, want %q", tt.input, tt.maxLen, got, tt.expected)
 		}
 	}
 }
@@ -1335,6 +1336,246 @@ func TestPromptCheckEdgeCases(t *testing.T) {
 				h.AssertOutputContains(tt.expectedText)
 			}
 		})
+	}
+}
+
+// Copilot CLI hooks tests
+
+func TestInstallCopilotHooks(t *testing.T) {
+	h := testutil.New(t)
+
+	// Initialize a git repo in the temp dir (needed for general hooks install)
+	gitDir := filepath.Join(h.TempDir(), ".git", "hooks")
+	os.MkdirAll(gitDir, 0755)
+
+	// Install Copilot hooks only
+	err := h.Execute(Cmd, "install", "--copilot")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Copilot CLI")
+
+	// Check hooks file was created
+	hooksFile := filepath.Join(h.TempDir(), ".github", "hooks", "tasuku.json")
+	if _, err := os.Stat(hooksFile); os.IsNotExist(err) {
+		t.Error("Copilot hooks file should exist")
+	}
+
+	// Verify the content
+	data, err := os.ReadFile(hooksFile)
+	if err != nil {
+		t.Fatalf("failed to read hooks file: %v", err)
+	}
+
+	var config CopilotHooksConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatalf("failed to parse hooks file: %v", err)
+	}
+
+	if config.Version != 1 {
+		t.Errorf("expected version 1, got %d", config.Version)
+	}
+
+	// Check that hooks were added
+	if len(config.Hooks["sessionStart"]) != 1 {
+		t.Errorf("expected 1 sessionStart hook, got %d", len(config.Hooks["sessionStart"]))
+	}
+	if len(config.Hooks["sessionEnd"]) != 1 {
+		t.Errorf("expected 1 sessionEnd hook, got %d", len(config.Hooks["sessionEnd"]))
+	}
+	if len(config.Hooks["userPromptSubmitted"]) != 1 {
+		t.Errorf("expected 1 userPromptSubmitted hook, got %d", len(config.Hooks["userPromptSubmitted"]))
+	}
+	if len(config.Hooks["postToolUse"]) != 1 {
+		t.Errorf("expected 1 postToolUse hook, got %d", len(config.Hooks["postToolUse"]))
+	}
+}
+
+func TestUninstallCopilotHooks(t *testing.T) {
+	h := testutil.New(t)
+
+	// Initialize git repo
+	gitDir := filepath.Join(h.TempDir(), ".git", "hooks")
+	os.MkdirAll(gitDir, 0755)
+
+	// Install first
+	err := h.Execute(Cmd, "install", "--copilot")
+	h.AssertNoError(err)
+
+	// Then uninstall
+	err = h.Execute(Cmd, "uninstall", "--copilot")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Removed")
+
+	// Check that file was deleted (since it only had Tasuku hooks)
+	hooksFile := filepath.Join(h.TempDir(), ".github", "hooks", "tasuku.json")
+	if _, err := os.Stat(hooksFile); !os.IsNotExist(err) {
+		t.Error("Copilot hooks file should be deleted when empty")
+	}
+}
+
+func TestCopilotHooksIdempotent(t *testing.T) {
+	h := testutil.New(t)
+
+	// Initialize git repo
+	gitDir := filepath.Join(h.TempDir(), ".git", "hooks")
+	os.MkdirAll(gitDir, 0755)
+
+	// Install twice
+	err := h.Execute(Cmd, "install", "--copilot")
+	h.AssertNoError(err)
+
+	err = h.Execute(Cmd, "install", "--copilot")
+	h.AssertNoError(err)
+	h.AssertOutputContains("up to date")
+
+	// Should still have only one hook per type
+	hooksFile := filepath.Join(h.TempDir(), ".github", "hooks", "tasuku.json")
+	data, _ := os.ReadFile(hooksFile)
+
+	var config CopilotHooksConfig
+	json.Unmarshal(data, &config)
+
+	if len(config.Hooks["sessionStart"]) != 1 {
+		t.Errorf("expected 1 sessionStart hook after double install, got %d", len(config.Hooks["sessionStart"]))
+	}
+}
+
+func TestCopilotHooksForceUpdate(t *testing.T) {
+	h := testutil.New(t)
+
+	// Initialize git repo
+	gitDir := filepath.Join(h.TempDir(), ".git", "hooks")
+	os.MkdirAll(gitDir, 0755)
+
+	// Create hooks dir and file with old content
+	hooksDir := filepath.Join(h.TempDir(), ".github", "hooks")
+	os.MkdirAll(hooksDir, 0755)
+	oldConfig := CopilotHooksConfig{
+		Version: 1,
+		Hooks: map[string][]CopilotHook{
+			"sessionStart": {
+				{
+					Type: "command",
+					Bash: "tk hooks session # tasuku-hook-old-version",
+				},
+			},
+		},
+	}
+	data, _ := json.Marshal(oldConfig)
+	os.WriteFile(filepath.Join(hooksDir, "tasuku.json"), data, 0644)
+
+	// Force reinstall
+	err := h.Execute(Cmd, "install", "--copilot", "--force")
+	h.AssertNoError(err)
+
+	// Should have updated all hooks
+	newData, _ := os.ReadFile(filepath.Join(hooksDir, "tasuku.json"))
+	var newConfig CopilotHooksConfig
+	json.Unmarshal(newData, &newConfig)
+
+	// Force should add all hooks, not just update existing
+	if len(newConfig.Hooks["sessionEnd"]) != 1 {
+		t.Error("force install should add all hooks including sessionEnd")
+	}
+}
+
+func TestCopilotHooksPreservesOther(t *testing.T) {
+	h := testutil.New(t)
+
+	// Initialize git repo
+	gitDir := filepath.Join(h.TempDir(), ".git", "hooks")
+	os.MkdirAll(gitDir, 0755)
+
+	// Create hooks dir and file with a non-Tasuku hook
+	hooksDir := filepath.Join(h.TempDir(), ".github", "hooks")
+	os.MkdirAll(hooksDir, 0755)
+	existingConfig := CopilotHooksConfig{
+		Version: 1,
+		Hooks: map[string][]CopilotHook{
+			"sessionStart": {
+				{
+					Type: "command",
+					Bash: "echo 'other hook'",
+				},
+			},
+		},
+	}
+	data, _ := json.Marshal(existingConfig)
+	os.WriteFile(filepath.Join(hooksDir, "tasuku.json"), data, 0644)
+
+	// Install Tasuku hooks
+	err := h.Execute(Cmd, "install", "--copilot")
+	h.AssertNoError(err)
+
+	// Should have both hooks
+	newData, _ := os.ReadFile(filepath.Join(hooksDir, "tasuku.json"))
+	var newConfig CopilotHooksConfig
+	json.Unmarshal(newData, &newConfig)
+
+	if len(newConfig.Hooks["sessionStart"]) != 2 {
+		t.Errorf("expected 2 sessionStart hooks (original + Tasuku), got %d", len(newConfig.Hooks["sessionStart"]))
+	}
+}
+
+func TestUninstallCopilotHooksPreservesOther(t *testing.T) {
+	h := testutil.New(t)
+
+	// Initialize git repo
+	gitDir := filepath.Join(h.TempDir(), ".git", "hooks")
+	os.MkdirAll(gitDir, 0755)
+
+	// Create hooks dir and file with both Tasuku and non-Tasuku hooks
+	hooksDir := filepath.Join(h.TempDir(), ".github", "hooks")
+	os.MkdirAll(hooksDir, 0755)
+	existingConfig := CopilotHooksConfig{
+		Version: 1,
+		Hooks: map[string][]CopilotHook{
+			"sessionStart": {
+				{
+					Type: "command",
+					Bash: "echo 'other hook'",
+				},
+				{
+					Type: "command",
+					Bash: "tk hooks session # tasuku-hook",
+				},
+			},
+		},
+	}
+	data, _ := json.Marshal(existingConfig)
+	os.WriteFile(filepath.Join(hooksDir, "tasuku.json"), data, 0644)
+
+	// Uninstall Tasuku hooks
+	err := h.Execute(Cmd, "uninstall", "--copilot")
+	h.AssertNoError(err)
+
+	// Should still have the non-Tasuku hook
+	newData, _ := os.ReadFile(filepath.Join(hooksDir, "tasuku.json"))
+	var newConfig CopilotHooksConfig
+	json.Unmarshal(newData, &newConfig)
+
+	if len(newConfig.Hooks["sessionStart"]) != 1 {
+		t.Errorf("expected 1 sessionStart hook after uninstall, got %d", len(newConfig.Hooks["sessionStart"]))
+	}
+	if newConfig.Hooks["sessionStart"][0].Bash != "echo 'other hook'" {
+		t.Error("non-Tasuku hook should be preserved")
+	}
+}
+
+func TestCopilotHooksNoGithubDir(t *testing.T) {
+	h := testutil.New(t)
+
+	// Initialize git repo but don't create .github directory
+	gitDir := filepath.Join(h.TempDir(), ".git", "hooks")
+	os.MkdirAll(gitDir, 0755)
+
+	// Should create .github/hooks directory automatically
+	err := h.Execute(Cmd, "install", "--copilot")
+	h.AssertNoError(err)
+
+	// Check .github/hooks was created
+	hooksDir := filepath.Join(h.TempDir(), ".github", "hooks")
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		t.Error(".github/hooks directory should be created")
 	}
 }
 
