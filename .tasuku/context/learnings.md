@@ -45,3 +45,6 @@ Claude Code hooks (UserPromptSubmit, PostToolUse, etc.) can only analyze user me
 ## 9fd1b2 - 2026-01-20T17:19:32Z
 Cursor commands use plain Markdown files in .cursor/commands/ without YAML frontmatter. Format: H1 title, description paragraph, then ## Instructions section. Different from Claude Code (YAML frontmatter with description/argument-hint) and Copilot/Codex (SKILL.md with name/description frontmatter).
 
+## bab923 - 2026-01-21T17:21:49Z
+Codex CLI (rmcp SDK) sends MCP notifications with full method names like 'notifications/initialized', not just 'initialized'. Always handle both forms: `case "initialized", "notifications/initialized":` to ensure compatibility.
+

@@ -2,6 +2,10 @@
 
 _Auto-synced from .tasuku/context/learnings.md_
 
+## Rules
+
+- Codex CLI (rmcp SDK) sends MCP notifications with full method names like 'notifications/initialized', not just 'initialized'. Always handle both forms: `case "initialized", "notifications/initialized":` to ensure compatibility.
+
 ## Insights
 
 - CLI command is 'tk' to avoid collisions

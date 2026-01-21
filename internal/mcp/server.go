@@ -3293,8 +3293,10 @@ func (s *Server) handleRequest(req *Request) {
 	switch req.Method {
 	case "initialize":
 		s.handleInitialize(req)
-	case "initialized":
+	case "initialized", "notifications/initialized":
 		// Notification, no response needed
+	case "notifications/cancelled":
+		// Client cancelled a request, no response needed
 	case "tools/list":
 		s.handleToolsList(req)
 	case "tools/call":
