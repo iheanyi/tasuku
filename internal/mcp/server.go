@@ -86,6 +86,7 @@ type InitializeResult struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
 	} `json:"serverInfo"`
+	Instructions string `json:"instructions,omitempty"`
 }
 
 // ServerCapability describes server capabilities
@@ -3277,6 +3278,13 @@ func (s *Server) Run() error {
 			continue
 		}
 
+		// Detect batch requests (JSON arrays) - not supported per MCP spec
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") {
+			s.sendError(nil, -32600, "Invalid Request", "Batch requests not supported")
+			continue
+		}
+
 		var req Request
 		if err := json.Unmarshal([]byte(line), &req); err != nil {
 			s.sendError(nil, -32700, "Parse error", err.Error())
@@ -3297,6 +3305,10 @@ func (s *Server) handleRequest(req *Request) {
 		// Notification, no response needed
 	case "notifications/cancelled":
 		// Client cancelled a request, no response needed
+	case "notifications/progress":
+		// Client reporting progress on a request, no response needed
+	case "notifications/roots/list_changed":
+		// Client's filesystem roots changed, no response needed
 	case "tools/list":
 		s.handleToolsList(req)
 	case "tools/call":
@@ -3314,6 +3326,9 @@ func (s *Server) handleInitialize(req *Request) {
 		Capabilities: ServerCapability{
 			Tools: &ToolsCapability{},
 		},
+		Instructions: "Tasuku is an agent-first task management system. " +
+			"Use tk_context at session start to load project state. " +
+			"Use tk_learn to capture insights and tk_decide for architectural decisions.",
 	}
 	result.ServerInfo.Name = ServerName
 	result.ServerInfo.Version = ServerVersion

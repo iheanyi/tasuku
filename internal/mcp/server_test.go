@@ -2199,6 +2199,118 @@ func TestSendError(t *testing.T) {
 	}
 }
 
+func TestMCPProtocol_NotificationProgress(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Send notifications/progress - should be silently ignored (no response)
+	input := bytes.NewBufferString(`{"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":"abc","progress":50,"total":100}}
+`)
+	output := &bytes.Buffer{}
+
+	server.in = input
+	server.out = output
+
+	server.Run()
+
+	// No response expected for notifications
+	if output.Len() != 0 {
+		t.Errorf("expected no response for notification, got: %s", output.String())
+	}
+}
+
+func TestMCPProtocol_NotificationRootsListChanged(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Send notifications/roots/list_changed - should be silently ignored
+	input := bytes.NewBufferString(`{"jsonrpc":"2.0","method":"notifications/roots/list_changed"}
+`)
+	output := &bytes.Buffer{}
+
+	server.in = input
+	server.out = output
+
+	server.Run()
+
+	// No response expected for notifications
+	if output.Len() != 0 {
+		t.Errorf("expected no response for notification, got: %s", output.String())
+	}
+}
+
+func TestMCPProtocol_BatchRequestRejected(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Send batch request (JSON array) - should be rejected with -32600
+	input := bytes.NewBufferString(`[{"jsonrpc":"2.0","id":1,"method":"ping"},{"jsonrpc":"2.0","id":2,"method":"tools/list"}]
+`)
+	output := &bytes.Buffer{}
+
+	server.in = input
+	server.out = output
+
+	server.Run()
+
+	// Should get an error response
+	var resp Response
+	if err := json.Unmarshal(output.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v\nOutput: %s", err, output.String())
+	}
+
+	if resp.Error == nil {
+		t.Fatal("expected error response for batch request")
+	}
+
+	if resp.Error.Code != -32600 {
+		t.Errorf("expected error code -32600 (Invalid Request), got %d", resp.Error.Code)
+	}
+
+	// Error message is "Invalid Request", but Data contains "Batch requests not supported"
+	data, ok := resp.Error.Data.(string)
+	if !ok || !strings.Contains(data, "Batch") {
+		t.Errorf("expected error data to mention batch requests, got message: %s, data: %v", resp.Error.Message, resp.Error.Data)
+	}
+}
+
+func TestMCPProtocol_InitializeIncludesInstructions(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	input := bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}
+`)
+	output := &bytes.Buffer{}
+
+	server.in = input
+	server.out = output
+
+	server.Run()
+
+	var resp Response
+	if err := json.Unmarshal(output.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse response: %v\nOutput: %s", err, output.String())
+	}
+
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %v", resp.Error)
+	}
+
+	result, ok := resp.Result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected result to be map, got %T", resp.Result)
+	}
+
+	instructions, ok := result["instructions"].(string)
+	if !ok {
+		t.Fatalf("expected instructions to be string, got %T", result["instructions"])
+	}
+
+	if !strings.Contains(instructions, "Tasuku") {
+		t.Errorf("expected instructions to mention Tasuku, got: %s", instructions)
+	}
+
+	if !strings.Contains(instructions, "tk_context") {
+		t.Errorf("expected instructions to mention tk_context, got: %s", instructions)
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
