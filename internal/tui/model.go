@@ -440,6 +440,7 @@ func (m *Model) initTaskList() {
 	m.taskList = list.New(items, delegate, 0, 0)
 	m.taskList.Title = m.getListTitle()
 	m.taskList.SetShowStatusBar(false) // Status bar is redundant - we have counts in header + progress bar
+	m.taskList.SetShowHelp(false)      // Disable built-in help - we have custom help lines
 	m.taskList.SetFilteringEnabled(true)
 	m.taskList.Styles.Title = TitleStyle
 	m.taskList.Styles.NoItems = lipgloss.NewStyle().PaddingLeft(2) // Align with title
@@ -1491,7 +1492,7 @@ func (m Model) viewNotes() string {
 				}
 			}
 			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, noteText))
-			b.WriteString(fmt.Sprintf("     %s\n", HelpStyle.Render(task.FormatLocalTime(n.CreatedAt))))
+			b.WriteString(fmt.Sprintf("    %s\n", HelpStyle.Render(task.FormatLocalTime(n.CreatedAt))))
 		}
 	}
 
