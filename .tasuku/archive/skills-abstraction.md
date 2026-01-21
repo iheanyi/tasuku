@@ -6,9 +6,8 @@ created_at: 2026-01-20T16:56:02.920279Z
 updated_at: 2026-01-20T17:13:37.756284Z
 ---
 
-# - Claude Code: plugins with `commands/*.md`
+# - Copilot CLI: skills in `.github/skills/` or `~/.copilot/skills/`
 
-- Copilot CLI: skills in `.github/skills/` or `~/.copilot/skills/`
 - Codex: skills in `.codex/skills/` or `~/.codex/skills/`
 - Cursor: skills format TBD
 
