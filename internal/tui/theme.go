@@ -28,21 +28,11 @@ var (
 
 // Style presets
 var (
-	// Base styles
-	BaseStyle = lipgloss.NewStyle().
-			Background(ColorBg).
-			Foreground(ColorFg)
-
 	// Title style
 	TitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(ColorPrimary).
 			MarginBottom(1)
-
-	// Subtitle style
-	SubtitleStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted).
-			Italic(true)
 
 	// Task styles by status
 	TaskReadyStyle = lipgloss.NewStyle().
@@ -111,13 +101,10 @@ var (
 				Foreground(ColorAmber).
 				Bold(true)
 
-	// Learning/rule style
+	// Rule style
 	RuleStyle = lipgloss.NewStyle().
 			Foreground(ColorAmber).
 			Bold(true)
-
-	LearningStyle = lipgloss.NewStyle().
-			Foreground(ColorAccent)
 
 	// Filter match style - highlight matched characters during search
 	FilterMatchStyle = lipgloss.NewStyle().

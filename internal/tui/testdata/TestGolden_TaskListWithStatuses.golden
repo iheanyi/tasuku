@@ -13,9 +13,9 @@ Progress: 1/5 ███████████████░░░░░░░
   ○ · implement-auth                                                                          
   Implement user authentication system [backend,security]                                     
                                                                                               
+  ◌ · prod-deploy                                                                             
+  Deploy to production                                                                        
                                                                                               
   ••                                                                                          
-                                                                                              
-  ↑/k up • ↓/j down • / filter • q quit • ? more                                              
 n:new  e:edit  s:start  d:done  P:pause  b:block  u:unblock  x:delete  t:timer  a:archive     
 0-4:status  p:priority  N:notes  L:learnings  D:decisions  /:filter  r:refresh  ?:help  q:quit

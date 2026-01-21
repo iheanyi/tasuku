@@ -16,6 +16,6 @@ Progress: 0/0 ░░░░░░░░░░░░░░░░░░░░░░
                                                                                               
                                                                                               
                                                                                               
-  q quit • ? more                                                                             
+                                                                                              
 n:new  e:edit  s:start  d:done  P:pause  b:block  u:unblock  x:delete  t:timer  a:archive     
 0-4:status  p:priority  N:notes  L:learnings  D:decisions  /:filter  r:refresh  ?:help  q:quit
