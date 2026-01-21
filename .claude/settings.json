@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "tk hooks plan-sync \"$PLAN_FILE\" --dry-run # tasuku-hook",
+            "command": "tk hooks plan-sync '$PLAN_FILE' --dry-run # tasuku-hook",
             "type": "command"
           }
         ],

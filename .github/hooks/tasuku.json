@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "tk hooks todo-check # tasuku-hook",
+        "cwd": ".",
+        "timeoutSec": 30
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "tk hooks stop-reminder # tasuku-hook",
+        "cwd": ".",
+        "timeoutSec": 30
+      }
+    ],
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "tk hooks session # tasuku-hook",
+        "cwd": ".",
+        "timeoutSec": 30
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "tk hooks prompt-check # tasuku-hook",
+        "cwd": ".",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}
