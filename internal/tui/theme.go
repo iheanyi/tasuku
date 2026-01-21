@@ -21,7 +21,7 @@ var (
 	ColorReady      = lipgloss.Color("#5eead4") // Teal for ready tasks
 	ColorInProgress = lipgloss.Color("#fbbf24") // Amber for in-progress
 	ColorBlocked    = lipgloss.Color("#ef4444") // Red for blocked
-	ColorDone       = lipgloss.Color("#6b7280") // Muted gray for done
+	ColorDone       = lipgloss.Color("#9ca3af") // Brighter gray for done (5:1 contrast)
 	ColorCritical   = lipgloss.Color("#ef4444") // Red for critical priority
 	ColorHigh       = lipgloss.Color("#f97316") // Orange for high priority
 )
@@ -91,9 +91,9 @@ var (
 				Background(lipgloss.Color("#2d4a7c")).
 				Foreground(lipgloss.Color("#c0c0c0")) // Light gray for description
 
-	// Help style
+	// Help style - uses ColorSlate for better contrast on dark backgrounds
 	HelpStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted)
+			Foreground(ColorSlate)
 
 	// Keybind style
 	KeyStyle = lipgloss.NewStyle().
@@ -106,11 +106,10 @@ var (
 			Background(lipgloss.Color("#2d2d2d")).
 			Padding(0, 1)
 
-	// Timer running style
+	// Timer running style - no blink to avoid distracting/triggering users
 	TimerRunningStyle = lipgloss.NewStyle().
 				Foreground(ColorAmber).
-				Bold(true).
-				Blink(true)
+				Bold(true)
 
 	// Learning/rule style
 	RuleStyle = lipgloss.NewStyle().

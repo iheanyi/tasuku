@@ -1,10 +1,8 @@
-Ready: 2  In Progress: 1  Blocked: 1  Done: 1                                                 
+○ Ready: 2  ● In Progress: 1  ◌ Blocked: 1  ✓ Done: 1                                         
 Progress: 1/5 ███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    
                                                                                               
   Tasks [Priority↑]                                                                           
                                                                                               
-                                                                                              
-  5 items                                                                                     
                                                                                               
 > ○ !!! implement-auth                                                                        
   Implement user authentication system [backend,security]                                     
@@ -12,9 +10,11 @@ Progress: 1/5 ███████████████░░░░░░░
   ● !! fix-bug-123                                                                            
   Fix login page redirect bug                                                                 
                                                                                               
+  ○ · write-tests                                                                             
+  Write unit tests for auth module                                                            
                                                                                               
                                                                                               
-  •••                                                                                         
+  ••                                                                                          
                                                                                               
   ↑/k up • ↓/j down • / filter • q quit • ? more                                              
 n:new  e:edit  s:start  d:done  P:pause  b:block  u:unblock  x:delete  t:timer  a:archive     

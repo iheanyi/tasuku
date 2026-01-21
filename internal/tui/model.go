@@ -140,7 +140,7 @@ func (i TaskItem) Description() string {
 		extras = append(extras, fmt.Sprintf("[%s]", strings.Join(i.Task.Tags, ",")))
 	}
 	if i.Task.IsTimerRunning() {
-		extras = append(extras, "⏱️")
+		extras = append(extras, "[T]") // ASCII for terminal compatibility
 	}
 	if len(extras) > 0 {
 		desc += " " + strings.Join(extras, " ")
@@ -439,9 +439,10 @@ func (m *Model) initTaskList() {
 
 	m.taskList = list.New(items, delegate, 0, 0)
 	m.taskList.Title = m.getListTitle()
-	m.taskList.SetShowStatusBar(true)
+	m.taskList.SetShowStatusBar(false) // Status bar is redundant - we have counts in header + progress bar
 	m.taskList.SetFilteringEnabled(true)
 	m.taskList.Styles.Title = TitleStyle
+	m.taskList.Styles.NoItems = lipgloss.NewStyle().PaddingLeft(2) // Align with title
 
 	// Restore size if already set
 	if m.width > 0 && m.height > 0 {
@@ -1131,8 +1132,9 @@ func (m Model) viewDashboard() string {
 		Foreground(ColorMuted).
 		MarginBottom(0)
 
+	// Include status symbols for accessibility (not color-only)
 	stats := statsStyle.Render(fmt.Sprintf(
-		"Ready: %s  In Progress: %s  Blocked: %s  Done: %s",
+		"○ Ready: %s  ● In Progress: %s  ◌ Blocked: %s  ✓ Done: %s",
 		TaskReadyStyle.Render(fmt.Sprintf("%d", ready)),
 		TaskInProgressStyle.Render(fmt.Sprintf("%d", inProgress)),
 		TaskBlockedStyle.Render(fmt.Sprintf("%d", blocked)),

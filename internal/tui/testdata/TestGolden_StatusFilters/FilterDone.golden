@@ -1,13 +1,13 @@
-Ready: 2  In Progress: 1  Blocked: 1  Done: 1                                                 
+○ Ready: 2  ● In Progress: 1  ◌ Blocked: 1  ✓ Done: 1                                         
 Progress: 1/5 ███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    
                                                                                               
   Tasks (Done)                                                                                
                                                                                               
                                                                                               
-  1 item                                                                                      
-                                                                                              
 > ✓ · deploy-staging                                                                          
   Deploy to staging environment                                                               
+                                                                                              
+                                                                                              
                                                                                               
                                                                                               
                                                                                               

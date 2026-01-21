@@ -1,10 +1,8 @@
-[?25l[?2004hReady: 2  In Progress: 1  Blocked: 1  Done: 1                                   
+[?25l[?2004h○ Ready: 2  ● In Progress: 1  ◌ Blocked: 1  ✓ Done: 1                           
 Progress: 1/5 ███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
                                                                                 
   Tasks                                                                         
                                                                                 
-                                                                                
-  5 items                                                                       
                                                                                 
 > ● · fix-bug-123                                                               
   Fix login page redirect bug                                                   
@@ -12,9 +10,11 @@ Progress: 1/5 ███████████████░░░░░░░
   ○ · write-tests                                                               
   Write unit tests for auth module                                              
                                                                                 
+  ○ · implement-auth                                                            
+  Implement user authentication system [backend,security]                       
                                                                                 
                                                                                 
-  •••                                                                           
+  ••                                                                            
                                                                                 
   ↑/k up • ↓/j down • / filter • q quit • ? more                                
 n:new  e:edit  s:start  d:done  P:pause  b:block  u:unblock  x:delete  t:timer  

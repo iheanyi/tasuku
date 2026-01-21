@@ -1,13 +1,13 @@
-Ready: 2  In Progress: 1  Blocked: 1  Done: 1                                                 
+○ Ready: 2  ● In Progress: 1  ◌ Blocked: 1  ✓ Done: 1                                         
 Progress: 1/5 ███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    
                                                                                               
   Tasks (In Progress)                                                                         
                                                                                               
                                                                                               
-  1 item                                                                                      
-                                                                                              
 > ● · fix-bug-123                                                                             
   Fix login page redirect bug                                                                 
+                                                                                              
+                                                                                              
                                                                                               
                                                                                               
                                                                                               
