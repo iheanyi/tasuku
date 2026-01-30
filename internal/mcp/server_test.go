@@ -46,6 +46,8 @@ func TestTools(t *testing.T) {
 		"tk_rules_sync",
 		// CLAUDE.md management
 		"tk_claudemd_lint", "tk_claudemd_stats",
+		// AGENTS.md management
+		"tk_agentsmd_lint", "tk_agentsmd_stats",
 		// Plugin management
 		"tk_plugin_install", "tk_plugin_uninstall", "tk_plugin_list", "tk_plugin_status",
 		// MCP management
@@ -463,8 +465,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 55 {
-		t.Errorf("expected 55 tools, got %d", len(tools))
+	if len(tools) != 57 {
+		t.Errorf("expected 57 tools, got %d", len(tools))
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/iheanyi/tasuku/internal/cmd/learning"
 	"github.com/iheanyi/tasuku/internal/cmd/mcpcmd"
 	"github.com/iheanyi/tasuku/internal/cmd/migrate"
+	"github.com/iheanyi/tasuku/internal/cmd/agentsmd"
 	"github.com/iheanyi/tasuku/internal/cmd/claudemd"
 	"github.com/iheanyi/tasuku/internal/cmd/note"
 	plugincmd "github.com/iheanyi/tasuku/internal/cmd/plugin"
@@ -82,6 +83,7 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.AddCommand(plugincmd.Cmd)
 	cmd.AddCommand(rulescmd.Cmd)
 	cmd.AddCommand(claudemd.Cmd)
+	cmd.AddCommand(agentsmd.Cmd)
 
 	// Root-level commands
 	cmd.AddCommand(initCmd)

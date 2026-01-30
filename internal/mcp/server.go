@@ -855,6 +855,33 @@ func (s *Server) Tools() []Tool {
 				},
 			},
 		},
+		// AGENTS.md management
+		{
+			Name:        "tk_agentsmd_lint",
+			Description: "Check AGENTS.md health and warn about bloat. Use PROACTIVELY at session start or when AGENTS.md seems slow to load. Returns: line count, section breakdown, recommendations for splitting. Warns if >150 lines, errors if >200 lines.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"file": map[string]interface{}{
+						"type":        "string",
+						"description": "Path to AGENTS.md file (default: AGENTS.md)",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_agentsmd_stats",
+			Description: "Show AGENTS.md section breakdown with line counts. Use to identify which sections may need reorganization.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"file": map[string]interface{}{
+						"type":        "string",
+						"description": "Path to AGENTS.md file (default: AGENTS.md)",
+					},
+				},
+			},
+		},
 		// Plugin management
 		{
 			Name:        "tk_plugin_install",
@@ -1112,6 +1139,10 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleClaudeMdLint(args)
 	case "tk_claudemd_stats":
 		return s.handleClaudeMdStats(args)
+	case "tk_agentsmd_lint":
+		return s.handleAgentsMdLint(args)
+	case "tk_agentsmd_stats":
+		return s.handleAgentsMdStats(args)
 	case "tk_plugin_install":
 		return s.handlePluginInstall(args)
 	case "tk_plugin_uninstall":
@@ -3125,6 +3156,142 @@ func (s *Server) handleClaudeMdStats(args map[string]interface{}) (interface{}, 
 		"rules_files":   rulesFiles,
 		"rules_count":   len(rulesFiles),
 	}, nil
+}
+
+// handleAgentsMdLint checks AGENTS.md health (similar to handleClaudeMdLint)
+func (s *Server) handleAgentsMdLint(args map[string]interface{}) (interface{}, error) {
+	filePath, _ := args["file"].(string)
+	if filePath == "" {
+		filePath = "AGENTS.md"
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return map[string]interface{}{
+			"status":  "ok",
+			"message": fmt.Sprintf("No %s found (nothing to lint)", filePath),
+		}, nil
+	}
+
+	totalLines, sections, err := s.analyzeClaudeMdFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to analyze %s: %w", filePath, err)
+	}
+
+	// Constants
+	const maxLines = 200
+	const warnLines = 150
+	const sectionLimit = 50
+
+	// Determine status
+	status := "ok"
+	var issues []string
+	var recommendations []string
+
+	if totalLines > maxLines {
+		status = "error"
+		issues = append(issues, fmt.Sprintf("Exceeds recommended maximum (%d lines > %d)", totalLines, maxLines))
+	} else if totalLines > warnLines {
+		status = "warning"
+		issues = append(issues, fmt.Sprintf("Approaching limit (%d/%d lines)", totalLines, maxLines))
+	}
+
+	// Check for large sections
+	var largeSections []map[string]interface{}
+	for _, sec := range sections {
+		if sec.lines > sectionLimit {
+			largeSections = append(largeSections, map[string]interface{}{
+				"name":  sec.name,
+				"lines": sec.lines,
+			})
+			issues = append(issues, fmt.Sprintf("Section '%s' is %d lines (recommend < %d)", sec.name, sec.lines, sectionLimit))
+		}
+	}
+
+	// Recommendations
+	if len(issues) > 0 {
+		recommendations = append(recommendations, "Keep AGENTS.md focused on overview and key decisions")
+		recommendations = append(recommendations, "Consider moving detailed docs to separate files")
+		recommendations = append(recommendations, "Use 'tk agentsmd stats' to see full breakdown")
+	}
+
+	return map[string]interface{}{
+		"status":          status,
+		"file":            filePath,
+		"total_lines":     totalLines,
+		"section_count":   len(sections),
+		"large_sections":  largeSections,
+		"issues":          issues,
+		"recommendations": recommendations,
+	}, nil
+}
+
+// handleAgentsMdStats returns detailed section breakdown of AGENTS.md
+func (s *Server) handleAgentsMdStats(args map[string]interface{}) (interface{}, error) {
+	filePath, _ := args["file"].(string)
+	if filePath == "" {
+		filePath = "AGENTS.md"
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("%s not found", filePath)
+	}
+
+	totalLines, sections, err := s.analyzeClaudeMdFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to analyze %s: %w", filePath, err)
+	}
+
+	// Build section details
+	var sectionDetails []map[string]interface{}
+	for _, sec := range sections {
+		pct := float64(sec.lines) / float64(totalLines) * 100
+		sectionDetails = append(sectionDetails, map[string]interface{}{
+			"name":       sec.name,
+			"lines":      sec.lines,
+			"percentage": fmt.Sprintf("%.1f%%", pct),
+		})
+	}
+
+	// List rules files in .agents/rules/
+	var rulesFiles []map[string]interface{}
+	rulesDir := ".agents/rules"
+	if entries, err := os.ReadDir(rulesDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+				path := filepath.Join(rulesDir, entry.Name())
+				lines := s.countFileLines(path)
+				rulesFiles = append(rulesFiles, map[string]interface{}{
+					"name":  entry.Name(),
+					"lines": lines,
+				})
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"file":          filePath,
+		"total_lines":   totalLines,
+		"sections":      sectionDetails,
+		"section_count": len(sections),
+		"rules_files":   rulesFiles,
+		"rules_count":   len(rulesFiles),
+	}, nil
+}
+
+// countAgentsRulesFiles counts markdown files in .agents/rules/
+func (s *Server) countAgentsRulesFiles() int {
+	var count int
+	rulesDir := ".agents/rules"
+	if entries, err := os.ReadDir(rulesDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+				count++
+			}
+		}
+	}
+	return count
 }
 
 // claudeMdSection represents a section in CLAUDE.md
