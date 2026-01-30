@@ -343,21 +343,21 @@ func (s *Server) Tools() []Tool {
 			Name: "tk_task",
 			Description: `Perform task operations: edit, delete, pause, block, unblock, priority, owner, archive, restore, claim, release, who.
 
-Actions:
-- edit: Update task description. Params: id, description
-- delete: Permanently delete a task. Params: id
-- pause: Revert in_progress → ready. Params: id
-- block: Mark task as blocked. Params: id, blocked_by (array)
-- unblock: Remove blockers. Params: id, from (optional specific blocker)
-- priority: Set priority (0-4 or critical/high/normal/low/backlog). Params: id, priority
-- owner: Set or clear task owner. Params: id, owner (empty to clear)
-- archive: Archive a done task. Params: id, summary (optional)
-- restore: Restore archived task. Params: id
-- claim: Claim for exclusive work. Params: id, agent
-- release: Release claimed task. Params: id
-- who: Show task assignments by owner. No params required.
+	Actions:
+	- edit: Update task description. Params: id, description
+	- delete: Permanently delete a task. Params: id
+	- pause: Revert in_progress → ready. Params: id
+	- block: Mark task as blocked. Params: id, blocked_by (array)
+	- unblock: Remove blockers. Params: id, from (optional specific blocker)
+	- priority: Set priority (0-4 or critical/high/normal/low/backlog). Params: id, priority
+	- owner: Set or clear task owner. Params: id, owner (empty to clear)
+	- archive: Archive a done task. Params: id, summary (optional)
+	- restore: Restore archived task. Params: id
+	- claim: Claim for exclusive work. Params: id, agent
+	- release: Release claimed task. Params: id
+	- who: Show task assignments by owner. No params required.
 
-Use tk_help command=tk_task for detailed documentation.`,
+	Use tk_help command=tk_task for detailed documentation.`,
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"action"},
@@ -407,18 +407,18 @@ Use tk_help command=tk_task for detailed documentation.`,
 			Name: "tk_metadata",
 			Description: `Manage task metadata: tags, fields, notes.
 
-Actions:
-- tag_add: Add a tag to a task. Params: id, tag
-- tag_remove: Remove a tag from a task. Params: id, tag
-- field_set: Set a custom field. Params: id, key, value
-- field_remove: Remove a custom field. Params: id, key
-- note_list: List notes for a task or all notes. Params: task_id (optional)
-- note_remove: Remove a note. Params: task_id, note_id
+	Actions:
+	- tag_add: Add a tag to a task. Params: id, tag
+	- tag_remove: Remove a tag from a task. Params: id, tag
+	- field_set: Set a custom field. Params: id, key, value
+	- field_remove: Remove a custom field. Params: id, key
+	- note_list: List notes for a task or all notes. Params: task_id (optional)
+	- note_remove: Remove a note. Params: task_id, note_id
 
-Common tags: bug, feature, refactor, docs, test, security, performance, tech-debt, urgent
-Common fields: estimate, component, pr, issue, approach, reviewer
+	Common tags: bug, feature, refactor, docs, test, security, performance, tech-debt, urgent
+	Common fields: estimate, component, pr, issue, approach, reviewer
 
-Use tk_help command=tk_metadata for detailed documentation.`,
+	Use tk_help command=tk_metadata for detailed documentation.`,
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"action"},
@@ -459,17 +459,17 @@ Use tk_help command=tk_metadata for detailed documentation.`,
 			Name: "tk_manage",
 			Description: `Manage learnings, decisions, and archive operations.
 
-Actions:
-- learning_list: List all learnings with IDs and rule status
-- learning_promote: Promote learning to permanent docs. Params: id, to (optional target file), keep (optional bool)
-- learning_remove: Remove a learning by ID. Params: id
-- learning_rules: List learnings marked as rules (never/always patterns)
-- decision_list: List all architectural decisions
-- decision_remove: Remove a decision by ID. Params: id
-- archive_list: List all archived tasks
-- archive_all: Archive done tasks older than duration. Params: older_than (e.g., '7d', '24h', '2w')
+	Actions:
+	- learning_list: List all learnings with IDs and rule status
+	- learning_promote: Promote learning to permanent docs. Params: id, to (optional target file), keep (optional bool)
+	- learning_remove: Remove a learning by ID. Params: id
+	- learning_rules: List learnings marked as rules (never/always patterns)
+	- decision_list: List all architectural decisions
+	- decision_remove: Remove a decision by ID. Params: id
+	- archive_list: List all archived tasks
+	- archive_all: Archive done tasks older than duration. Params: older_than (e.g., '7d', '24h', '2w')
 
-Use tk_help command=tk_manage for detailed documentation.`,
+	Use tk_help command=tk_manage for detailed documentation.`,
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"action"},
@@ -588,7 +588,6 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleStats(args)
 	case "tk_health":
 		return s.handleHealth(args)
-
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
