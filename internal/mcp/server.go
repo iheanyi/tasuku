@@ -962,6 +962,17 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 		archived, err := s.store.GetArchivedTasks()
 		if err == nil {
 			for id, t := range archived {
+				if status != "" && status != "archived" {
+					continue
+				}
+				if tagFilter != "" && !t.HasTag(tagFilter) {
+					continue
+				}
+				if ownerFilter != "" {
+					if t.Owner == nil || *t.Owner != ownerFilter {
+						continue
+					}
+				}
 				results = append(results, taskResult{
 					ID:          id,
 					Status:      "archived",
