@@ -606,7 +606,7 @@ func (s *Server) handleHelp(args map[string]interface{}) (interface{}, error) {
 	switch topic {
 	case "tasks":
 		return map[string]interface{}{
-			"topic": "Task Operations",
+			"topic":       "Task Operations",
 			"description": "Task lifecycle management",
 			"tools": map[string]string{
 				"tk_add":   "Create a new task with description, optional ID, priority, and tags",
@@ -689,10 +689,10 @@ func (s *Server) handleHelp(args map[string]interface{}) (interface{}, error) {
 			"topic":       "Archive Operations",
 			"description": "Archive completed tasks to keep lists lean",
 			"tools": map[string]string{
-				"tk_task (archive)":  "Archive a done task: tk_task action=archive id=<id>",
-				"tk_task (restore)":  "Restore archived task: tk_task action=restore id=<id>",
-				"tk_manage":          "List/bulk archive operations",
-				"tk_list":            "Include archived: tk_list include_archived=true",
+				"tk_task (archive)": "Archive a done task: tk_task action=archive id=<id>",
+				"tk_task (restore)": "Restore archived task: tk_task action=restore id=<id>",
+				"tk_manage":         "List/bulk archive operations",
+				"tk_list":           "Include archived: tk_list include_archived=true",
 			},
 			"tk_manage_actions": map[string]string{
 				"archive_list": "List all archived tasks",
@@ -716,13 +716,14 @@ func (s *Server) handleHelp(args map[string]interface{}) (interface{}, error) {
 		return map[string]interface{}{
 			"topic":       "Tasuku Overview",
 			"description": "Agent-first task management system",
-			"tool_count":  16,
+			"tool_count":  17,
 			"tools": map[string]string{
 				"tk_help":     "This help system",
 				"tk_list":     "List tasks",
 				"tk_add":      "Create task",
 				"tk_start":    "Start working",
 				"tk_done":     "Complete task",
+				"tk_block":    "Block a task",
 				"tk_show":     "Task details",
 				"tk_note":     "Add note",
 				"tk_context":  "Full project state",
@@ -915,15 +916,15 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 	includeArchived, _ := args["include_archived"].(bool)
 
 	type taskResult struct {
-		ID          string         `json:"id"`
-		Status      string         `json:"status"`
-		Description string         `json:"description"`
-		BlockedBy   []string       `json:"blocked_by,omitempty"`
-		Owner       *string        `json:"owner,omitempty"`
-		ParentID    string         `json:"parent_id,omitempty"`
-		Priority    int            `json:"priority,omitempty"`
-		Tags        []string       `json:"tags,omitempty"`
-		Children    []taskResult   `json:"children,omitempty"`
+		ID          string       `json:"id"`
+		Status      string       `json:"status"`
+		Description string       `json:"description"`
+		BlockedBy   []string     `json:"blocked_by,omitempty"`
+		Owner       *string      `json:"owner,omitempty"`
+		ParentID    string       `json:"parent_id,omitempty"`
+		Priority    int          `json:"priority,omitempty"`
+		Tags        []string     `json:"tags,omitempty"`
+		Children    []taskResult `json:"children,omitempty"`
 	}
 
 	// Filter tasks
@@ -973,10 +974,11 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 
 	// Sort by status priority, then by task priority, then by ID
 	statusOrder := map[task.Status]int{
-		task.StatusInProgress: 0,
-		task.StatusReady:      1,
-		task.StatusBlocked:    2,
-		task.StatusDone:       3,
+		task.StatusInProgress:   0,
+		task.StatusReady:        1,
+		task.StatusBlocked:      2,
+		task.StatusDone:         3,
+		task.Status("archived"): 4,
 	}
 	slices.SortFunc(results, func(a, b taskResult) int {
 		// Status order first
@@ -2192,9 +2194,9 @@ func (s *Server) handleSuggest(args map[string]interface{}) (interface{}, error)
 	}
 
 	result := map[string]interface{}{
-		"should_persist":    shouldPersist,
-		"reason":            reason,
-		"matched_keyword":   matchedKeyword,
+		"should_persist":       shouldPersist,
+		"reason":               reason,
+		"matched_keyword":      matchedKeyword,
 		"original_description": description,
 	}
 
