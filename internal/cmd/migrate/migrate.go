@@ -24,6 +24,7 @@ func newMigrateCmd() *cobra.Command {
 
 Available subcommands:
   beads    Import from Beads (.beads/issues.jsonl)
+  overseer Import from Overseer (.overseer/tasks.db)
   v3       Migrate to V3 directory-based storage format
   v4       Migrate to V4 Markdown-based storage format
 
@@ -31,6 +32,7 @@ Run 'tk migrate <subcommand> --help' for details on each source.`,
 	}
 
 	cmd.AddCommand(newBeadsCmd())
+	cmd.AddCommand(newOverseerCmd())
 	cmd.AddCommand(newV3Cmd())
 	cmd.AddCommand(newV4Cmd())
 
