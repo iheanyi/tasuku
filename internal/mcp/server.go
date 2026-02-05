@@ -978,6 +978,7 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 					ID:          id,
 					Status:      "archived",
 					Description: t.Description,
+					Owner:       t.Owner,
 					Tags:        t.Tags,
 				})
 			}
