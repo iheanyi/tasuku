@@ -25,37 +25,36 @@ func TestTools(t *testing.T) {
 	server, _ := setupTestServer(t)
 	tools := server.Tools()
 
+	// 17 tools total: 12 core + 3 action-based + 2 utility
 	expectedTools := []string{
-		"tk_list", "tk_add", "tk_start", "tk_done",
-		"tk_block", "tk_learn", "tk_decide", "tk_note", "tk_context",
-		"tk_timer_start", "tk_timer_stop", "tk_timer_status",
-		"tk_field_set", "tk_field_remove",
-		"tk_tag_add", "tk_tag_remove",
-		"tk_archive", "tk_archive_restore", "tk_archive_list", "tk_archive_all",
-		"tk_show", "tk_delete", "tk_edit", "tk_pause", "tk_unblock",
-		"tk_find", "tk_priority", "tk_owner", "tk_claim", "tk_release",
-		"tk_suggest",
-		// New tools for CLI parity
-		"tk_ready", "tk_who", "tk_deps", "tk_stats",
-		"tk_learning_list", "tk_learning_promote", "tk_learning_remove", "tk_learning_rules",
-		"tk_decision_list", "tk_decision_remove",
-		"tk_note_list", "tk_note_remove",
-		// Health check
+		// Tier 1: Core tools (kept individual)
+		"tk_help",
+		"tk_list",
+		"tk_add",
+		"tk_start",
+		"tk_done",
+		"tk_block", // Kept individual - frequently used for blocking tasks
+		"tk_learn",
+		"tk_decide",
+		"tk_note",
+		"tk_context",
+		"tk_show",
+		"tk_find",
+		// Tier 2: Consolidated tools
+		"tk_task",     // edit, delete, pause, unblock, priority, owner, archive, restore, claim, release, who
+		"tk_metadata", // tag_add, tag_remove, field_set, field_remove, note_list, note_remove
+		"tk_manage",   // learning_list, learning_promote, learning_remove, learning_rules, decision_list, decision_remove, archive_list, archive_all
+		// Tier 3: Less frequent but useful tools
+		"tk_stats",
 		"tk_health",
-		// Rules sync
-		"tk_rules_sync",
-		// CLAUDE.md management
-		"tk_claudemd_lint", "tk_claudemd_stats",
-		// Plugin management
-		"tk_plugin_install", "tk_plugin_uninstall", "tk_plugin_list", "tk_plugin_status",
-		// MCP management
-		"tk_mcp_install", "tk_mcp_uninstall",
-		// Hooks management
-		"tk_hooks_install", "tk_hooks_uninstall",
 	}
 
 	if len(tools) != len(expectedTools) {
 		t.Errorf("expected %d tools, got %d", len(expectedTools), len(tools))
+		// Print actual tool names for debugging
+		for _, tool := range tools {
+			t.Logf("  got tool: %s", tool.Name)
+		}
 	}
 
 	toolNames := make(map[string]bool)
@@ -463,8 +462,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 55 {
-		t.Errorf("expected 55 tools, got %d", len(tools))
+	if len(tools) != 17 {
+		t.Errorf("expected 17 tools, got %d", len(tools))
 	}
 }
 
@@ -518,8 +517,9 @@ func TestHandleToolCall_Archive(t *testing.T) {
 	})
 
 	// Archive the task
-	result, err := server.HandleToolCall("tk_archive", map[string]interface{}{
-		"task_id": "archive-test",
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action":  "archive",
+		"id":      "archive-test",
 		"summary": "Completed successfully",
 	})
 	if err != nil {
@@ -535,7 +535,9 @@ func TestHandleToolCall_Archive(t *testing.T) {
 	}
 
 	// List archived tasks
-	listResult, err := server.HandleToolCall("tk_archive_list", map[string]interface{}{})
+	listResult, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "archive_list",
+	})
 	if err != nil {
 		t.Fatalf("archive_list error: %v", err)
 	}
@@ -562,8 +564,9 @@ func TestHandleToolCall_Archive(t *testing.T) {
 	}
 
 	// Restore the task
-	restoreResult, err := server.HandleToolCall("tk_archive_restore", map[string]interface{}{
-		"task_id": "archive-test",
+	restoreResult, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "restore",
+		"id":     "archive-test",
 	})
 	if err != nil {
 		t.Fatalf("archive_restore error: %v", err)
@@ -666,8 +669,9 @@ func TestHandleToolCall_Delete(t *testing.T) {
 	})
 
 	// Delete the blocker
-	result, err := server.HandleToolCall("tk_delete", map[string]interface{}{
-		"id": "blocker-test",
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "delete",
+		"id":     "blocker-test",
 	})
 	if err != nil {
 		t.Fatalf("delete error: %v", err)
@@ -698,7 +702,8 @@ func TestHandleToolCall_Edit(t *testing.T) {
 	})
 
 	// Edit the task
-	result, err := server.HandleToolCall("tk_edit", map[string]interface{}{
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action":      "edit",
 		"id":          "edit-test",
 		"description": "Updated description",
 	})
@@ -737,8 +742,9 @@ func TestHandleToolCall_Pause(t *testing.T) {
 	})
 
 	// Pause the task
-	result, err := server.HandleToolCall("tk_pause", map[string]interface{}{
-		"id": "pause-test",
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "pause",
+		"id":     "pause-test",
 	})
 	if err != nil {
 		t.Fatalf("pause error: %v", err)
@@ -780,9 +786,10 @@ func TestHandleToolCall_Unblock(t *testing.T) {
 	})
 
 	// Partial unblock
-	result, err := server.HandleToolCall("tk_unblock", map[string]interface{}{
-		"id":   "blocked-task",
-		"from": "blocker-1",
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "unblock",
+		"id":     "blocked-task",
+		"from":   "blocker-1",
 	})
 	if err != nil {
 		t.Fatalf("unblock error: %v", err)
@@ -794,8 +801,9 @@ func TestHandleToolCall_Unblock(t *testing.T) {
 	}
 
 	// Full unblock
-	result2, err := server.HandleToolCall("tk_unblock", map[string]interface{}{
-		"id": "blocked-task",
+	result2, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "unblock",
+		"id":     "blocked-task",
 	})
 	if err != nil {
 		t.Fatalf("full unblock error: %v", err)
@@ -869,7 +877,8 @@ func TestHandleToolCall_Priority(t *testing.T) {
 	})
 
 	// Set priority with string
-	result, err := server.HandleToolCall("tk_priority", map[string]interface{}{
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action":   "priority",
 		"id":       "priority-test",
 		"priority": "critical",
 	})
@@ -886,7 +895,8 @@ func TestHandleToolCall_Priority(t *testing.T) {
 	}
 
 	// Set priority with number
-	result2, err := server.HandleToolCall("tk_priority", map[string]interface{}{
+	result2, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action":   "priority",
 		"id":       "priority-test",
 		"priority": "3",
 	})
@@ -910,9 +920,10 @@ func TestHandleToolCall_Owner(t *testing.T) {
 	})
 
 	// Set owner
-	result, err := server.HandleToolCall("tk_owner", map[string]interface{}{
-		"id":    "owner-test",
-		"owner": "agent-1",
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "owner",
+		"id":     "owner-test",
+		"owner":  "agent-1",
 	})
 	if err != nil {
 		t.Fatalf("owner set error: %v", err)
@@ -927,8 +938,9 @@ func TestHandleToolCall_Owner(t *testing.T) {
 	}
 
 	// Clear owner
-	result2, err := server.HandleToolCall("tk_owner", map[string]interface{}{
-		"id": "owner-test",
+	result2, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "owner",
+		"id":     "owner-test",
 	})
 	if err != nil {
 		t.Fatalf("owner clear error: %v", err)
@@ -950,9 +962,10 @@ func TestHandleToolCall_ClaimRelease(t *testing.T) {
 	})
 
 	// Claim the task
-	result, err := server.HandleToolCall("tk_claim", map[string]interface{}{
-		"id":    "claim-test",
-		"agent": "agent-1",
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "claim",
+		"id":     "claim-test",
+		"agent":  "agent-1",
 	})
 	if err != nil {
 		t.Fatalf("claim error: %v", err)
@@ -967,8 +980,9 @@ func TestHandleToolCall_ClaimRelease(t *testing.T) {
 	}
 
 	// Release the task
-	result2, err := server.HandleToolCall("tk_release", map[string]interface{}{
-		"id": "claim-test",
+	result2, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "release",
+		"id":     "claim-test",
 	})
 	if err != nil {
 		t.Fatalf("release error: %v", err)
@@ -977,152 +991,6 @@ func TestHandleToolCall_ClaimRelease(t *testing.T) {
 	r2 := result2.(map[string]interface{})
 	if r2["status"] != "released" {
 		t.Errorf("expected status 'released', got %v", r2["status"])
-	}
-}
-
-func TestSuggest(t *testing.T) {
-	server, _ := setupTestServer(t)
-
-	tests := []struct {
-		name          string
-		description   string
-		shouldPersist bool
-	}{
-		// Project-level tasks (should persist)
-		{"implement feature", "Implement user authentication", true},
-		{"add feature", "Add feature for dark mode", true},
-		{"fix bug", "Fix bug in login flow", true},
-		{"refactor", "Refactor the database layer", true},
-		{"migrate", "Migrate to new API version", true},
-		{"build", "Build the dashboard component", true},
-		{"deploy", "Deploy to production", true},
-		{"database work", "Add database index for users table", true},
-		{"security", "Implement security headers", true},
-		{"api endpoint", "Create API endpoint for user profile", true},
-
-		// Session-level tasks (should not persist)
-		{"fix type error", "Fix type error in auth.ts", false},
-		{"fix typo", "Fix typo in error message", false},
-		{"update file", "Update file imports", false},
-		{"run tests", "Run test suite", false},
-		{"debug", "Debug the failing test", false},
-		{"verify", "Verify the output", false},
-		{"add import", "Add import statement", false},
-		{"rename variable", "Rename variable to be clearer", false},
-
-		// Edge cases
-		{"no keywords", "Do something", false},
-		{"mixed - session wins", "Fix type error while implementing auth", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := server.HandleToolCall("tk_suggest", map[string]interface{}{
-				"description": tt.description,
-			})
-			if err != nil {
-				t.Fatalf("suggest error: %v", err)
-			}
-
-			r := result.(map[string]interface{})
-			shouldPersist, ok := r["should_persist"].(bool)
-			if !ok {
-				t.Fatalf("should_persist not a bool")
-			}
-
-			if shouldPersist != tt.shouldPersist {
-				t.Errorf("for %q: expected should_persist=%v, got %v (reason: %s)",
-					tt.description, tt.shouldPersist, shouldPersist, r["reason"])
-			}
-
-			// Verify other fields are present
-			if _, ok := r["reason"].(string); !ok {
-				t.Error("missing reason field")
-			}
-			if _, ok := r["recommendation"].(string); !ok {
-				t.Error("missing recommendation field")
-			}
-			if _, ok := r["original_description"].(string); !ok {
-				t.Error("missing original_description field")
-			}
-
-			// Verify suggested_command is present when should persist
-			if shouldPersist {
-				if _, ok := r["suggested_command"].(string); !ok {
-					t.Error("missing suggested_command for persistent task")
-				}
-			}
-		})
-	}
-}
-
-func TestHandleToolCall_TimerStartStop(t *testing.T) {
-	server, _ := setupTestServer(t)
-
-	// Add a task
-	server.HandleToolCall("tk_add", map[string]interface{}{
-		"description": "Timer test task",
-		"id":          "timer-test",
-	})
-
-	// Start timer
-	result, err := server.HandleToolCall("tk_timer_start", map[string]interface{}{
-		"id": "timer-test",
-	})
-	if err != nil {
-		t.Fatalf("timer_start error: %v", err)
-	}
-
-	// Use JSON to parse result generically
-	data, _ := json.Marshal(result)
-	var startResult map[string]interface{}
-	json.Unmarshal(data, &startResult)
-	if startResult["status"] != "timer_started" {
-		t.Errorf("expected status 'timer_started', got %v", startResult["status"])
-	}
-
-	// Check timer status
-	statusResult, err := server.HandleToolCall("tk_timer_status", map[string]interface{}{})
-	if err != nil {
-		t.Fatalf("timer_status error: %v", err)
-	}
-
-	// Should have one running timer - response is {"count": 1, "timers": [...]}
-	data, _ = json.Marshal(statusResult)
-	var statusRes map[string]interface{}
-	json.Unmarshal(data, &statusRes)
-	count, _ := statusRes["count"].(float64)
-	if int(count) != 1 {
-		t.Errorf("expected 1 running timer, got %d (status: %s)", int(count), string(data))
-	}
-
-	// Stop timer
-	stopResult, err := server.HandleToolCall("tk_timer_stop", map[string]interface{}{
-		"id": "timer-test",
-	})
-	if err != nil {
-		t.Fatalf("timer_stop error: %v", err)
-	}
-
-	data, _ = json.Marshal(stopResult)
-	var stopRes map[string]interface{}
-	json.Unmarshal(data, &stopRes)
-	if stopRes["status"] != "timer_stopped" {
-		t.Errorf("expected status 'timer_stopped', got %v", stopRes["status"])
-	}
-
-	// Timer status should now be empty
-	statusResult2, err := server.HandleToolCall("tk_timer_status", map[string]interface{}{})
-	if err != nil {
-		t.Fatalf("timer_status error: %v", err)
-	}
-
-	data, _ = json.Marshal(statusResult2)
-	var statusRes2 map[string]interface{}
-	json.Unmarshal(data, &statusRes2)
-	count2, _ := statusRes2["count"].(float64)
-	if int(count2) != 0 {
-		t.Errorf("expected 0 running timers after stop, got %d", int(count2))
 	}
 }
 
@@ -1136,10 +1004,11 @@ func TestHandleToolCall_FieldSetRemove(t *testing.T) {
 	})
 
 	// Set field
-	result, err := server.HandleToolCall("tk_field_set", map[string]interface{}{
-		"id":    "field-test",
-		"key":   "estimate",
-		"value": "2h",
+	result, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action": "field_set",
+		"id":     "field-test",
+		"key":    "estimate",
+		"value":  "2h",
 	})
 	if err != nil {
 		t.Fatalf("field_set error: %v", err)
@@ -1168,9 +1037,10 @@ func TestHandleToolCall_FieldSetRemove(t *testing.T) {
 	}
 
 	// Remove field
-	removeResult, err := server.HandleToolCall("tk_field_remove", map[string]interface{}{
-		"id":  "field-test",
-		"key": "estimate",
+	removeResult, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action": "field_remove",
+		"id":     "field-test",
+		"key":    "estimate",
 	})
 	if err != nil {
 		t.Fatalf("field_remove error: %v", err)
@@ -1194,9 +1064,10 @@ func TestHandleToolCall_TagAddRemove(t *testing.T) {
 	})
 
 	// Add tag
-	result, err := server.HandleToolCall("tk_tag_add", map[string]interface{}{
-		"id":  "tag-test",
-		"tag": "urgent",
+	result, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action": "tag_add",
+		"id":     "tag-test",
+		"tag":    "urgent",
 	})
 	if err != nil {
 		t.Fatalf("tag_add error: %v", err)
@@ -1232,9 +1103,10 @@ func TestHandleToolCall_TagAddRemove(t *testing.T) {
 	}
 
 	// Remove tag
-	removeResult, err := server.HandleToolCall("tk_tag_remove", map[string]interface{}{
-		"id":  "tag-test",
-		"tag": "urgent",
+	removeResult, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action": "tag_remove",
+		"id":     "tag-test",
+		"tag":    "urgent",
 	})
 	if err != nil {
 		t.Fatalf("tag_remove error: %v", err)
@@ -1268,7 +1140,8 @@ func TestHandleToolCall_ArchiveAll(t *testing.T) {
 	})
 
 	// Archive all done tasks older than 0 hours (i.e., all done tasks)
-	result, err := server.HandleToolCall("tk_archive_all", map[string]interface{}{
+	result, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action":     "archive_all",
 		"older_than": "0h",
 	})
 	if err != nil {
@@ -1328,7 +1201,9 @@ func TestHandleToolCall_Ready(t *testing.T) {
 		"description": "High priority task",
 		"id":          "high-pri",
 	})
-	server.HandleToolCall("tk_priority", map[string]interface{}{
+	// Set priority
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action":   "priority",
 		"id":       "high-pri",
 		"priority": "high",
 	})
@@ -1346,8 +1221,10 @@ func TestHandleToolCall_Ready(t *testing.T) {
 		"id": "started",
 	})
 
-	// Get ready tasks
-	result, err := server.HandleToolCall("tk_ready", map[string]interface{}{})
+	// Get ready tasks using tk_list with status filter
+	result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+		"status": "ready",
+	})
 	if err != nil {
 		t.Fatalf("ready error: %v", err)
 	}
@@ -1381,17 +1258,21 @@ func TestHandleToolCall_Who(t *testing.T) {
 	server.HandleToolCall("tk_add", map[string]interface{}{
 		"id": "who-test-2",
 	})
-	server.HandleToolCall("tk_claim", map[string]interface{}{
-		"id":    "who-test-1",
-		"agent": "agent-1",
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "claim",
+		"id":     "who-test-1",
+		"agent":  "agent-1",
 	})
-	server.HandleToolCall("tk_claim", map[string]interface{}{
-		"id":    "who-test-2",
-		"agent": "agent-2",
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "claim",
+		"id":     "who-test-2",
+		"agent":  "agent-2",
 	})
 
 	// Check who
-	result, err := server.HandleToolCall("tk_who", map[string]interface{}{})
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "who",
+	})
 	if err != nil {
 		t.Fatalf("who error: %v", err)
 	}
@@ -1456,7 +1337,9 @@ func TestHandleToolCall_LearningOperations(t *testing.T) {
 	})
 
 	// List learnings
-	listResult, err := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	listResult, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_list",
+	})
 	if err != nil {
 		t.Fatalf("learning_list error: %v", err)
 	}
@@ -1470,7 +1353,9 @@ func TestHandleToolCall_LearningOperations(t *testing.T) {
 	}
 
 	// List rules only - response is {"rules": [...], "count": ..., "recommendation": ...}
-	rulesResult, err := server.HandleToolCall("tk_learning_rules", map[string]interface{}{})
+	rulesResult, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_rules",
+	})
 	if err != nil {
 		t.Fatalf("learning_rules error: %v", err)
 	}
@@ -1504,7 +1389,9 @@ func TestHandleToolCall_DecisionOperations(t *testing.T) {
 	})
 
 	// List decisions
-	listResult, err := server.HandleToolCall("tk_decision_list", map[string]interface{}{})
+	listResult, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "decision_list",
+	})
 	if err != nil {
 		t.Fatalf("decision_list error: %v", err)
 	}
@@ -1518,8 +1405,9 @@ func TestHandleToolCall_DecisionOperations(t *testing.T) {
 	}
 
 	// Remove decision
-	removeResult, err := server.HandleToolCall("tk_decision_remove", map[string]interface{}{
-		"id": "dec-1",
+	removeResult, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "decision_remove",
+		"id":     "dec-1",
 	})
 	if err != nil {
 		t.Fatalf("decision_remove error: %v", err)
@@ -1548,7 +1436,8 @@ func TestHandleToolCall_NoteOperations(t *testing.T) {
 	})
 
 	// List notes for task
-	listResult, err := server.HandleToolCall("tk_note_list", map[string]interface{}{
+	listResult, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action":  "note_list",
 		"task_id": "note-ops-test",
 	})
 	if err != nil {
@@ -1571,7 +1460,8 @@ func TestHandleToolCall_NoteOperations(t *testing.T) {
 
 	// Remove note
 	if noteID != "" {
-		removeResult, err := server.HandleToolCall("tk_note_remove", map[string]interface{}{
+		removeResult, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+			"action":  "note_remove",
 			"task_id": "note-ops-test",
 			"note_id": noteID,
 		})
@@ -1608,12 +1498,12 @@ func TestHandleToolCall_Deps(t *testing.T) {
 		"blocked_by": []interface{}{"dep-c"},
 	})
 
-	// Get deps for A
-	result, err := server.HandleToolCall("tk_deps", map[string]interface{}{
+	// Get deps for A using tk_show (deps are now included in show output)
+	result, err := server.HandleToolCall("tk_show", map[string]interface{}{
 		"id": "dep-a",
 	})
 	if err != nil {
-		t.Fatalf("deps error: %v", err)
+		t.Fatalf("show error: %v", err)
 	}
 
 	r := result.(map[string]interface{})
@@ -1621,7 +1511,7 @@ func TestHandleToolCall_Deps(t *testing.T) {
 		t.Errorf("expected id 'dep-a', got %v", r["id"])
 	}
 	if r["blocked_by"] == nil {
-		t.Error("expected blocked_by in deps result")
+		t.Error("expected blocked_by in show result")
 	}
 }
 
@@ -1690,7 +1580,9 @@ func TestHandleToolCall_LearningPromote(t *testing.T) {
 	})
 
 	// List learnings to get the ID - use JSON to handle internal types
-	listResult, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	listResult, _ := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_list",
+	})
 	jsonData, _ := json.Marshal(listResult)
 	var learnings []map[string]interface{}
 	json.Unmarshal(jsonData, &learnings)
@@ -1710,8 +1602,9 @@ func TestHandleToolCall_LearningPromote(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	// Promote the learning
-	result, err := server.HandleToolCall("tk_learning_promote", map[string]interface{}{
-		"id": learningID,
+	result, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_promote",
+		"id":     learningID,
 	})
 	if err != nil {
 		t.Fatalf("promote error: %v", err)
@@ -1735,7 +1628,9 @@ func TestHandleToolCall_LearningPromoteKeep(t *testing.T) {
 	})
 
 	// List learnings to get the ID - use JSON to handle internal types
-	listResult, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	listResult, _ := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_list",
+	})
 	jsonData, _ := json.Marshal(listResult)
 	var learnings []map[string]interface{}
 	json.Unmarshal(jsonData, &learnings)
@@ -1752,9 +1647,10 @@ func TestHandleToolCall_LearningPromoteKeep(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	// Promote with keep=true
-	result, err := server.HandleToolCall("tk_learning_promote", map[string]interface{}{
-		"id":   learningID,
-		"keep": true,
+	result, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_promote",
+		"id":     learningID,
+		"keep":   true,
 	})
 	if err != nil {
 		t.Fatalf("promote error: %v", err)
@@ -1766,7 +1662,9 @@ func TestHandleToolCall_LearningPromoteKeep(t *testing.T) {
 	}
 
 	// Verify learning still exists
-	listResult2, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	listResult2, _ := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_list",
+	})
 	jsonData2, _ := json.Marshal(listResult2)
 	var learnings2 []map[string]interface{}
 	json.Unmarshal(jsonData2, &learnings2)
@@ -1784,15 +1682,18 @@ func TestHandleToolCall_LearningRemove(t *testing.T) {
 	})
 
 	// List learnings to get the ID - use JSON to handle internal types
-	listResult, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	listResult, _ := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_list",
+	})
 	jsonData, _ := json.Marshal(listResult)
 	var learnings []map[string]interface{}
 	json.Unmarshal(jsonData, &learnings)
 	learningID := learnings[0]["id"].(string)
 
 	// Remove the learning
-	result, err := server.HandleToolCall("tk_learning_remove", map[string]interface{}{
-		"id": learningID,
+	result, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_remove",
+		"id":     learningID,
 	})
 	if err != nil {
 		t.Fatalf("remove error: %v", err)
@@ -1807,7 +1708,9 @@ func TestHandleToolCall_LearningRemove(t *testing.T) {
 	}
 
 	// Verify learning is gone
-	listResult2, _ := server.HandleToolCall("tk_learning_list", map[string]interface{}{})
+	listResult2, _ := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_list",
+	})
 	jsonData2, _ := json.Marshal(listResult2)
 	var learnings2 []map[string]interface{}
 	json.Unmarshal(jsonData2, &learnings2)
@@ -1820,8 +1723,9 @@ func TestHandleToolCall_LearningRemoveNotFound(t *testing.T) {
 	server, _ := setupTestServer(t)
 
 	// Try to remove non-existent learning
-	_, err := server.HandleToolCall("tk_learning_remove", map[string]interface{}{
-		"id": "non-existent-id",
+	_, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+		"action": "learning_remove",
+		"id":     "non-existent-id",
 	})
 	if err == nil {
 		t.Error("expected error for non-existent learning")
@@ -1845,7 +1749,8 @@ func TestHandleToolCall_NoteRemove(t *testing.T) {
 	noteID := nr["id"]
 
 	// Remove the note
-	result, err := server.HandleToolCall("tk_note_remove", map[string]interface{}{
+	result, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action":  "note_remove",
 		"task_id": "note-remove-test",
 		"note_id": noteID,
 	})
@@ -1873,159 +1778,13 @@ func TestHandleToolCall_NoteRemoveNotFound(t *testing.T) {
 	})
 
 	// Try to remove non-existent note
-	_, err := server.HandleToolCall("tk_note_remove", map[string]interface{}{
+	_, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action":  "note_remove",
 		"task_id": "note-remove-test-2",
 		"note_id": "non-existent-note",
 	})
 	if err == nil {
 		t.Error("expected error for non-existent note")
-	}
-}
-
-func TestHandleToolCall_RulesSync(t *testing.T) {
-	server, _ := setupTestServer(t)
-
-	// Add some learnings
-	server.HandleToolCall("tk_learn", map[string]interface{}{
-		"insight": "Test learning for rules sync",
-	})
-
-	// Create .claude directory (the detection looks for .claude/, not .claude/rules/)
-	dir := filepath.Dir(server.store.Path())
-	claudeDir := filepath.Join(dir, ".claude")
-	os.MkdirAll(claudeDir, 0755)
-
-	// Change to the test directory so rules sync can find .claude/
-	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
-
-	// Sync rules
-	result, err := server.HandleToolCall("tk_rules_sync", map[string]interface{}{})
-	if err != nil {
-		t.Fatalf("rules sync error: %v", err)
-	}
-
-	r := result.(map[string]interface{})
-	// handleRulesSync returns "results", "total_files", and "message"
-	if r["message"] == nil {
-		t.Error("expected message in result")
-	}
-	if r["total_files"] == nil {
-		t.Error("expected total_files in result")
-	}
-}
-
-func TestHandleToolCall_ClaudeMdLint(t *testing.T) {
-	server, _ := setupTestServer(t)
-
-	// Create a test CLAUDE.md
-	dir := filepath.Dir(server.store.Path())
-	claudemdPath := filepath.Join(dir, "CLAUDE.md")
-	content := `# Project
-
-## Overview
-This is a test project.
-
-## Architecture
-Some architecture details.
-`
-	os.WriteFile(claudemdPath, []byte(content), 0644)
-
-	// Change to directory so lint can find CLAUDE.md
-	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
-
-	// Run lint
-	result, err := server.HandleToolCall("tk_claudemd_lint", map[string]interface{}{})
-	if err != nil {
-		t.Fatalf("lint error: %v", err)
-	}
-
-	r := result.(map[string]interface{})
-	if r["file"] == nil {
-		t.Error("expected file in result")
-	}
-	if r["total_lines"] == nil {
-		t.Error("expected total_lines in result")
-	}
-}
-
-func TestHandleToolCall_ClaudeMdLintCustomPath(t *testing.T) {
-	server, _ := setupTestServer(t)
-
-	// Create a test file at custom path
-	dir := filepath.Dir(server.store.Path())
-	customPath := filepath.Join(dir, "custom.md")
-	content := "# Custom\n\nSome content.\n"
-	os.WriteFile(customPath, []byte(content), 0644)
-
-	// Run lint with custom path
-	result, err := server.HandleToolCall("tk_claudemd_lint", map[string]interface{}{
-		"file": customPath,
-	})
-	if err != nil {
-		t.Fatalf("lint error: %v", err)
-	}
-
-	r := result.(map[string]interface{})
-	if r["file"] != customPath {
-		t.Errorf("expected file %s, got %v", customPath, r["file"])
-	}
-}
-
-func TestHandleToolCall_ClaudeMdStats(t *testing.T) {
-	server, _ := setupTestServer(t)
-
-	// Create a test CLAUDE.md
-	dir := filepath.Dir(server.store.Path())
-	claudemdPath := filepath.Join(dir, "CLAUDE.md")
-	content := `# Project
-
-## Overview
-This is a test project.
-
-## Architecture
-Some architecture details here.
-
-## Testing
-Testing section content.
-`
-	os.WriteFile(claudemdPath, []byte(content), 0644)
-
-	// Change to directory so stats can find CLAUDE.md
-	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
-
-	// Run stats
-	result, err := server.HandleToolCall("tk_claudemd_stats", map[string]interface{}{})
-	if err != nil {
-		t.Fatalf("stats error: %v", err)
-	}
-
-	r := result.(map[string]interface{})
-	if r["file"] == nil {
-		t.Error("expected file in result")
-	}
-	if r["total_lines"] == nil {
-		t.Error("expected total_lines in result")
-	}
-	if r["sections"] == nil {
-		t.Error("expected sections in result")
-	}
-}
-
-func TestHandleToolCall_ClaudeMdStatsNoFile(t *testing.T) {
-	server, _ := setupTestServer(t)
-
-	// Don't create CLAUDE.md - test with non-existent file
-	_, err := server.HandleToolCall("tk_claudemd_stats", map[string]interface{}{
-		"file": "/nonexistent/path/CLAUDE.md",
-	})
-	if err == nil {
-		t.Error("expected error for non-existent file")
 	}
 }
 

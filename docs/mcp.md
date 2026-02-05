@@ -2,40 +2,27 @@
 
 Once `tk mcp install` is run, AI agents have access to these tools.
 
-## Task Operations
+## Overview
+
+Tasuku exposes **17 MCP tools** organized into three tiers:
+- **Core tools** (12): Frequently used operations kept as individual tools
+- **Consolidated tools** (3): Less frequent operations grouped by action type
+- **Utility tools** (2): Health checks and statistics
+
+## Core Tools (Tier 1)
+
+### Task Lifecycle
 
 | Tool | Description |
 |------|-------------|
-| `tk_list` | List tasks with optional status filter |
+| `tk_list` | List tasks with optional status/tag/owner filter. Use `status: "ready"` for ready tasks only. |
 | `tk_add` | Create a new task |
-| `tk_show` | Get detailed task info (notes, priority, timestamps) |
 | `tk_start` | Mark task as in_progress |
 | `tk_done` | Mark task as complete |
-| `tk_pause` | Revert in_progress → ready |
-| `tk_edit` | Update task description |
-| `tk_delete` | Permanently delete a task |
-| `tk_priority` | Set priority (critical/high/normal/low/backlog) |
-| `tk_ready` | List tasks ready to work on (sorted by priority) |
-| `tk_deps` | Show task dependency tree |
-| `tk_stats` | Show task statistics and progress |
-
-## Blocking & Dependencies
-
-| Tool | Description |
-|------|-------------|
 | `tk_block` | Mark task as blocked by others |
-| `tk_unblock` | Remove blockers (all or specific) |
+| `tk_show` | Get detailed task info (notes, priority, timestamps, dependencies) |
 
-## Ownership & Coordination
-
-| Tool | Description |
-|------|-------------|
-| `tk_owner` | Set or clear task owner |
-| `tk_claim` | Claim task for exclusive agent work |
-| `tk_release` | Release claimed task |
-| `tk_who` | Show tasks claimed by each owner/agent |
-
-## Knowledge Capture
+### Knowledge Capture
 
 | Tool | Description |
 |------|-------------|
@@ -45,67 +32,95 @@ Once `tk mcp install` is run, AI agents have access to these tools.
 | `tk_decide` | Record an architectural decision |
 | `tk_note` | Add a note to a task |
 
-## Tags & Custom Fields
+### Help & Discovery
 
 | Tool | Description |
 |------|-------------|
-| `tk_tag_add` | Add tag to a task |
-| `tk_tag_remove` | Remove tag from a task |
-| `tk_field_set` | Set custom field on task |
-| `tk_field_remove` | Remove custom field |
+| `tk_help` | Get help on tools and workflows. Topics: overview, tasks, metadata, knowledge, multiagent, archive, install |
 
-## Time Tracking
+## Consolidated Tools (Tier 2)
+
+### tk_task
+
+Handles task operations that modify task state. **Required parameter: `action`**
+
+| Action | Description | Additional Parameters |
+|--------|-------------|-----------------------|
+| `edit` | Update task description | `id`, `description` |
+| `delete` | Permanently delete a task | `id` |
+| `pause` | Revert in_progress → ready | `id` |
+| `unblock` | Remove blockers (all or specific) | `id`, `from` (optional) |
+| `priority` | Set priority (critical/high/normal/low/backlog) | `id`, `priority` |
+| `owner` | Set or clear task owner | `id`, `owner` (optional) |
+| `archive` | Archive a done task | `id`, `summary` (optional) |
+| `restore` | Restore archived task | `id` |
+| `claim` | Claim task for exclusive agent work | `id`, `agent` |
+| `release` | Release claimed task | `id` |
+| `who` | Show tasks claimed by each owner/agent | (none) |
+
+**Example:**
+```json
+{"name": "tk_task", "arguments": {"action": "archive", "id": "task-id", "summary": "Completed successfully"}}
+```
+
+### tk_metadata
+
+Handles tags, custom fields, and note management. **Required parameter: `action`**
+
+| Action | Description | Additional Parameters |
+|--------|-------------|-----------------------|
+| `tag_add` | Add tag to a task | `id`, `tag` |
+| `tag_remove` | Remove tag from a task | `id`, `tag` |
+| `field_set` | Set custom field on task | `id`, `key`, `value` |
+| `field_remove` | Remove custom field | `id`, `key` |
+| `note_list` | List notes for a task or all notes | `task_id` (optional) |
+| `note_remove` | Remove a note | `task_id`, `note_id` |
+
+**Example:**
+```json
+{"name": "tk_metadata", "arguments": {"action": "tag_add", "id": "task-id", "tag": "urgent"}}
+```
+
+### tk_manage
+
+Handles learning/decision/archive management. **Required parameter: `action`**
+
+| Action | Description | Additional Parameters |
+|--------|-------------|-----------------------|
+| `learning_list` | List all learnings | (none) |
+| `learning_promote` | Promote learning to permanent docs | `id`, `keep` (optional), `to` (optional) |
+| `learning_remove` | Remove a learning | `id` |
+| `learning_rules` | List rule learnings (never/always patterns) | (none) |
+| `decision_list` | List all decisions | (none) |
+| `decision_remove` | Remove a decision | `id` |
+| `archive_list` | List archived tasks | (none) |
+| `archive_all` | Archive all done tasks older than duration | `older_than` (e.g., "7d", "24h") |
+
+**Example:**
+```json
+{"name": "tk_manage", "arguments": {"action": "archive_all", "older_than": "7d"}}
+```
+
+## Utility Tools (Tier 3)
 
 | Tool | Description |
 |------|-------------|
-| `tk_timer_start` | Start timer on task |
-| `tk_timer_stop` | Stop timer, record elapsed time |
-| `tk_timer_status` | Get status of running timers |
-
-## Archiving
-
-| Tool | Description |
-|------|-------------|
-| `tk_archive` | Archive a done task |
-| `tk_archive_restore` | Restore archived task |
-| `tk_archive_list` | List archived tasks |
-| `tk_archive_all` | Archive all done tasks older than duration |
-
-## Learning Management
-
-| Tool | Description |
-|------|-------------|
-| `tk_learning_list` | List all learnings |
-| `tk_learning_promote` | Promote learning to permanent docs |
-| `tk_learning_remove` | Remove a learning |
-| `tk_learning_rules` | List rule learnings (never/always patterns) |
-
-## Decision Management
-
-| Tool | Description |
-|------|-------------|
-| `tk_decision_list` | List all decisions |
-| `tk_decision_remove` | Remove a decision |
-
-## Note Management
-
-| Tool | Description |
-|------|-------------|
-| `tk_note_list` | List notes for a task or all notes |
-| `tk_note_remove` | Remove a note |
-
-## Other Tools
-
-| Tool | Description |
-|------|-------------|
-| `tk_suggest` | Analyze if task should persist to tk or stay session-only |
+| `tk_stats` | Show task statistics and progress |
 | `tk_health` | Project health check with recommendations |
-| `tk_rules_sync` | Sync learnings/decisions to editor rules directories |
+
+## CLI-Only Features
+
+The following features are available via CLI only (not exposed via MCP):
+
+- **Time tracking**: `tk timer start/stop/status`
+- **Rules sync**: `tk rules sync`
+- **CLAUDE.md management**: `tk claudemd lint/stats`
+- **Installation**: `tk mcp install/uninstall`, `tk plugin install/uninstall`, `tk hooks install/uninstall`
 
 ## Running the Server
 
 ```bash
-tk serve mcp               # Start via stdio (for AI tools)
+tk serve mcp               # Start MCP server via stdio (for AI tools)
 tk serve http --port 3000  # Start HTTP REST API
 ```
 

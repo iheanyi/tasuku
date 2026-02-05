@@ -59,9 +59,9 @@ tk learn "insight"            # Record learning
 tk decide --id X --chose Y --over Z --because "reason"
 ```
 
-### When to Use tk vs TodoWrite
-- **tk (Tasuku)**: Features, bugs, milestones - persists across sessions
-- **TodoWrite**: Implementation steps - session-only
+### When to Use tk vs Claude's Built-in Task List
+- **tk (Tasuku)**: Features, bugs, milestones - persists across sessions, git-friendly
+- **Claude's Task List**: Implementation steps - session-scoped (use `Ctrl+T` to toggle)
 
 Use `tk suggest "description"` to check which to use.
 
@@ -92,7 +92,7 @@ Use `tk suggest "description"` to check which to use.
 5. **User-specified task IDs** - Short, memorable IDs like `fix-auth-bug`
 6. **Constructor pattern** - CLI commands use `newCmd()` over `init()`
 7. **UTC storage, local display** - Timestamps stored UTC, displayed local
-8. **TodoWrite vs Tasuku distinction** - Session vs project scope
+8. **Task List vs Tasuku distinction** - Session vs project scope
 
 ## Learnings (Key Rules)
 
