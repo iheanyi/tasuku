@@ -207,11 +207,11 @@ When working on this codebase, follow these guidelines for task tracking:
 - Tasks that should persist across sessions
 - Tasks that other agents might need to see
 
-### When to use TodoWrite only
+### When to use Claude's built-in Task List only
 - Implementation steps within a session (e.g., "Update file X", "Fix type error in Y")
 - Temporary tracking of sub-steps
 - Progress tracking that doesn't need to persist
 
 ### Nudge Rule
 
-**Before adding items to TodoWrite**, use `tk_suggest` (MCP) or `tk suggest` (CLI) to check if it should also be tracked in tk.
+**Before adding items to the Task List**, use `tk_suggest` (MCP) or `tk suggest` (CLI) to check if it should also be tracked in tk.

@@ -9,5 +9,11 @@
   "homepage": "https://github.com/iheanyi/tasuku",
   "repository": "https://github.com/iheanyi/tasuku",
   "license": "MIT",
-  "keywords": ["task-management", "agents", "mcp", "productivity", "workflow"]
+  "keywords": ["task-management", "agents", "mcp", "productivity", "workflow"],
+  "mcpServers": {
+    "tasuku": {
+      "command": "tk",
+      "args": ["serve", "mcp"]
+    }
+  }
 }

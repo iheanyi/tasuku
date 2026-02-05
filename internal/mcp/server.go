@@ -132,6 +132,25 @@ type ContentBlock struct {
 // Tools returns the list of available tools.
 func (s *Server) Tools() []Tool {
 	return []Tool{
+		// === TIER 1: Core tools (kept individual) ===
+		{
+			Name:        "tk_help",
+			Description: "Get help and reference for Tasuku tools. Use this when you need to understand how to use Tasuku, discover available actions, or get guidance on workflows. Topics: overview (default), tasks, metadata, knowledge, multiagent, archive, install.",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"topic": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"overview", "tasks", "metadata", "knowledge", "multiagent", "archive", "install"},
+						"description": "Help topic to display (default: overview)",
+					},
+					"command": map[string]interface{}{
+						"type":        "string",
+						"description": "Get detailed help for a specific tool (e.g., 'tk_task', 'tk_metadata')",
+					},
+				},
+			},
+		},
 		{
 			Name:        "tk_list",
 			Description: "List all tasks (todos), optionally filtered by status, tag, or owner. Use at session start to understand project state, after completing work to see remaining tasks, or when planning to identify what needs attention. Returns task IDs, statuses, descriptions, and blockers. Aliases: show todos, view tasks, get task list.",
@@ -154,6 +173,10 @@ func (s *Server) Tools() []Tool {
 					"tree": map[string]interface{}{
 						"type":        "boolean",
 						"description": "Show tasks in hierarchical tree view with subtasks nested under parents (default: false)",
+					},
+					"include_archived": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Include archived tasks in the list (default: false)",
 					},
 				},
 			},
@@ -315,175 +338,169 @@ func (s *Server) Tools() []Tool {
 				"properties": map[string]interface{}{},
 			},
 		},
+		// === TIER 2: Consolidated tools ===
 		{
-			Name:        "tk_timer_start",
-			Description: "Start a timer on a task to track time spent working on it. Use when beginning focused work on a task. Helps with effort estimation and identifying tasks that take longer than expected. Timer auto-stops on tk_done or tk_pause.",
+			Name: "tk_task",
+			Description: `Perform task operations: edit, delete, pause, block, unblock, priority, owner, archive, restore, claim, release, who.
+
+Actions:
+- edit: Update task description. Params: id, description
+- delete: Permanently delete a task. Params: id
+- pause: Revert in_progress → ready. Params: id
+- block: Mark task as blocked. Params: id, blocked_by (array)
+- unblock: Remove blockers. Params: id, from (optional specific blocker)
+- priority: Set priority (0-4 or critical/high/normal/low/backlog). Params: id, priority
+- owner: Set or clear task owner. Params: id, owner (empty to clear)
+- archive: Archive a done task. Params: id, summary (optional)
+- restore: Restore archived task. Params: id
+- claim: Claim for exclusive work. Params: id, agent
+- release: Release claimed task. Params: id
+- who: Show task assignments by owner. No params required.
+
+Use tk_help command=tk_task for detailed documentation.`,
 			InputSchema: map[string]interface{}{
 				"type":     "object",
-				"required": []string{"id"},
+				"required": []string{"action"},
 				"properties": map[string]interface{}{
+					"action": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"edit", "delete", "pause", "block", "unblock", "priority", "owner", "archive", "restore", "claim", "release", "who"},
+						"description": "The task action to perform",
+					},
 					"id": map[string]interface{}{
 						"type":        "string",
-						"description": "Task ID to start timer on",
+						"description": "Task ID (required for most actions)",
 					},
-				},
-			},
-		},
-		{
-			Name:        "tk_timer_stop",
-			Description: "Stop the timer on a task, recording the elapsed time. Use when pausing work temporarily without completing. Elapsed time accumulates across multiple timer sessions.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
+					"description": map[string]interface{}{
 						"type":        "string",
-						"description": "Task ID to stop timer on",
+						"description": "New description (for edit action)",
 					},
-				},
-			},
-		},
-		{
-			Name:        "tk_timer_status",
-			Description: "Get the status of all running timers. Use to check if you forgot to stop a timer or to see total time spent on tasks.",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		{
-			Name:        "tk_field_set",
-			Description: "Set a custom field on a task for structured metadata. Use PROACTIVELY for: (1) Tracking estimates - field 'estimate' with hours/points, (2) Categorization - field 'component' or 'area' for code area, (3) External references - field 'pr', 'issue', or 'commit' for links, (4) Implementation approach - field 'approach' for strategy decisions, (5) Review tracking - field 'needs_review' or 'reviewer'. Fields persist across sessions and enable structured reporting.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id", "key", "value"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID",
+					"blocked_by": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "List of blocking task IDs (for block action)",
 					},
-					"key": map[string]interface{}{
+					"from": map[string]interface{}{
 						"type":        "string",
-						"description": "Field name (e.g., 'estimate', 'component', 'pr', 'approach', 'reviewer')",
+						"description": "Specific blocker to remove (for unblock action, omit to remove all)",
 					},
-					"value": map[string]interface{}{
+					"priority": map[string]interface{}{
 						"type":        "string",
-						"description": "Field value",
+						"description": "Priority level: 0-4 or critical/high/normal/low/backlog (for priority action)",
 					},
-				},
-			},
-		},
-		{
-			Name:        "tk_field_remove",
-			Description: "Remove a custom field from a task. Use when field is no longer relevant or was set incorrectly.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id", "key"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
+					"owner": map[string]interface{}{
 						"type":        "string",
-						"description": "Task ID",
+						"description": "Owner name (for owner action, empty to clear)",
 					},
-					"key": map[string]interface{}{
+					"agent": map[string]interface{}{
 						"type":        "string",
-						"description": "Field name to remove",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_tag_add",
-			Description: "Add a tag to a task for categorization and filtering. Use PROACTIVELY with tags like: 'bug', 'feature', 'refactor', 'docs', 'test', 'security', 'performance', 'tech-debt', 'urgent'. Tags enable filtering with tk_list and help identify patterns across tasks.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id", "tag"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID",
-					},
-					"tag": map[string]interface{}{
-						"type":        "string",
-						"description": "Tag to add",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_tag_remove",
-			Description: "Remove a tag from a task. Use when a tag no longer applies (e.g., 'urgent' after addressing, 'bug' if reclassified as feature).",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id", "tag"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID",
-					},
-					"tag": map[string]interface{}{
-						"type":        "string",
-						"description": "Tag to remove",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_archive",
-			Description: "Archive a done task to keep the active task list lean. Use after tasks are verified complete and no longer need visibility. Archived tasks are preserved in .tasuku/archive/ for history. The task must be in 'done' status. CLI equivalent: tk task archive <id>",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"task_id"},
-				"properties": map[string]interface{}{
-					"task_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to archive",
+						"description": "Agent name (for claim action)",
 					},
 					"summary": map[string]interface{}{
 						"type":        "string",
-						"description": "Optional summary of what was accomplished",
+						"description": "Summary of accomplishment (for archive action)",
 					},
 				},
 			},
 		},
 		{
-			Name:        "tk_archive_restore",
-			Description: "Restore an archived task back to active tasks with 'ready' status. Use when archived work needs to be revisited or was archived prematurely. CLI equivalent: tk task restore <id>",
+			Name: "tk_metadata",
+			Description: `Manage task metadata: tags, fields, notes.
+
+Actions:
+- tag_add: Add a tag to a task. Params: id, tag
+- tag_remove: Remove a tag from a task. Params: id, tag
+- field_set: Set a custom field. Params: id, key, value
+- field_remove: Remove a custom field. Params: id, key
+- note_list: List notes for a task or all notes. Params: task_id (optional)
+- note_remove: Remove a note. Params: task_id, note_id
+
+Common tags: bug, feature, refactor, docs, test, security, performance, tech-debt, urgent
+Common fields: estimate, component, pr, issue, approach, reviewer
+
+Use tk_help command=tk_metadata for detailed documentation.`,
 			InputSchema: map[string]interface{}{
 				"type":     "object",
-				"required": []string{"task_id"},
+				"required": []string{"action"},
 				"properties": map[string]interface{}{
+					"action": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"tag_add", "tag_remove", "field_set", "field_remove", "note_list", "note_remove"},
+						"description": "The metadata action to perform",
+					},
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID (for tag/field operations)",
+					},
+					"tag": map[string]interface{}{
+						"type":        "string",
+						"description": "Tag name (for tag_add/tag_remove)",
+					},
+					"key": map[string]interface{}{
+						"type":        "string",
+						"description": "Field key (for field_set/field_remove)",
+					},
+					"value": map[string]interface{}{
+						"type":        "string",
+						"description": "Field value (for field_set)",
+					},
 					"task_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Archived task ID to restore",
+						"description": "Task ID (for note_list/note_remove)",
+					},
+					"note_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Note ID (for note_remove)",
 					},
 				},
 			},
 		},
 		{
-			Name:        "tk_archive_list",
-			Description: "List all archived tasks. Use to find historical tasks, reference past work, or locate tasks to restore. CLI equivalent: tk task list --status archived",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		{
-			Name:        "tk_archive_all",
-			Description: "Archive all done tasks older than a specified duration. Use for bulk cleanup to reduce clutter. Duration format: 1h (hours), 1d (days), 1w (weeks). Example: '7d' archives tasks done more than 7 days ago. CLI equivalent: tk task archive --older-than <duration>",
+			Name: "tk_manage",
+			Description: `Manage learnings, decisions, and archive operations.
+
+Actions:
+- learning_list: List all learnings with IDs and rule status
+- learning_promote: Promote learning to permanent docs. Params: id, to (optional target file), keep (optional bool)
+- learning_remove: Remove a learning by ID. Params: id
+- learning_rules: List learnings marked as rules (never/always patterns)
+- decision_list: List all architectural decisions
+- decision_remove: Remove a decision by ID. Params: id
+- archive_list: List all archived tasks
+- archive_all: Archive done tasks older than duration. Params: older_than (e.g., '7d', '24h', '2w')
+
+Use tk_help command=tk_manage for detailed documentation.`,
 			InputSchema: map[string]interface{}{
 				"type":     "object",
-				"required": []string{"older_than"},
+				"required": []string{"action"},
 				"properties": map[string]interface{}{
+					"action": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"learning_list", "learning_promote", "learning_remove", "learning_rules", "decision_list", "decision_remove", "archive_list", "archive_all"},
+						"description": "The management action to perform",
+					},
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Learning or decision ID (for promote/remove actions)",
+					},
+					"to": map[string]interface{}{
+						"type":        "string",
+						"description": "Target file for promotion (default: auto-detected)",
+					},
+					"keep": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Keep learning in Tasuku after promoting (default: false)",
+					},
 					"older_than": map[string]interface{}{
 						"type":        "string",
-						"description": "Duration threshold (e.g., '7d', '24h', '2w'). Tasks done before this are archived.",
+						"description": "Duration threshold for archive_all (e.g., '7d', '24h', '2w')",
 					},
 				},
 			},
 		},
 		{
 			Name:        "tk_show",
-			Description: "View detailed information about a specific task including notes, priority, timestamps, and custom fields. Use before starting work to understand full context, check notes from previous sessions, or review task metadata. Aliases: task details, inspect task, get task info.",
+			Description: "View detailed information about a specific task including notes, priority, timestamps, custom fields, and dependencies (what it blocks and what blocks it). Use before starting work to understand full context, check notes from previous sessions, or review task metadata. Aliases: task details, inspect task, get task info.",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
 				"required": []string{"id"},
@@ -491,70 +508,6 @@ func (s *Server) Tools() []Tool {
 					"id": map[string]interface{}{
 						"type":        "string",
 						"description": "Task ID to show details for",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_delete",
-			Description: "Permanently delete a task. Use for duplicate tasks, tasks created in error, or work that's no longer relevant. Prefer tk_archive for completed work you might reference later. Also removes associated notes and clears references from other tasks' blocked_by lists.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to delete",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_edit",
-			Description: "Update a task's description. Use when the scope changes, requirements are clarified, or the original description was unclear. Keep descriptions actionable and specific.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id", "description"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to edit",
-					},
-					"description": map[string]interface{}{
-						"type":        "string",
-						"description": "New description for the task",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_pause",
-			Description: "Pause work on a task, reverting it from in_progress to ready status. Use when switching to higher-priority work, blocked by external factors, or ending a session with incomplete work. Add a note explaining why paused. Automatically stops any running timer.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to pause",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_unblock",
-			Description: "Remove blockers from a task. Use when blocking tasks are completed, blockers are resolved externally, or blocking relationship was incorrect. By default removes all blockers; use 'from' to remove a specific one.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to unblock",
-					},
-					"from": map[string]interface{}{
-						"type":        "string",
-						"description": "Optional: remove only this specific blocker (partial unblock)",
 					},
 				},
 			},
@@ -573,443 +526,21 @@ func (s *Server) Tools() []Tool {
 				},
 			},
 		},
-		{
-			Name:        "tk_priority",
-			Description: "Set task priority level. Use PROACTIVELY to organize work: critical (0) for blocking/urgent issues, high (1) for important near-term work, normal (2) for standard tasks, low (3) for can-wait items, backlog (4) for future ideas. Priority affects tk_ready ordering.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id", "priority"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID",
-					},
-					"priority": map[string]interface{}{
-						"type":        "string",
-						"description": "Priority level: 0-4 or critical/high/normal/low/backlog",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_owner",
-			Description: "Set or clear task owner for assignment tracking. Use to indicate who's responsible for a task, track workload distribution, or filter tasks by assignee. Different from tk_claim which is for active exclusive work.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID",
-					},
-					"owner": map[string]interface{}{
-						"type":        "string",
-						"description": "Owner name to set. Omit or set empty to clear owner.",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_claim",
-			Description: "Claim a task for exclusive work by an agent. Use in multi-agent scenarios to prevent duplicate work. Check tk_who before claiming to see what's already claimed. Records claim timestamp for coordination. Release with tk_release when done or pausing.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id", "agent"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to claim",
-					},
-					"agent": map[string]interface{}{
-						"type":        "string",
-						"description": "Agent name claiming the task",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_release",
-			Description: "Release a claimed task, making it available for other agents. Use when: (1) Completing work (after tk_done), (2) Pausing for extended time, (3) Realizing another agent should handle it, (4) Ending a session with incomplete work.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to release",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_suggest",
-			Description: "Analyze a task description and recommend whether it should be persisted to tk (project-level) or kept as a session-only TodoWrite item. Use this before adding items to TodoWrite to determine if they should also be tracked in tk. Helps decide: should I track this task?",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"description"},
-				"properties": map[string]interface{}{
-					"description": map[string]interface{}{
-						"type":        "string",
-						"description": "The task description to analyze",
-					},
-				},
-			},
-		},
-		// Ready tasks
-		{
-			Name:        "tk_ready",
-			Description: "List tasks that are ready to work on (not blocked, sorted by priority). Use at session start to pick up work, after completing a task to find the next one, or when deciding what to focus on. Shows highest-priority actionable tasks first. Aliases: available tasks, what's next, next task, workflow.",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		// Who (claimed tasks by owner)
-		{
-			Name:        "tk_who",
-			Description: "Show task assignments - which tasks are claimed by each owner/agent. Use before claiming to avoid conflicts, to understand workload distribution, or to find who's working on what. Essential for multi-agent coordination.",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		// Dependencies
-		{
-			Name:        "tk_deps",
-			Description: "Show the dependencies tree for a task - what it's blocked by and what it blocks. Use to understand task relationships, identify critical path, or find tasks that will be unblocked when completing work. Aliases: task dependencies, blockers, dependency graph.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to show dependencies for",
-					},
-				},
-			},
-		},
-		// Stats
+		// === TIER 3: Useful but less frequent tools (kept individual) ===
 		{
 			Name:        "tk_stats",
-			Description: "Show task statistics and metrics: counts by status, priority distribution, completion rate, progress overview. Use for project health checks, identifying bottlenecks (high blocked count), or reporting progress. Helps understand overall project state and velocity.",
+			Description: "Show task statistics and metrics: counts by status, priority distribution, completion rate, progress overview. Use for project health checks, identifying bottlenecks (high blocked count), or reporting progress.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
 			},
 		},
-		// Learning list
-		{
-			Name:        "tk_learning_list",
-			Description: "List all recorded learnings with their IDs and rule status. Use to review accumulated knowledge, find learnings to promote, or refresh memory on project-specific insights before starting work.",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		// Learning promote
-		{
-			Name:        "tk_learning_promote",
-			Description: "Promote a learning to permanent documentation (CLAUDE.md, GEMINI.md, or similar). Use this for valuable insights that should persist beyond the session. Agents should autonomously promote rule learnings (never/always patterns) that prove useful.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Learning ID to promote",
-					},
-					"to": map[string]interface{}{
-						"type":        "string",
-						"description": "Target file (auto-detected if not specified: CLAUDE.md, GEMINI.md, .cursorrules, etc.)",
-					},
-					"keep": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Keep the learning in Tasuku after promoting (default: false)",
-					},
-				},
-			},
-		},
-		// Learning remove
-		{
-			Name:        "tk_learning_remove",
-			Description: "Remove a learning by ID. Use when a learning is outdated, incorrect, or has been promoted to permanent docs and is no longer needed in Tasuku.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Learning ID to remove",
-					},
-				},
-			},
-		},
-		// Learning rules (suggest candidates for promotion)
-		{
-			Name:        "tk_learning_rules",
-			Description: "List learnings marked as rules (never/always patterns) that are candidates for promotion to permanent docs. Use this to find learnings that should be promoted.",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		// Decision list
-		{
-			Name:        "tk_decision_list",
-			Description: "List all recorded architectural decisions. Use to understand why things were built a certain way, before making similar decisions, or to document project architecture for new contributors.",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		// Decision remove
-		{
-			Name:        "tk_decision_remove",
-			Description: "Remove a decision by ID. Use when a decision is reversed, superseded by a new decision, or was recorded in error.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Decision ID to remove",
-					},
-				},
-			},
-		},
-		// Note list
-		{
-			Name:        "tk_note_list",
-			Description: "List notes for a specific task or all notes across tasks. Use to review progress history, understand context from previous sessions, or find specific information captured during work.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"task_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to list notes for (omit for all notes)",
-					},
-				},
-			},
-		},
-		// Note remove
-		{
-			Name:        "tk_note_remove",
-			Description: "Remove a note from a task. Use when a note is outdated, contains incorrect information, or is no longer relevant after task completion.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"task_id", "note_id"},
-				"properties": map[string]interface{}{
-					"task_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID the note belongs to",
-					},
-					"note_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Note ID to remove",
-					},
-				},
-			},
-		},
-		// Health check
 		{
 			Name:        "tk_health",
-			Description: "Get a project health check with actionable recommendations and diagnostics. Use at session start to understand project state, or periodically to identify issues. Returns: task distribution, stale items, rule learnings to promote, and specific recommendations. Aliases: project status, diagnose.",
+			Description: "Get a project health check with actionable recommendations and diagnostics. Use at session start to understand project state, or periodically to identify issues. Returns: task distribution, stale items, rule learnings to promote, and specific recommendations.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
-			},
-		},
-		// Rules sync
-		{
-			Name:        "tk_rules_sync",
-			Description: "Sync learnings and decisions to editor rules directories (.claude/rules/tasuku/, .cursor/rules/tasuku/, .gemini/rules/tasuku/). Use PROACTIVELY after: (1) Adding important learnings or decisions, (2) At session end to persist knowledge, (3) When updating multiple learnings. Scoped learnings are written to separate files with paths frontmatter for conditional application.",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		// CLAUDE.md management
-		{
-			Name:        "tk_claudemd_lint",
-			Description: "Check CLAUDE.md health and warn about bloat. Use PROACTIVELY at session start or when CLAUDE.md seems slow to load. Returns: line count, section breakdown, recommendations for splitting. Warns if >150 lines, errors if >200 lines.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"file": map[string]interface{}{
-						"type":        "string",
-						"description": "Path to CLAUDE.md file (default: CLAUDE.md)",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_claudemd_stats",
-			Description: "Show CLAUDE.md section breakdown with line counts. Use to identify which sections are candidates for extraction to .claude/rules/ modules.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"file": map[string]interface{}{
-						"type":        "string",
-						"description": "Path to CLAUDE.md file (default: CLAUDE.md)",
-					},
-				},
-			},
-		},
-		// Plugin management
-		{
-			Name:        "tk_plugin_install",
-			Description: "Install Tasuku plugins/skills to AI tools. Use to enable /tasuku:* slash commands in AI tools. By default installs to all detected tools; use 'tool' parameter to target specific tools.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"tool": map[string]interface{}{
-						"type":        "string",
-						"description": "Target specific tool: claude, cursor, copilot, codex (default: all detected)",
-					},
-					"local": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Install to project-local directory instead of global (default: false)",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_plugin_uninstall",
-			Description: "Remove Tasuku plugins/skills from AI tools. Removes /tasuku:* slash commands.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"tool": map[string]interface{}{
-						"type":        "string",
-						"description": "Target specific tool: claude, cursor, copilot, codex (default: all detected)",
-					},
-					"local": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Uninstall from project-local directory instead of global (default: false)",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_plugin_list",
-			Description: "List available Tasuku plugin commands/skills. Shows workflow commands (pickup, complete, reflect) and basic commands (add, list, done).",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		{
-			Name:        "tk_plugin_status",
-			Description: "Show plugin installation status. Lists detected AI tools and whether Tasuku is installed in each (local and global).",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		// MCP management
-		{
-			Name:        "tk_mcp_install",
-			Description: "Install Tasuku MCP server configuration to AI tools. Enables the tk_* tools in Claude Code, Cursor, Codex, Copilot CLI, OpenCode, and Gemini.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"tool": map[string]interface{}{
-						"type":        "string",
-						"description": "Target specific tool: claude, cursor, copilot, codex, opencode, gemini (default: all detected)",
-					},
-					"local": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Install to project-local config instead of global (default: false)",
-					},
-					"force": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Force reinstall even if already configured (default: false)",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_mcp_uninstall",
-			Description: "Remove Tasuku MCP server configuration from AI tools. Removes only Tasuku config; other MCP servers are preserved.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"local": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Remove from project-local config instead of global (default: false)",
-					},
-				},
-			},
-		},
-		// Hooks management
-		{
-			Name:        "tk_hooks_install",
-			Description: "Install Tasuku hooks for git and AI tools. Provides SessionStart context, Stop reminders, plan sync, and more. By default installs all hooks.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"git": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Install git hooks only (pre-commit, post-commit)",
-					},
-					"claude": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Install Claude Code hooks only",
-					},
-					"codex": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Install Codex hooks only",
-					},
-					"opencode": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Install OpenCode hooks only",
-					},
-					"copilot": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Install Copilot CLI hooks only (always local)",
-					},
-					"local": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Install to project instead of global (default: false)",
-					},
-					"force": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Overwrite existing hooks (default: false)",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_hooks_uninstall",
-			Description: "Remove Tasuku hooks from git and AI tools.",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"git": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Remove git hooks only",
-					},
-					"claude": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Remove Claude Code hooks only",
-					},
-					"codex": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Remove Codex hooks only",
-					},
-					"opencode": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Remove OpenCode hooks only",
-					},
-					"copilot": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Remove Copilot CLI hooks only",
-					},
-					"local": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Remove from project instead of global (default: false)",
-					},
-				},
 			},
 		},
 	}
@@ -1018,6 +549,9 @@ func (s *Server) Tools() []Tool {
 // HandleToolCall processes a tool call and returns the result.
 func (s *Server) HandleToolCall(name string, args map[string]interface{}) (interface{}, error) {
 	switch name {
+	// Tier 1: Core tools (kept individual)
+	case "tk_help":
+		return s.handleHelp(args)
 	case "tk_list":
 		return s.handleList(args)
 	case "tk_add":
@@ -1026,110 +560,345 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleStart(args)
 	case "tk_done":
 		return s.handleDone(args)
-	case "tk_block":
-		return s.handleBlock(args)
-	case "tk_learn":
-		return s.handleLearn(args)
-	case "tk_decide":
-		return s.handleDecide(args)
+	case "tk_show":
+		return s.handleShow(args)
 	case "tk_note":
 		return s.handleNote(args)
 	case "tk_context":
 		return s.handleContext(args)
-	case "tk_timer_start":
-		return s.handleTimerStart(args)
-	case "tk_timer_stop":
-		return s.handleTimerStop(args)
-	case "tk_timer_status":
-		return s.handleTimerStatus(args)
-	case "tk_field_set":
-		return s.handleFieldSet(args)
-	case "tk_field_remove":
-		return s.handleFieldRemove(args)
-	case "tk_tag_add":
-		return s.handleTagAdd(args)
-	case "tk_tag_remove":
-		return s.handleTagRemove(args)
-	case "tk_archive":
-		return s.handleArchive(args)
-	case "tk_archive_restore":
-		return s.handleArchiveRestore(args)
-	case "tk_archive_list":
-		return s.handleArchiveList(args)
-	case "tk_archive_all":
-		return s.handleArchiveAll(args)
-	case "tk_show":
-		return s.handleShow(args)
-	case "tk_delete":
-		return s.handleDelete(args)
-	case "tk_edit":
-		return s.handleEdit(args)
-	case "tk_pause":
-		return s.handlePause(args)
-	case "tk_unblock":
-		return s.handleUnblock(args)
 	case "tk_find":
 		return s.handleFind(args)
-	case "tk_priority":
-		return s.handlePriority(args)
-	case "tk_owner":
-		return s.handleOwner(args)
-	case "tk_claim":
-		return s.handleClaim(args)
-	case "tk_release":
-		return s.handleRelease(args)
-	case "tk_suggest":
-		return s.handleSuggest(args)
-	case "tk_ready":
-		return s.handleReady(args)
-	case "tk_who":
-		return s.handleWho(args)
-	case "tk_deps":
-		return s.handleDeps(args)
+	case "tk_learn":
+		return s.handleLearn(args)
+	case "tk_decide":
+		return s.handleDecide(args)
+	case "tk_block":
+		return s.handleBlock(args)
+
+	// Tier 2: Consolidated tools
+	case "tk_task":
+		return s.handleTaskAction(args)
+	case "tk_metadata":
+		return s.handleMetadataAction(args)
+	case "tk_manage":
+		return s.handleManageAction(args)
+
+	// Tier 3: Useful but less frequent tools
 	case "tk_stats":
 		return s.handleStats(args)
-	case "tk_learning_list":
-		return s.handleLearningList(args)
-	case "tk_learning_promote":
-		return s.handleLearningPromote(args)
-	case "tk_learning_remove":
-		return s.handleLearningRemove(args)
-	case "tk_learning_rules":
-		return s.handleLearningRules(args)
-	case "tk_decision_list":
-		return s.handleDecisionList(args)
-	case "tk_decision_remove":
-		return s.handleDecisionRemove(args)
-	case "tk_note_list":
-		return s.handleNoteList(args)
-	case "tk_note_remove":
-		return s.handleNoteRemove(args)
 	case "tk_health":
 		return s.handleHealth(args)
-	case "tk_rules_sync":
-		return s.handleRulesSync(args)
-	case "tk_claudemd_lint":
-		return s.handleClaudeMdLint(args)
-	case "tk_claudemd_stats":
-		return s.handleClaudeMdStats(args)
-	case "tk_plugin_install":
-		return s.handlePluginInstall(args)
-	case "tk_plugin_uninstall":
-		return s.handlePluginUninstall(args)
-	case "tk_plugin_list":
-		return s.handlePluginList(args)
-	case "tk_plugin_status":
-		return s.handlePluginStatus(args)
-	case "tk_mcp_install":
-		return s.handleMCPInstall(args)
-	case "tk_mcp_uninstall":
-		return s.handleMCPUninstall(args)
-	case "tk_hooks_install":
-		return s.handleHooksInstall(args)
-	case "tk_hooks_uninstall":
-		return s.handleHooksUninstall(args)
+
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
+	}
+}
+
+// handleHelp returns contextual help for Tasuku tools
+func (s *Server) handleHelp(args map[string]interface{}) (interface{}, error) {
+	topic, _ := args["topic"].(string)
+	command, _ := args["command"].(string)
+
+	if command != "" {
+		return s.getCommandHelp(command), nil
+	}
+
+	switch topic {
+	case "tasks":
+		return map[string]interface{}{
+			"topic":       "Task Operations",
+			"description": "Task lifecycle management",
+			"tools": map[string]string{
+				"tk_add":   "Create a new task with description, optional ID, priority, and tags",
+				"tk_start": "Mark task as in_progress, optionally start timer",
+				"tk_done":  "Mark task as completed, auto-stops timer",
+				"tk_show":  "View task details including notes and dependencies",
+				"tk_list":  "List tasks with optional filters (status, tag, owner)",
+			},
+			"consolidated_tool": "tk_task",
+			"tk_task_actions": map[string]string{
+				"edit":     "Update task description",
+				"delete":   "Permanently delete a task",
+				"pause":    "Revert in_progress → ready",
+				"block":    "Mark task as blocked by others",
+				"unblock":  "Remove blockers",
+				"priority": "Set priority (0-4 or critical/high/normal/low/backlog)",
+				"owner":    "Set or clear task owner",
+				"archive":  "Archive a done task",
+				"restore":  "Restore archived task",
+				"claim":    "Claim for exclusive agent work",
+				"release":  "Release claimed task",
+				"who":      "Show task assignments by owner",
+			},
+		}, nil
+
+	case "metadata":
+		return map[string]interface{}{
+			"topic":       "Metadata Operations",
+			"description": "Manage tags, fields, and notes on tasks",
+			"tool":        "tk_metadata",
+			"actions": map[string]string{
+				"tag_add":      "Add a tag (bug, feature, urgent, etc.)",
+				"tag_remove":   "Remove a tag",
+				"field_set":    "Set custom field (estimate, component, pr, etc.)",
+				"field_remove": "Remove custom field",
+				"note_list":    "List notes for a task or all notes",
+				"note_remove":  "Remove a note",
+			},
+			"common_tags":   []string{"bug", "feature", "refactor", "docs", "test", "security", "performance", "tech-debt", "urgent"},
+			"common_fields": []string{"estimate", "component", "pr", "issue", "approach", "reviewer"},
+		}, nil
+
+	case "knowledge":
+		return map[string]interface{}{
+			"topic":       "Knowledge Capture",
+			"description": "Record learnings and decisions for future sessions",
+			"tools": map[string]string{
+				"tk_learn":   "Record a learning or insight (use 'Never X' or 'Always Y' for rules)",
+				"tk_decide":  "Record an architectural decision with reasoning",
+				"tk_context": "Get full project context including tasks, learnings, decisions",
+				"tk_find":    "Search across all content",
+			},
+			"consolidated_tool": "tk_manage",
+			"tk_manage_actions": map[string]string{
+				"learning_list":    "List all learnings",
+				"learning_promote": "Promote to permanent docs",
+				"learning_remove":  "Remove a learning",
+				"learning_rules":   "List rule learnings (never/always)",
+				"decision_list":    "List all decisions",
+				"decision_remove":  "Remove a decision",
+			},
+		}, nil
+
+	case "multiagent":
+		return map[string]interface{}{
+			"topic":       "Multi-Agent Coordination",
+			"description": "Coordinate work between multiple agents",
+			"tool":        "tk_task",
+			"actions": map[string]string{
+				"claim":   "Claim task for exclusive work: tk_task action=claim id=<id> agent=<name>",
+				"release": "Release when done: tk_task action=release id=<id>",
+				"who":     "See assignments: tk_task action=who",
+				"owner":   "Set owner: tk_task action=owner id=<id> owner=<name>",
+			},
+			"workflow": "1. Check who is working on what (action=who)\n2. Claim a task before starting\n3. Release when done or pausing",
+		}, nil
+
+	case "archive":
+		return map[string]interface{}{
+			"topic":       "Archive Operations",
+			"description": "Archive completed tasks to keep lists lean",
+			"tools": map[string]string{
+				"tk_task (archive)": "Archive a done task: tk_task action=archive id=<id>",
+				"tk_task (restore)": "Restore archived task: tk_task action=restore id=<id>",
+				"tk_manage":         "List/bulk archive operations",
+				"tk_list":           "Include archived: tk_list include_archived=true",
+			},
+			"tk_manage_actions": map[string]string{
+				"archive_list": "List all archived tasks",
+				"archive_all":  "Archive done tasks older than duration (e.g., '7d')",
+			},
+		}, nil
+
+	case "install":
+		return map[string]interface{}{
+			"topic":       "Installation",
+			"description": "Install Tasuku via CLI (not available via MCP)",
+			"cli_commands": map[string]string{
+				"tk mcp install":    "Install MCP server to AI tools",
+				"tk plugin install": "Install slash commands",
+				"tk hooks install":  "Install session hooks",
+			},
+			"note": "Installation commands are CLI-only for security. Run them in your terminal.",
+		}, nil
+
+	default: // overview
+		return map[string]interface{}{
+			"topic":       "Tasuku Overview",
+			"description": "Agent-first task management system",
+			"tool_count":  17,
+			"tools": map[string]string{
+				"tk_help":     "This help system",
+				"tk_list":     "List tasks",
+				"tk_add":      "Create task",
+				"tk_start":    "Start working",
+				"tk_done":     "Complete task",
+				"tk_block":    "Block a task",
+				"tk_show":     "Task details",
+				"tk_note":     "Add note",
+				"tk_context":  "Full project state",
+				"tk_find":     "Search everything",
+				"tk_learn":    "Record learning",
+				"tk_decide":   "Record decision",
+				"tk_task":     "Consolidated task ops (edit, delete, pause, block, etc.)",
+				"tk_metadata": "Consolidated metadata ops (tags, fields, notes)",
+				"tk_manage":   "Consolidated management (learnings, decisions, archive)",
+				"tk_stats":    "Project statistics",
+				"tk_health":   "Health check",
+			},
+			"topics": []string{"tasks", "metadata", "knowledge", "multiagent", "archive", "install"},
+			"tip":    "Use tk_help topic=<topic> or tk_help command=<tool> for details",
+		}, nil
+	}
+}
+
+// getCommandHelp returns detailed help for a specific command
+func (s *Server) getCommandHelp(command string) map[string]interface{} {
+	switch command {
+	case "tk_task":
+		return map[string]interface{}{
+			"command":     "tk_task",
+			"description": "Consolidated task operations",
+			"required":    []string{"action"},
+			"actions": []map[string]interface{}{
+				{"action": "edit", "params": "id, description", "example": `tk_task action=edit id=my-task description="Updated desc"`},
+				{"action": "delete", "params": "id", "example": `tk_task action=delete id=my-task`},
+				{"action": "pause", "params": "id", "example": `tk_task action=pause id=my-task`},
+				{"action": "block", "params": "id, blocked_by", "example": `tk_task action=block id=my-task blocked_by=["blocker-1"]`},
+				{"action": "unblock", "params": "id, from (optional)", "example": `tk_task action=unblock id=my-task`},
+				{"action": "priority", "params": "id, priority", "example": `tk_task action=priority id=my-task priority=high`},
+				{"action": "owner", "params": "id, owner", "example": `tk_task action=owner id=my-task owner=agent-1`},
+				{"action": "archive", "params": "id, summary (optional)", "example": `tk_task action=archive id=my-task`},
+				{"action": "restore", "params": "id", "example": `tk_task action=restore id=my-task`},
+				{"action": "claim", "params": "id, agent", "example": `tk_task action=claim id=my-task agent=worker-1`},
+				{"action": "release", "params": "id", "example": `tk_task action=release id=my-task`},
+				{"action": "who", "params": "none", "example": `tk_task action=who`},
+			},
+		}
+	case "tk_metadata":
+		return map[string]interface{}{
+			"command":     "tk_metadata",
+			"description": "Manage tags, fields, and notes",
+			"required":    []string{"action"},
+			"actions": []map[string]interface{}{
+				{"action": "tag_add", "params": "id, tag", "example": `tk_metadata action=tag_add id=my-task tag=bug`},
+				{"action": "tag_remove", "params": "id, tag", "example": `tk_metadata action=tag_remove id=my-task tag=bug`},
+				{"action": "field_set", "params": "id, key, value", "example": `tk_metadata action=field_set id=my-task key=estimate value="2h"`},
+				{"action": "field_remove", "params": "id, key", "example": `tk_metadata action=field_remove id=my-task key=estimate`},
+				{"action": "note_list", "params": "task_id (optional)", "example": `tk_metadata action=note_list task_id=my-task`},
+				{"action": "note_remove", "params": "task_id, note_id", "example": `tk_metadata action=note_remove task_id=my-task note_id=n1`},
+			},
+		}
+	case "tk_manage":
+		return map[string]interface{}{
+			"command":     "tk_manage",
+			"description": "Manage learnings, decisions, and archive",
+			"required":    []string{"action"},
+			"actions": []map[string]interface{}{
+				{"action": "learning_list", "params": "none", "example": `tk_manage action=learning_list`},
+				{"action": "learning_promote", "params": "id, to (optional), keep (optional)", "example": `tk_manage action=learning_promote id=l1`},
+				{"action": "learning_remove", "params": "id", "example": `tk_manage action=learning_remove id=l1`},
+				{"action": "learning_rules", "params": "none", "example": `tk_manage action=learning_rules`},
+				{"action": "decision_list", "params": "none", "example": `tk_manage action=decision_list`},
+				{"action": "decision_remove", "params": "id", "example": `tk_manage action=decision_remove id=auth-choice`},
+				{"action": "archive_list", "params": "none", "example": `tk_manage action=archive_list`},
+				{"action": "archive_all", "params": "older_than", "example": `tk_manage action=archive_all older_than=7d`},
+			},
+		}
+	default:
+		return map[string]interface{}{
+			"error":           fmt.Sprintf("Unknown command: %s", command),
+			"available_tools": []string{"tk_help", "tk_list", "tk_add", "tk_start", "tk_done", "tk_show", "tk_note", "tk_context", "tk_find", "tk_learn", "tk_decide", "tk_task", "tk_metadata", "tk_manage", "tk_stats", "tk_health"},
+		}
+	}
+}
+
+// handleTaskAction handles consolidated task operations
+func (s *Server) handleTaskAction(args map[string]interface{}) (interface{}, error) {
+	action, _ := args["action"].(string)
+	if action == "" {
+		return nil, fmt.Errorf("action is required")
+	}
+
+	switch action {
+	case "edit":
+		return s.handleEdit(args)
+	case "delete":
+		return s.handleDelete(args)
+	case "pause":
+		return s.handlePause(args)
+	case "block":
+		return s.handleBlock(args)
+	case "unblock":
+		return s.handleUnblock(args)
+	case "priority":
+		return s.handlePriority(args)
+	case "owner":
+		return s.handleOwner(args)
+	case "archive":
+		// Map 'id' to 'task_id' for archive handler
+		if id, ok := args["id"].(string); ok && id != "" {
+			args["task_id"] = id
+		}
+		return s.handleArchive(args)
+	case "restore":
+		// Map 'id' to 'task_id' for restore handler
+		if id, ok := args["id"].(string); ok && id != "" {
+			args["task_id"] = id
+		}
+		return s.handleArchiveRestore(args)
+	case "claim":
+		return s.handleClaim(args)
+	case "release":
+		return s.handleRelease(args)
+	case "who":
+		return s.handleWho(args)
+	default:
+		return nil, fmt.Errorf("unknown action: %s (valid: edit, delete, pause, block, unblock, priority, owner, archive, restore, claim, release, who)", action)
+	}
+}
+
+// handleMetadataAction handles consolidated metadata operations
+func (s *Server) handleMetadataAction(args map[string]interface{}) (interface{}, error) {
+	action, _ := args["action"].(string)
+	if action == "" {
+		return nil, fmt.Errorf("action is required")
+	}
+
+	switch action {
+	case "tag_add":
+		return s.handleTagAdd(args)
+	case "tag_remove":
+		return s.handleTagRemove(args)
+	case "field_set":
+		return s.handleFieldSet(args)
+	case "field_remove":
+		return s.handleFieldRemove(args)
+	case "note_list":
+		return s.handleNoteList(args)
+	case "note_remove":
+		return s.handleNoteRemove(args)
+	default:
+		return nil, fmt.Errorf("unknown action: %s (valid: tag_add, tag_remove, field_set, field_remove, note_list, note_remove)", action)
+	}
+}
+
+// handleManageAction handles consolidated management operations
+func (s *Server) handleManageAction(args map[string]interface{}) (interface{}, error) {
+	action, _ := args["action"].(string)
+	if action == "" {
+		return nil, fmt.Errorf("action is required")
+	}
+
+	switch action {
+	case "learning_list":
+		return s.handleLearningList(args)
+	case "learning_promote":
+		return s.handleLearningPromote(args)
+	case "learning_remove":
+		return s.handleLearningRemove(args)
+	case "learning_rules":
+		return s.handleLearningRules(args)
+	case "decision_list":
+		return s.handleDecisionList(args)
+	case "decision_remove":
+		return s.handleDecisionRemove(args)
+	case "archive_list":
+		return s.handleArchiveList(args)
+	case "archive_all":
+		return s.handleArchiveAll(args)
+	default:
+		return nil, fmt.Errorf("unknown action: %s (valid: learning_list, learning_promote, learning_remove, learning_rules, decision_list, decision_remove, archive_list, archive_all)", action)
 	}
 }
 
@@ -1144,17 +913,18 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 	tagFilter, _ := args["tag"].(string)
 	ownerFilter, _ := args["owner"].(string)
 	treeView, _ := args["tree"].(bool)
+	includeArchived, _ := args["include_archived"].(bool)
 
 	type taskResult struct {
-		ID          string         `json:"id"`
-		Status      string         `json:"status"`
-		Description string         `json:"description"`
-		BlockedBy   []string       `json:"blocked_by,omitempty"`
-		Owner       *string        `json:"owner,omitempty"`
-		ParentID    string         `json:"parent_id,omitempty"`
-		Priority    int            `json:"priority,omitempty"`
-		Tags        []string       `json:"tags,omitempty"`
-		Children    []taskResult   `json:"children,omitempty"`
+		ID          string       `json:"id"`
+		Status      string       `json:"status"`
+		Description string       `json:"description"`
+		BlockedBy   []string     `json:"blocked_by,omitempty"`
+		Owner       *string      `json:"owner,omitempty"`
+		ParentID    string       `json:"parent_id,omitempty"`
+		Priority    int          `json:"priority,omitempty"`
+		Tags        []string     `json:"tags,omitempty"`
+		Children    []taskResult `json:"children,omitempty"`
 	}
 
 	// Filter tasks
@@ -1187,12 +957,40 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 		})
 	}
 
+	// Include archived tasks if requested
+	if includeArchived {
+		archived, err := s.store.GetArchivedTasks()
+		if err == nil {
+			for id, t := range archived {
+				// Apply the same filters to archived tasks
+				if status != "" && status != "archived" {
+					continue
+				}
+				if tagFilter != "" && !t.HasTag(tagFilter) {
+					continue
+				}
+				if ownerFilter != "" {
+					if t.Owner == nil || *t.Owner != ownerFilter {
+						continue
+					}
+				}
+				results = append(results, taskResult{
+					ID:          id,
+					Status:      "archived",
+					Description: t.Description,
+					Tags:        t.Tags,
+				})
+			}
+		}
+	}
+
 	// Sort by status priority, then by task priority, then by ID
 	statusOrder := map[task.Status]int{
-		task.StatusInProgress: 0,
-		task.StatusReady:      1,
-		task.StatusBlocked:    2,
-		task.StatusDone:       3,
+		task.StatusInProgress:   0,
+		task.StatusReady:        1,
+		task.StatusBlocked:      2,
+		task.StatusDone:         3,
+		task.StatusArchived: 4,
 	}
 	slices.SortFunc(results, func(a, b taskResult) int {
 		// Status order first
@@ -1978,6 +1776,48 @@ func (s *Server) handleShow(args map[string]interface{}) (interface{}, error) {
 		result["notes"] = noteResults
 	}
 
+	// Include dependency information (what this task blocks and is blocked by)
+	type depInfo struct {
+		ID          string `json:"id"`
+		Description string `json:"description"`
+		Status      string `json:"status"`
+	}
+
+	// Find what this task is blocked by (with details)
+	if len(t.BlockedBy) > 0 {
+		var blockedByDetails []depInfo
+		for _, blockerID := range t.BlockedBy {
+			if blocker, exists := f.Tasks[blockerID]; exists {
+				blockedByDetails = append(blockedByDetails, depInfo{
+					ID:          blockerID,
+					Description: blocker.Description,
+					Status:      string(blocker.Status),
+				})
+			}
+		}
+		if len(blockedByDetails) > 0 {
+			result["blocked_by_details"] = blockedByDetails
+		}
+	}
+
+	// Find what tasks this one blocks
+	var blocks []depInfo
+	for otherID, other := range f.Tasks {
+		for _, blockerID := range other.BlockedBy {
+			if blockerID == id {
+				blocks = append(blocks, depInfo{
+					ID:          otherID,
+					Description: other.Description,
+					Status:      string(other.Status),
+				})
+				break
+			}
+		}
+	}
+	if len(blocks) > 0 {
+		result["blocks"] = blocks
+	}
+
 	return result, nil
 }
 
@@ -2366,9 +2206,9 @@ func (s *Server) handleSuggest(args map[string]interface{}) (interface{}, error)
 	}
 
 	result := map[string]interface{}{
-		"should_persist":    shouldPersist,
-		"reason":            reason,
-		"matched_keyword":   matchedKeyword,
+		"should_persist":       shouldPersist,
+		"reason":               reason,
+		"matched_keyword":      matchedKeyword,
 		"original_description": description,
 	}
 
