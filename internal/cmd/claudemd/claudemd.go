@@ -2,7 +2,6 @@
 package claudemd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,13 +9,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/iheanyi/tasuku/internal/mdlint"
 	"github.com/spf13/cobra"
 )
 
 const (
-	defaultMaxLines     = 200  // Recommended max lines for CLAUDE.md
-	defaultWarnLines    = 150  // Warn when approaching limit
-	defaultSectionLimit = 50   // Max lines per section before suggesting split
+	defaultMaxLines     = 200 // Recommended max lines for CLAUDE.md
+	defaultWarnLines    = 150 // Warn when approaching limit
+	defaultSectionLimit = 50  // Max lines per section before suggesting split
 )
 
 func newClaudeMdCmd() *cobra.Command {
@@ -49,6 +49,7 @@ Example workflow:
 // Cmd is the parent command for claudemd operations.
 var Cmd = newClaudeMdCmd()
 
+// section is used internally by split/organize commands which need content extraction.
 type section struct {
 	name      string
 	startLine int
@@ -112,74 +113,67 @@ func runLint(cmd *cobra.Command, args []string) error {
 	warnLines, _ := cmd.Flags().GetInt("warn-lines")
 	sectionLimit, _ := cmd.Flags().GetInt("section-limit")
 
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		fmt.Printf("✓ No %s found (nothing to lint)\n", filePath)
-		return nil
+	cfg := mdlint.Config{
+		MaxLines:     maxLines,
+		WarnLines:    warnLines,
+		SectionLimit: sectionLimit,
+		FileName:     filepath.Base(filePath),
+		RulesDir:     ".claude/rules",
+		StatsCmd:     "tk claudemd stats",
 	}
 
-	// Count lines
-	totalLines, sections, err := analyzeFile(filePath)
+	result, err := mdlint.Lint(filePath, cfg)
 	if err != nil {
-		return fmt.Errorf("failed to analyze %s: %w", filePath, err)
+		return err
 	}
 
-	// Count rules files
-	rulesCount := countRulesFiles()
-
-	hasProblems := false
-	hasWarnings := false
+	// File not found
+	if result.TotalLines == 0 && result.Status == "ok" && len(result.Sections) == 0 {
+		if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
+			fmt.Printf("✓ No %s found (nothing to lint)\n", filePath)
+			return nil
+		}
+	}
 
 	// Report total lines
-	fmt.Printf("📄 %s: %d lines\n", filePath, totalLines)
+	fmt.Printf("📄 %s: %d lines\n", filePath, result.TotalLines)
 
-	if totalLines > maxLines {
+	switch result.Status {
+	case "error":
 		fmt.Printf("   ❌ Exceeds recommended maximum (%d lines)\n", maxLines)
-		hasProblems = true
-	} else if totalLines > warnLines {
-		fmt.Printf("   ⚠️  Approaching limit (%d/%d lines)\n", totalLines, maxLines)
-		hasWarnings = true
-	} else {
+	case "warning":
+		fmt.Printf("   ⚠️  Approaching limit (%d/%d lines)\n", result.TotalLines, maxLines)
+	default:
 		fmt.Printf("   ✓ Within recommended size\n")
 	}
 
 	// Report on rules modules
-	if rulesCount > 0 {
-		fmt.Printf("\n📁 .claude/rules/: %d module files found\n", rulesCount)
+	rulesFiles := mdlint.ListRulesFiles(cfg.RulesDir)
+	if len(rulesFiles) > 0 {
+		fmt.Printf("\n📁 .claude/rules/: %d module files found\n", len(rulesFiles))
 	}
 
-	// Check for large sections
-	largeSections := []section{}
-	for _, s := range sections {
-		if s.lines > sectionLimit {
-			largeSections = append(largeSections, s)
-		}
-	}
-
-	if len(largeSections) > 0 {
+	// Large sections
+	if len(result.LargeSections) > 0 {
 		fmt.Printf("\n⚠️  Large sections (>%d lines) - consider moving to .claude/rules/:\n", sectionLimit)
-		for _, s := range largeSections {
-			fmt.Printf("   - %s (%d lines)\n", s.name, s.lines)
+		for _, s := range result.LargeSections {
+			fmt.Printf("   - %s (%d lines)\n", s.Name, s.Lines)
 		}
-		hasWarnings = true
 	}
 
 	// Suggestions
-	if hasProblems || hasWarnings {
+	if result.Status != "ok" || len(result.LargeSections) > 0 {
 		fmt.Println("\n💡 Suggestions:")
-		fmt.Println("   1. Move reference sections (CLI, MCP, testing) to .claude/rules/")
-		fmt.Println("   2. Keep CLAUDE.md focused on overview and key decisions")
-		fmt.Println("   3. Use 'tk claudemd stats' to see full breakdown")
-		fmt.Println("   4. Claude Code auto-loads all .claude/rules/*.md files")
+		for i, r := range result.Recommendations {
+			fmt.Printf("   %d. %s\n", i+1, r)
+		}
+		fmt.Printf("   %d. Claude Code auto-loads all .claude/rules/*.md files\n", len(result.Recommendations)+1)
 	} else {
 		fmt.Println("\n✓ CLAUDE.md is well-organized!")
 	}
 
-	// Exit with appropriate code
-	if hasProblems {
-		os.Exit(2)
-	} else if hasWarnings {
-		os.Exit(1)
+	if result.Status == "error" {
+		return fmt.Errorf("%s exceeds recommended maximum (%d lines)", filePath, maxLines)
 	}
 
 	return nil
@@ -188,139 +182,37 @@ func runLint(cmd *cobra.Command, args []string) error {
 func runStats(cmd *cobra.Command, args []string) error {
 	filePath, _ := cmd.Flags().GetString("file")
 
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return fmt.Errorf("%s not found", filePath)
+	cfg := mdlint.Config{
+		FileName: filepath.Base(filePath),
+		RulesDir: ".claude/rules",
 	}
 
-	totalLines, sections, err := analyzeFile(filePath)
+	result, err := mdlint.Stats(filePath, cfg)
 	if err != nil {
-		return fmt.Errorf("failed to analyze %s: %w", filePath, err)
+		return err
 	}
 
 	fmt.Printf("📄 %s Section Breakdown\n", filePath)
 	fmt.Println(strings.Repeat("─", 50))
 
-	// Sort sections by line count (descending)
-	sort.Slice(sections, func(i, j int) bool {
-		return sections[i].lines > sections[j].lines
-	})
-
-	for _, s := range sections {
-		pct := float64(s.lines) / float64(totalLines) * 100
-		bar := strings.Repeat("█", int(pct/5))
-		fmt.Printf("%-30s %4d lines (%4.1f%%) %s\n", s.name, s.lines, pct, bar)
+	for _, s := range result.Sections {
+		bar := strings.Repeat("█", int(s.Percentage/5))
+		fmt.Printf("%-30s %4d lines (%4.1f%%) %s\n", s.Name, s.Lines, s.Percentage, bar)
 	}
 
 	fmt.Println(strings.Repeat("─", 50))
-	fmt.Printf("%-30s %4d lines (100%%)\n", "TOTAL", totalLines)
+	fmt.Printf("%-30s %4d lines (100%%)\n", "TOTAL", result.TotalLines)
 
-	// Show rules files too
-	rulesFiles := listRulesFiles()
-	if len(rulesFiles) > 0 {
+	// Show rules files
+	if len(result.RulesFiles) > 0 {
 		fmt.Println()
 		fmt.Println("📁 Modular rules files in .claude/rules/:")
-		for _, f := range rulesFiles {
-			lines := countFileLines(f)
-			fmt.Printf("   - %s (%d lines)\n", filepath.Base(f), lines)
+		for _, f := range result.RulesFiles {
+			fmt.Printf("   - %s (%d lines)\n", f.Name, f.Lines)
 		}
 	}
 
 	return nil
-}
-
-// analyzeFile parses a markdown file and returns line count and sections
-func analyzeFile(path string) (int, []section, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer file.Close()
-
-	var sections []section
-	var currentSection *section
-
-	lineNum := 0
-	scanner := bufio.NewScanner(file)
-	h2Pattern := regexp.MustCompile(`^##\s+(.+)$`)
-
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-
-		// Check for H2 header (## Section)
-		if matches := h2Pattern.FindStringSubmatch(line); len(matches) > 1 {
-			// Close previous section
-			if currentSection != nil {
-				currentSection.endLine = lineNum - 1
-				currentSection.lines = currentSection.endLine - currentSection.startLine + 1
-				sections = append(sections, *currentSection)
-			}
-
-			// Start new section
-			currentSection = &section{
-				name:      matches[1],
-				startLine: lineNum,
-			}
-		}
-	}
-
-	// Close final section
-	if currentSection != nil {
-		currentSection.endLine = lineNum
-		currentSection.lines = currentSection.endLine - currentSection.startLine + 1
-		sections = append(sections, *currentSection)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return 0, nil, err
-	}
-
-	return lineNum, sections, nil
-}
-
-// countRulesFiles counts markdown files in .claude/rules/
-func countRulesFiles() int {
-	files := listRulesFiles()
-	return len(files)
-}
-
-// listRulesFiles returns paths to all markdown files in .claude/rules/
-func listRulesFiles() []string {
-	var files []string
-
-	rulesDir := ".claude/rules"
-	if _, err := os.Stat(rulesDir); os.IsNotExist(err) {
-		return files
-	}
-
-	filepath.Walk(rulesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() && strings.HasSuffix(path, ".md") {
-			files = append(files, path)
-		}
-		return nil
-	})
-
-	return files
-}
-
-// countFileLines counts lines in a file
-func countFileLines(path string) int {
-	file, err := os.Open(path)
-	if err != nil {
-		return 0
-	}
-	defer file.Close()
-
-	lines := 0
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines++
-	}
-	return lines
 }
 
 func newSplitCmd() *cobra.Command {
@@ -611,7 +503,7 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to analyze %s: %w", filePath, err)
 	}
 
-	rulesFiles := listRulesFiles()
+	rulesFiles := mdlint.ListRulesFiles(".claude/rules")
 
 	// Show current state
 	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
@@ -756,7 +648,7 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 	// Show final state
 	fmt.Println()
 	newLines, _, _, _ := analyzeFileWithContent(filePath)
-	newRulesCount := len(listRulesFiles())
+	newRulesCount := len(mdlint.ListRulesFiles(".claude/rules"))
 	fmt.Printf("📊 Result: %s now has %d lines, %d rules modules\n", filePath, newLines, newRulesCount)
 
 	return nil

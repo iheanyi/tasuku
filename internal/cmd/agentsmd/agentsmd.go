@@ -2,13 +2,13 @@
 package agentsmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"regexp"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/iheanyi/tasuku/internal/mdlint"
 	"github.com/spf13/cobra"
 )
 
@@ -42,13 +42,6 @@ Subcommands:
 
 // Cmd is the parent command for agentsmd operations.
 var Cmd = newAgentsMdCmd()
-
-type section struct {
-	name      string
-	startLine int
-	endLine   int
-	lines     int
-}
 
 func newLintCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -106,65 +99,60 @@ func runLint(cmd *cobra.Command, args []string) error {
 	warnLines, _ := cmd.Flags().GetInt("warn-lines")
 	sectionLimit, _ := cmd.Flags().GetInt("section-limit")
 
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		fmt.Printf("✓ No %s found (nothing to lint)\n", filePath)
-		return nil
+	cfg := mdlint.Config{
+		MaxLines:     maxLines,
+		WarnLines:    warnLines,
+		SectionLimit: sectionLimit,
+		FileName:     filepath.Base(filePath),
+		RulesDir:     "", // no rules dir for AGENTS.md
+		StatsCmd:     "tk agentsmd stats",
 	}
 
-	// Count lines
-	totalLines, sections, err := analyzeFile(filePath)
+	result, err := mdlint.Lint(filePath, cfg)
 	if err != nil {
-		return fmt.Errorf("failed to analyze %s: %w", filePath, err)
+		return err
 	}
 
-	hasProblems := false
-	hasWarnings := false
+	// File not found
+	if result.TotalLines == 0 && result.Status == "ok" && len(result.Sections) == 0 {
+		if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
+			fmt.Printf("✓ No %s found (nothing to lint)\n", filePath)
+			return nil
+		}
+	}
 
 	// Report total lines
-	fmt.Printf("📄 %s: %d lines\n", filePath, totalLines)
+	fmt.Printf("📄 %s: %d lines\n", filePath, result.TotalLines)
 
-	if totalLines > maxLines {
+	switch result.Status {
+	case "error":
 		fmt.Printf("   ❌ Exceeds recommended maximum (%d lines)\n", maxLines)
-		hasProblems = true
-	} else if totalLines > warnLines {
-		fmt.Printf("   ⚠️  Approaching limit (%d/%d lines)\n", totalLines, maxLines)
-		hasWarnings = true
-	} else {
+	case "warning":
+		fmt.Printf("   ⚠️  Approaching limit (%d/%d lines)\n", result.TotalLines, maxLines)
+	default:
 		fmt.Printf("   ✓ Within recommended size\n")
 	}
 
-	// Check for large sections
-	largeSections := []section{}
-	for _, s := range sections {
-		if s.lines > sectionLimit {
-			largeSections = append(largeSections, s)
-		}
-	}
-
-	if len(largeSections) > 0 {
+	// Large sections
+	if len(result.LargeSections) > 0 {
 		fmt.Printf("\n⚠️  Large sections (>%d lines) - consider reorganizing:\n", sectionLimit)
-		for _, s := range largeSections {
-			fmt.Printf("   - %s (%d lines)\n", s.name, s.lines)
+		for _, s := range result.LargeSections {
+			fmt.Printf("   - %s (%d lines)\n", s.Name, s.Lines)
 		}
-		hasWarnings = true
 	}
 
 	// Suggestions
-	if hasProblems || hasWarnings {
+	if result.Status != "ok" || len(result.LargeSections) > 0 {
 		fmt.Println("\n💡 Suggestions:")
-		fmt.Println("   1. Keep AGENTS.md focused on overview and key decisions")
-		fmt.Println("   2. Move detailed reference docs to separate files")
-		fmt.Println("   3. Use 'tk agentsmd stats' to see full breakdown")
+		for i, r := range result.Recommendations {
+			fmt.Printf("   %d. %s\n", i+1, r)
+		}
 	} else {
 		fmt.Println("\n✓ AGENTS.md is well-organized!")
 	}
 
-	// Exit with appropriate code
-	if hasProblems {
-		os.Exit(2)
-	} else if hasWarnings {
-		os.Exit(1)
+	if result.Status == "error" {
+		return fmt.Errorf("%s exceeds recommended maximum (%d lines)", filePath, maxLines)
 	}
 
 	return nil
@@ -173,84 +161,27 @@ func runLint(cmd *cobra.Command, args []string) error {
 func runStats(cmd *cobra.Command, args []string) error {
 	filePath, _ := cmd.Flags().GetString("file")
 
-	// Check if file exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return fmt.Errorf("%s not found", filePath)
+	cfg := mdlint.Config{
+		FileName: filepath.Base(filePath),
 	}
 
-	totalLines, sections, err := analyzeFile(filePath)
+	result, err := mdlint.Stats(filePath, cfg)
 	if err != nil {
-		return fmt.Errorf("failed to analyze %s: %w", filePath, err)
+		return err
 	}
 
 	fmt.Printf("📄 %s Section Breakdown\n", filePath)
 	fmt.Println(strings.Repeat("─", 50))
 
-	// Sort sections by line count (descending)
-	sort.Slice(sections, func(i, j int) bool {
-		return sections[i].lines > sections[j].lines
-	})
-
-	for _, s := range sections {
-		pct := float64(s.lines) / float64(totalLines) * 100
-		bar := strings.Repeat("█", int(pct/5))
-		fmt.Printf("%-30s %4d lines (%4.1f%%) %s\n", s.name, s.lines, pct, bar)
+	for _, s := range result.Sections {
+		bar := strings.Repeat("█", int(s.Percentage/5))
+		fmt.Printf("%-30s %4d lines (%4.1f%%) %s\n", s.Name, s.Lines, s.Percentage, bar)
 	}
 
 	fmt.Println(strings.Repeat("─", 50))
-	fmt.Printf("%-30s %4d lines (100%%)\n", "TOTAL", totalLines)
+	fmt.Printf("%-30s %4d lines (100%%)\n", "TOTAL", result.TotalLines)
 
 	return nil
-}
-
-// analyzeFile parses a markdown file and returns line count and sections
-func analyzeFile(path string) (int, []section, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer file.Close()
-
-	var sections []section
-	var currentSection *section
-
-	lineNum := 0
-	scanner := bufio.NewScanner(file)
-	h2Pattern := regexp.MustCompile(`^##\s+(.+)$`)
-
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-
-		// Check for H2 header (## Section)
-		if matches := h2Pattern.FindStringSubmatch(line); len(matches) > 1 {
-			// Close previous section
-			if currentSection != nil {
-				currentSection.endLine = lineNum - 1
-				currentSection.lines = currentSection.endLine - currentSection.startLine + 1
-				sections = append(sections, *currentSection)
-			}
-
-			// Start new section
-			currentSection = &section{
-				name:      matches[1],
-				startLine: lineNum,
-			}
-		}
-	}
-
-	// Close final section
-	if currentSection != nil {
-		currentSection.endLine = lineNum
-		currentSection.lines = currentSection.endLine - currentSection.startLine + 1
-		sections = append(sections, *currentSection)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return 0, nil, err
-	}
-
-	return lineNum, sections, nil
 }
 
 func newOrganizeCmd() *cobra.Command {
@@ -289,7 +220,7 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 	}
 
 	// Analyze current state
-	totalLines, sections, err := analyzeFile(filePath)
+	totalLines, sections, err := mdlint.AnalyzeFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to analyze %s: %w", filePath, err)
 	}
@@ -313,9 +244,9 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Find large sections
-	var largeSections []section
+	var largeSections []mdlint.Section
 	for _, s := range sections {
-		if s.lines >= threshold {
+		if s.Lines >= threshold {
 			largeSections = append(largeSections, s)
 		}
 	}
@@ -336,7 +267,7 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 			fmt.Println("All sections:")
 			for i, s := range sections {
-				fmt.Printf("  %d. %s (%d lines)\n", i+1, s.name, s.lines)
+				fmt.Printf("  %d. %s (%d lines)\n", i+1, s.Name, s.Lines)
 			}
 		}
 		return nil
@@ -345,7 +276,7 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 	// Show large sections
 	fmt.Printf("📋 Large sections (>%d lines) that may need reorganization:\n\n", threshold)
 	for i, s := range largeSections {
-		fmt.Printf("  %d. %s (%d lines)\n", i+1, s.name, s.lines)
+		fmt.Printf("  %d. %s (%d lines)\n", i+1, s.Name, s.Lines)
 	}
 	fmt.Println()
 
@@ -370,7 +301,7 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println("All sections:")
 		for i, s := range sections {
-			fmt.Printf("  %d. %s (%d lines)\n", i+1, s.name, s.lines)
+			fmt.Printf("  %d. %s (%d lines)\n", i+1, s.Name, s.Lines)
 		}
 		return nil
 	}
@@ -381,16 +312,16 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 		fmt.Println(strings.Repeat("─", 50))
 
 		// Sort sections by line count (descending)
-		sortedSections := make([]section, len(sections))
+		sortedSections := make([]mdlint.Section, len(sections))
 		copy(sortedSections, sections)
 		sort.Slice(sortedSections, func(i, j int) bool {
-			return sortedSections[i].lines > sortedSections[j].lines
+			return sortedSections[i].Lines > sortedSections[j].Lines
 		})
 
 		for _, s := range sortedSections {
-			pct := float64(s.lines) / float64(totalLines) * 100
+			pct := float64(s.Lines) / float64(totalLines) * 100
 			bar := strings.Repeat("█", int(pct/5))
-			fmt.Printf("%-30s %4d lines (%4.1f%%) %s\n", s.name, s.lines, pct, bar)
+			fmt.Printf("%-30s %4d lines (%4.1f%%) %s\n", s.Name, s.Lines, pct, bar)
 		}
 
 		fmt.Println(strings.Repeat("─", 50))
@@ -403,8 +334,8 @@ func runOrganize(cmd *cobra.Command, args []string) error {
 	if _, err := fmt.Sscanf(input, "%d", &num); err == nil && num > 0 && num <= len(largeSections) {
 		s := largeSections[num-1]
 		fmt.Println()
-		fmt.Printf("Section: %s\n", s.name)
-		fmt.Printf("Lines: %d (lines %d-%d)\n", s.lines, s.startLine, s.endLine)
+		fmt.Printf("Section: %s\n", s.Name)
+		fmt.Printf("Lines: %d (lines %d-%d)\n", s.Lines, s.StartLine, s.EndLine)
 		fmt.Println()
 		fmt.Println("Suggestions for reorganization:")
 		fmt.Println("  - Consider splitting this section into smaller subsections")
