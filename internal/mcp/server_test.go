@@ -602,6 +602,133 @@ func TestHandleToolCall_Archive(t *testing.T) {
 	}
 }
 
+func TestHandleToolCall_ListArchivedFilters(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add tasks with different tags
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Bug task",
+		"id":          "bug-task",
+		"tags":        []interface{}{"bug"},
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Feature task",
+		"id":          "feature-task",
+		"tags":        []interface{}{"feature"},
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Another bug task",
+		"id":          "another-bug-task",
+		"tags":        []interface{}{"bug"},
+	})
+
+	// Complete and archive one bug task and one feature task
+	server.HandleToolCall("tk_done", map[string]interface{}{"id": "bug-task"})
+	server.HandleToolCall("tk_done", map[string]interface{}{"id": "feature-task"})
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "archive",
+		"id":     "bug-task",
+	})
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "archive",
+		"id":     "feature-task",
+	})
+
+	// Test 1: List with tag=bug and include_archived=true
+	// Should return: another-bug-task (active) + bug-task (archived)
+	// Should NOT return: feature-task (archived, wrong tag)
+	result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+		"tag":              "bug",
+		"include_archived": true,
+	})
+	if err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+
+	data, _ := json.Marshal(result)
+	var tasks []map[string]interface{}
+	json.Unmarshal(data, &tasks)
+
+	if len(tasks) != 2 {
+		t.Errorf("expected 2 tasks with tag=bug (1 active + 1 archived), got %d", len(tasks))
+		for _, task := range tasks {
+			t.Logf("  task: %v, status: %v, tags: %v", task["id"], task["status"], task["tags"])
+		}
+	}
+
+	// Verify the correct tasks are returned
+	foundAnotherBug := false
+	foundBugTask := false
+	foundFeatureTask := false
+	for _, task := range tasks {
+		switch task["id"] {
+		case "another-bug-task":
+			foundAnotherBug = true
+		case "bug-task":
+			foundBugTask = true
+			if task["status"] != "archived" {
+				t.Errorf("bug-task should have status 'archived', got %v", task["status"])
+			}
+		case "feature-task":
+			foundFeatureTask = true
+		}
+	}
+
+	if !foundAnotherBug {
+		t.Error("expected to find 'another-bug-task' (active task with bug tag)")
+	}
+	if !foundBugTask {
+		t.Error("expected to find 'bug-task' (archived task with bug tag)")
+	}
+	if foundFeatureTask {
+		t.Error("should NOT find 'feature-task' (archived task with wrong tag)")
+	}
+
+	// Test 2: List with status=in_progress and include_archived=true
+	// Should NOT return any archived tasks (they have status 'archived', not 'in_progress')
+	result2, err := server.HandleToolCall("tk_list", map[string]interface{}{
+		"status":           "in_progress",
+		"include_archived": true,
+	})
+	if err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+
+	data2, _ := json.Marshal(result2)
+	var tasks2 []map[string]interface{}
+	json.Unmarshal(data2, &tasks2)
+
+	for _, task := range tasks2 {
+		if task["status"] == "archived" {
+			t.Errorf("should not return archived tasks when status=in_progress, got task %v", task["id"])
+		}
+	}
+
+	// Test 3: List with status=archived and include_archived=true
+	// Should return only the archived tasks
+	result3, err := server.HandleToolCall("tk_list", map[string]interface{}{
+		"status":           "archived",
+		"include_archived": true,
+	})
+	if err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+
+	data3, _ := json.Marshal(result3)
+	var tasks3 []map[string]interface{}
+	json.Unmarshal(data3, &tasks3)
+
+	// Should have 2 archived tasks
+	if len(tasks3) != 2 {
+		t.Errorf("expected 2 tasks with status=archived, got %d", len(tasks3))
+	}
+	for _, task := range tasks3 {
+		if task["status"] != "archived" {
+			t.Errorf("expected all tasks to have status 'archived', got %v for task %v", task["status"], task["id"])
+		}
+	}
+}
+
 func TestHandleToolCall_Show(t *testing.T) {
 	server, _ := setupTestServer(t)
 
