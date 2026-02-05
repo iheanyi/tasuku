@@ -2709,6 +2709,31 @@ func TestHandleToolCall_Help(t *testing.T) {
 		}
 	})
 
+	t.Run("tk_block command reference", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"command": "tk_block",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["error"] != nil {
+			t.Errorf("expected no error for tk_block command, got: %v", help["error"])
+		}
+		if help["command"] != "tk_block" {
+			t.Errorf("expected command 'tk_block', got %v", help["command"])
+		}
+		if help["required"] == nil {
+			t.Error("expected required in tk_block command help")
+		}
+		if help["parameters"] == nil {
+			t.Error("expected parameters in tk_block command help")
+		}
+	})
+
 	t.Run("unknown command reference", func(t *testing.T) {
 		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
 			"command": "tk_nonexistent",

@@ -795,10 +795,23 @@ func (s *Server) getCommandHelp(command string) map[string]interface{} {
 				{"action": "archive_all", "params": "older_than", "example": `tk_manage action=archive_all older_than=7d`},
 			},
 		}
+	case "tk_block":
+		return map[string]interface{}{
+			"command":     "tk_block",
+			"description": "Mark a task as blocked by other tasks. Auto-unblocks when blocking tasks are done.",
+			"required":    []string{"id", "blocked_by"},
+			"parameters": map[string]string{
+				"id":         "Task ID to mark as blocked",
+				"blocked_by": "Array of blocking task IDs",
+			},
+			"example":        `tk_block id=my-task blocked_by=["blocker-1", "blocker-2"]`,
+			"tip":            "Blocked tasks won't appear in tk_list with ready filter. Use tk_task action=unblock to remove blockers.",
+			"also_available": "tk_task action=block (same functionality via consolidated tool)",
+		}
 	default:
 		return map[string]interface{}{
 			"error":           fmt.Sprintf("Unknown command: %s", command),
-			"available_tools": []string{"tk_help", "tk_list", "tk_add", "tk_start", "tk_done", "tk_show", "tk_note", "tk_context", "tk_find", "tk_learn", "tk_decide", "tk_task", "tk_metadata", "tk_manage", "tk_stats", "tk_health"},
+			"available_tools": []string{"tk_help", "tk_list", "tk_add", "tk_start", "tk_done", "tk_block", "tk_show", "tk_note", "tk_context", "tk_find", "tk_learn", "tk_decide", "tk_task", "tk_metadata", "tk_manage", "tk_stats", "tk_health"},
 		}
 	}
 }
