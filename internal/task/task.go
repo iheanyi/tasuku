@@ -18,6 +18,7 @@ const (
 	StatusInProgress Status = "in_progress"
 	StatusBlocked    Status = "blocked"
 	StatusDone       Status = "done"
+	StatusArchived   Status = "archived"
 )
 
 // Priority levels for tasks.

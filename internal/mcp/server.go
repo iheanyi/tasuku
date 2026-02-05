@@ -990,7 +990,7 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 		task.StatusReady:        1,
 		task.StatusBlocked:      2,
 		task.StatusDone:         3,
-		task.Status("archived"): 4,
+		task.StatusArchived: 4,
 	}
 	slices.SortFunc(results, func(a, b taskResult) int {
 		// Status order first
