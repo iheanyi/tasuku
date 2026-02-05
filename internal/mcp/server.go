@@ -765,6 +765,13 @@ func (s *Server) getCommandHelp(command string) map[string]interface{} {
 				{"action": "who", "params": "none", "example": `tk_task action=who`},
 			},
 		}
+	case "tk_block":
+		return map[string]interface{}{
+			"command":     "tk_block",
+			"description": "Mark a task as blocked by other tasks",
+			"required":    []string{"id", "blocked_by"},
+			"example":     `tk_block id=my-task blocked_by=["blocker-1"]`,
+		}
 	case "tk_metadata":
 		return map[string]interface{}{
 			"command":     "tk_metadata",
@@ -798,7 +805,7 @@ func (s *Server) getCommandHelp(command string) map[string]interface{} {
 	default:
 		return map[string]interface{}{
 			"error":           fmt.Sprintf("Unknown command: %s", command),
-			"available_tools": []string{"tk_help", "tk_list", "tk_add", "tk_start", "tk_done", "tk_show", "tk_note", "tk_context", "tk_find", "tk_learn", "tk_decide", "tk_task", "tk_metadata", "tk_manage", "tk_stats", "tk_health"},
+			"available_tools": []string{"tk_help", "tk_list", "tk_add", "tk_start", "tk_done", "tk_block", "tk_show", "tk_note", "tk_context", "tk_find", "tk_learn", "tk_decide", "tk_task", "tk_metadata", "tk_manage", "tk_stats", "tk_health"},
 		}
 	}
 }
