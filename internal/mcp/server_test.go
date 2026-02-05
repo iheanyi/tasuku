@@ -2197,6 +2197,652 @@ func TestMCPProtocol_InitializeIncludesInstructions(t *testing.T) {
 	}
 }
 
+func TestHandleToolCall_ListIncludeArchived(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Add tasks with different tags and owners
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Active task",
+		"id":          "active-1",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Will be archived with tag",
+		"id":          "archived-tagged",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Will be archived without tag",
+		"id":          "archived-untagged",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Will be archived with owner",
+		"id":          "archived-owned",
+	})
+
+	// Add tags and owners before archiving
+	server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action": "tag_add",
+		"id":     "archived-tagged",
+		"tag":    "bug",
+	})
+	owner := "alice"
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "owner",
+		"id":     "archived-owned",
+		"owner":  owner,
+	})
+
+	// Complete and archive tasks
+	for _, id := range []string{"archived-tagged", "archived-untagged", "archived-owned"} {
+		server.HandleToolCall("tk_done", map[string]interface{}{"id": id})
+		server.HandleToolCall("tk_task", map[string]interface{}{
+			"action": "archive",
+			"id":     id,
+		})
+	}
+
+	t.Run("include_archived shows all", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"include_archived": true,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		// 1 active + 3 archived = 4
+		if len(list) != 4 {
+			t.Errorf("expected 4 tasks, got %d", len(list))
+		}
+	})
+
+	t.Run("include_archived with tag filter", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"include_archived": true,
+			"tag":              "bug",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		// Only archived-tagged has the "bug" tag
+		if len(list) != 1 {
+			t.Errorf("expected 1 task with tag 'bug', got %d", len(list))
+		}
+		if len(list) > 0 && list[0]["id"] != "archived-tagged" {
+			t.Errorf("expected id 'archived-tagged', got %v", list[0]["id"])
+		}
+	})
+
+	t.Run("include_archived with owner filter", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"include_archived": true,
+			"owner":            "alice",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		// Only archived-owned has owner "alice"
+		if len(list) != 1 {
+			t.Errorf("expected 1 task with owner 'alice', got %d", len(list))
+		}
+		if len(list) > 0 && list[0]["id"] != "archived-owned" {
+			t.Errorf("expected id 'archived-owned', got %v", list[0]["id"])
+		}
+	})
+
+	t.Run("include_archived with status filter excludes archived", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"include_archived": true,
+			"status":           "ready",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		// Only active-1 is "ready", archived tasks should be filtered out
+		if len(list) != 1 {
+			t.Errorf("expected 1 ready task, got %d", len(list))
+		}
+		if len(list) > 0 && list[0]["id"] != "active-1" {
+			t.Errorf("expected id 'active-1', got %v", list[0]["id"])
+		}
+	})
+
+	t.Run("include_archived with status=archived", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"include_archived": true,
+			"status":           "archived",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		// Only the 3 archived tasks
+		if len(list) != 3 {
+			t.Errorf("expected 3 archived tasks, got %d", len(list))
+		}
+		for _, task := range list {
+			if task["status"] != "archived" {
+				t.Errorf("expected status 'archived', got %v", task["status"])
+			}
+		}
+	})
+
+	t.Run("without include_archived excludes archived", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		if len(list) != 1 {
+			t.Errorf("expected 1 active task, got %d", len(list))
+		}
+		for _, task := range list {
+			if task["status"] == "archived" {
+				t.Error("should not include archived tasks without include_archived flag")
+			}
+		}
+	})
+}
+
+func TestHandleToolCall_ListFilters(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Set up tasks with various attributes
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Bug fix",
+		"id":          "bug-1",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Feature work",
+		"id":          "feature-1",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"description": "Another bug",
+		"id":          "bug-2",
+	})
+	server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action": "tag_add",
+		"id":     "bug-1",
+		"tag":    "bug",
+	})
+	server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action": "tag_add",
+		"id":     "bug-2",
+		"tag":    "bug",
+	})
+	server.HandleToolCall("tk_metadata", map[string]interface{}{
+		"action": "tag_add",
+		"id":     "feature-1",
+		"tag":    "feature",
+	})
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "owner",
+		"id":     "bug-1",
+		"owner":  "bob",
+	})
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "owner",
+		"id":     "feature-1",
+		"owner":  "bob",
+	})
+	server.HandleToolCall("tk_start", map[string]interface{}{"id": "feature-1"})
+
+	t.Run("filter by tag", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"tag": "bug",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		if len(list) != 2 {
+			t.Errorf("expected 2 tasks with tag 'bug', got %d", len(list))
+		}
+	})
+
+	t.Run("filter by owner", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"owner": "bob",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		if len(list) != 2 {
+			t.Errorf("expected 2 tasks with owner 'bob', got %d", len(list))
+		}
+	})
+
+	t.Run("filter by status and tag", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"status": "ready",
+			"tag":    "bug",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		if len(list) != 2 {
+			t.Errorf("expected 2 ready tasks with tag 'bug', got %d", len(list))
+		}
+	})
+
+	t.Run("filter by status and owner", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"status": "in_progress",
+			"owner":  "bob",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		if len(list) != 1 {
+			t.Errorf("expected 1 in_progress task with owner 'bob', got %d", len(list))
+		}
+		if len(list) > 0 && list[0]["id"] != "feature-1" {
+			t.Errorf("expected id 'feature-1', got %v", list[0]["id"])
+		}
+	})
+
+	t.Run("filter with no matches", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+			"owner": "nobody",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var list []map[string]interface{}
+		json.Unmarshal(data, &list)
+
+		if len(list) != 0 {
+			t.Errorf("expected 0 tasks, got %d", len(list))
+		}
+	})
+}
+
+func TestConsolidatedTool_MissingAction(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	t.Run("tk_task missing action", func(t *testing.T) {
+		_, err := server.HandleToolCall("tk_task", map[string]interface{}{})
+		if err == nil {
+			t.Error("expected error for missing action")
+		}
+	})
+
+	t.Run("tk_metadata missing action", func(t *testing.T) {
+		_, err := server.HandleToolCall("tk_metadata", map[string]interface{}{})
+		if err == nil {
+			t.Error("expected error for missing action")
+		}
+	})
+
+	t.Run("tk_manage missing action", func(t *testing.T) {
+		_, err := server.HandleToolCall("tk_manage", map[string]interface{}{})
+		if err == nil {
+			t.Error("expected error for missing action")
+		}
+	})
+}
+
+func TestConsolidatedTool_UnknownAction(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	t.Run("tk_task unknown action", func(t *testing.T) {
+		_, err := server.HandleToolCall("tk_task", map[string]interface{}{
+			"action": "invalid",
+		})
+		if err == nil {
+			t.Error("expected error for unknown action")
+		}
+		if !strings.Contains(err.Error(), "unknown action") {
+			t.Errorf("expected 'unknown action' in error, got: %v", err)
+		}
+	})
+
+	t.Run("tk_metadata unknown action", func(t *testing.T) {
+		_, err := server.HandleToolCall("tk_metadata", map[string]interface{}{
+			"action": "invalid",
+		})
+		if err == nil {
+			t.Error("expected error for unknown action")
+		}
+		if !strings.Contains(err.Error(), "unknown action") {
+			t.Errorf("expected 'unknown action' in error, got: %v", err)
+		}
+	})
+
+	t.Run("tk_manage unknown action", func(t *testing.T) {
+		_, err := server.HandleToolCall("tk_manage", map[string]interface{}{
+			"action": "invalid",
+		})
+		if err == nil {
+			t.Error("expected error for unknown action")
+		}
+		if !strings.Contains(err.Error(), "unknown action") {
+			t.Errorf("expected 'unknown action' in error, got: %v", err)
+		}
+	})
+}
+
+func TestHandleToolCall_Help(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	t.Run("default overview", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["topic"] != "Tasuku Overview" {
+			t.Errorf("expected topic 'Tasuku Overview', got %v", help["topic"])
+		}
+	})
+
+	t.Run("tasks topic", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"topic": "tasks",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["topic"] != "Task Operations" {
+			t.Errorf("expected topic 'Task Operations', got %v", help["topic"])
+		}
+		if help["tk_task_actions"] == nil {
+			t.Error("expected tk_task_actions in response")
+		}
+	})
+
+	t.Run("metadata topic", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"topic": "metadata",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["topic"] != "Metadata Operations" {
+			t.Errorf("expected topic 'Metadata Operations', got %v", help["topic"])
+		}
+	})
+
+	t.Run("knowledge topic", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"topic": "knowledge",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["topic"] != "Knowledge Capture" {
+			t.Errorf("expected topic 'Knowledge Capture', got %v", help["topic"])
+		}
+	})
+
+	t.Run("multiagent topic", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"topic": "multiagent",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["topic"] != "Multi-Agent Coordination" {
+			t.Errorf("expected topic 'Multi-Agent Coordination', got %v", help["topic"])
+		}
+	})
+
+	t.Run("archive topic", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"topic": "archive",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["topic"] != "Archive Operations" {
+			t.Errorf("expected topic 'Archive Operations', got %v", help["topic"])
+		}
+	})
+
+	t.Run("install topic", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"topic": "install",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["topic"] != "Installation" {
+			t.Errorf("expected topic 'Installation', got %v", help["topic"])
+		}
+	})
+
+	t.Run("unknown topic falls through to overview", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"topic": "nonexistent",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		// Falls through to default which is the overview
+		if help["topic"] != "Tasuku Overview" {
+			t.Errorf("expected topic 'Tasuku Overview' for unknown topic, got %v", help["topic"])
+		}
+	})
+
+	t.Run("command reference", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"command": "tk_task",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["command"] != "tk_task" {
+			t.Errorf("expected command 'tk_task', got %v", help["command"])
+		}
+		if help["actions"] == nil {
+			t.Error("expected actions in command help")
+		}
+	})
+
+	t.Run("unknown command reference", func(t *testing.T) {
+		result, err := server.HandleToolCall("tk_help", map[string]interface{}{
+			"command": "tk_nonexistent",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, _ := json.Marshal(result)
+		var help map[string]interface{}
+		json.Unmarshal(data, &help)
+
+		if help["error"] == nil {
+			t.Error("expected error for unknown command")
+		}
+	})
+}
+
+func TestHandleToolCall_HelpOverviewToolCount(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	result, err := server.HandleToolCall("tk_help", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data, _ := json.Marshal(result)
+	var help map[string]interface{}
+	json.Unmarshal(data, &help)
+
+	toolCount := int(help["tool_count"].(float64))
+	if toolCount != 17 {
+		t.Errorf("expected tool_count 17, got %d", toolCount)
+	}
+
+	tools := help["tools"].(map[string]interface{})
+	if tools["tk_block"] == nil {
+		t.Error("expected tk_block in help overview tools")
+	}
+
+	// Verify count matches actual tool entries
+	if len(tools) != toolCount {
+		t.Errorf("tool_count (%d) doesn't match actual tools map length (%d)", toolCount, len(tools))
+	}
+}
+
+func TestHandleToolCall_ListArchivedSortOrder(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Create tasks in different states
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "active-task",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "done-task",
+	})
+	server.HandleToolCall("tk_done", map[string]interface{}{
+		"id": "done-task",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "to-archive",
+	})
+	server.HandleToolCall("tk_done", map[string]interface{}{
+		"id": "to-archive",
+	})
+	server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "archive",
+		"id":     "to-archive",
+	})
+
+	result, err := server.HandleToolCall("tk_list", map[string]interface{}{
+		"include_archived": true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data, _ := json.Marshal(result)
+	var list []map[string]interface{}
+	json.Unmarshal(data, &list)
+
+	if len(list) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(list))
+	}
+
+	// Archived should be last (after ready and done)
+	lastTask := list[len(list)-1]
+	if lastTask["status"] != "archived" {
+		t.Errorf("expected archived task to sort last, got status %v at last position", lastTask["status"])
+	}
+
+	// Ready should come before done
+	if list[0]["status"] != "ready" {
+		t.Errorf("expected ready task first, got %v", list[0]["status"])
+	}
+}
+
+func TestConsolidatedTool_BlockViaTaskAction(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "blocker",
+	})
+	server.HandleToolCall("tk_add", map[string]interface{}{
+		"id": "blocked",
+	})
+
+	// Block via tk_task consolidated tool
+	result, err := server.HandleToolCall("tk_task", map[string]interface{}{
+		"action":     "block",
+		"id":         "blocked",
+		"blocked_by": []interface{}{"blocker"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	r := result.(map[string]interface{})
+	if r["status"] != "blocked" {
+		t.Errorf("expected status 'blocked', got %v", r["status"])
+	}
+
+	// Unblock via tk_task consolidated tool
+	result, err = server.HandleToolCall("tk_task", map[string]interface{}{
+		"action": "unblock",
+		"id":     "blocked",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	r = result.(map[string]interface{})
+	if r["status"] != "ready" {
+		t.Errorf("expected status 'ready', got %v", r["status"])
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
