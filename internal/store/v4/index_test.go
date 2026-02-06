@@ -78,21 +78,6 @@ func TestIndexRemoveTask(t *testing.T) {
 	}
 }
 
-func TestIndexSetCounts(t *testing.T) {
-	idx := NewIndex()
-	idx.SetCounts(42, 5, 3)
-
-	if idx.ArchivedCount != 42 {
-		t.Errorf("ArchivedCount = %d, want 42", idx.ArchivedCount)
-	}
-	if idx.LearningsCount != 5 {
-		t.Errorf("LearningsCount = %d, want 5", idx.LearningsCount)
-	}
-	if idx.DecisionsCount != 3 {
-		t.Errorf("DecisionsCount = %d, want 3", idx.DecisionsCount)
-	}
-}
-
 func TestIndexMarshalRoundtrip(t *testing.T) {
 	idx := NewIndex()
 	priority := 1
@@ -102,7 +87,9 @@ func TestIndexMarshalRoundtrip(t *testing.T) {
 		Tags:      []string{"test"},
 		UpdatedAt: time.Date(2024, 1, 5, 10, 0, 0, 0, time.UTC),
 	})
-	idx.SetCounts(10, 2, 1)
+	idx.ArchivedCount = 10
+	idx.LearningsCount = 2
+	idx.DecisionsCount = 1
 
 	// Marshal
 	data, err := idx.Marshal()
@@ -148,7 +135,9 @@ func TestIndexJSON(t *testing.T) {
 		ClaimedBy: "agent-1",
 		UpdatedAt: time.Date(2024, 1, 5, 11, 0, 0, 0, time.UTC),
 	})
-	idx.SetCounts(42, 5, 3)
+	idx.ArchivedCount = 42
+	idx.LearningsCount = 5
+	idx.DecisionsCount = 3
 
 	data, err := idx.Marshal()
 	if err != nil {

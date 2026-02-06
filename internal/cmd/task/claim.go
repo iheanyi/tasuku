@@ -42,7 +42,10 @@ Examples:
 			}
 
 			syncFlag, _ := cmd.Flags().GetBool("sync")
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			if err := s.ClaimTask(taskID, agentName); err != nil {
 				return err

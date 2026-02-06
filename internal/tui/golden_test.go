@@ -14,6 +14,7 @@ import (
 	"github.com/muesli/termenv"
 
 	"github.com/iheanyi/tasuku/internal/store"
+	v4 "github.com/iheanyi/tasuku/internal/store/v4"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
@@ -31,17 +32,17 @@ const (
 	testTermHeight = 24
 )
 
-// setupGoldenTestStore creates a temporary store with deterministic test data
+// setupGoldenTestStore creates a temporary V4 store with deterministic test data
 // Note: Tasks are sorted by status (in_progress first) then priority.
 // To ensure deterministic ordering, we assign different priorities to tasks
 // with the same status.
-func setupGoldenTestStore(t *testing.T) *store.Store {
+func setupGoldenTestStore(t *testing.T) store.Storage {
 	t.Helper()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, ".tasuku.json")
+	root := filepath.Join(dir, ".tasuku")
 
-	s := store.New(path)
+	s := v4.New(root)
 	if err := s.Init(); err != nil {
 		t.Fatalf("failed to init store: %v", err)
 	}
@@ -114,7 +115,7 @@ func setupGoldenTestStore(t *testing.T) *store.Store {
 
 // createTestModel creates a test TUI model with the given store.
 // It processes the async Init() command to load tasks before returning.
-func createTestModel(t *testing.T, s *store.Store) Model {
+func createTestModel(t *testing.T, s store.Storage) Model {
 	t.Helper()
 
 	m, err := New(s)
@@ -323,9 +324,9 @@ func TestGolden_PrioritySort(t *testing.T) {
 // TestGolden_EmptyTaskList tests rendering when there are no tasks
 func TestGolden_EmptyTaskList(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, ".tasuku.json")
+	root := filepath.Join(dir, ".tasuku")
 
-	s := store.New(path)
+	s := v4.New(root)
 	if err := s.Init(); err != nil {
 		t.Fatalf("failed to init store: %v", err)
 	}

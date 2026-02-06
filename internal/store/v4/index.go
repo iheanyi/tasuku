@@ -2,6 +2,7 @@ package v4
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -18,15 +19,18 @@ type Index struct {
 // TaskMeta contains the metadata for a task in the index.
 // Only frontmatter fields are included (not full content).
 type TaskMeta struct {
-	Status    string    `json:"status"`
-	Priority  *int      `json:"priority,omitempty"`
-	Tags      []string  `json:"tags,omitempty"`
-	BlockedBy []string  `json:"blocked_by,omitempty"`
-	ParentID  string    `json:"parent_id,omitempty"`
-	Owner     string    `json:"owner,omitempty"`
-	ClaimedBy string    `json:"claimed_by,omitempty"`
-	File      string    `json:"file"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Status      string     `json:"status"`
+	Priority    *int       `json:"priority,omitempty"`
+	Tags        []string   `json:"tags,omitempty"`
+	BlockedBy   []string   `json:"blocked_by,omitempty"`
+	ParentID    string     `json:"parent_id,omitempty"`
+	Owner       string     `json:"owner,omitempty"`
+	ClaimedBy   string     `json:"claimed_by,omitempty"`
+	Description string     `json:"description,omitempty"`
+	File        string     `json:"file"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	TimerStart  *time.Time `json:"timer_start,omitempty"`
 }
 
 // NewIndex creates a new empty index.
@@ -38,33 +42,69 @@ func NewIndex() *Index {
 	}
 }
 
-// AddTask adds or updates a task in the index.
+// AddTask adds or updates a task in the index from frontmatter only.
+// Description is not available from frontmatter alone; use AddTaskWithDescription
+// when the full task content has been parsed.
 func (idx *Index) AddTask(id string, fm TaskFrontmatter) {
+	// Preserve existing description if we're updating and it's already set
+	existing, hasExisting := idx.Tasks[id]
+	desc := ""
+	if hasExisting {
+		desc = existing.Description
+	}
 	idx.Tasks[id] = TaskMeta{
-		Status:    fm.Status,
-		Priority:  fm.Priority,
-		Tags:      fm.Tags,
-		BlockedBy: fm.BlockedBy,
-		ParentID:  fm.ParentID,
-		Owner:     fm.Owner,
-		ClaimedBy: fm.ClaimedBy,
-		File:      "tasks/" + id + ".md",
-		UpdatedAt: fm.UpdatedAt,
+		Status:      fm.Status,
+		Priority:    fm.Priority,
+		Tags:        fm.Tags,
+		BlockedBy:   fm.BlockedBy,
+		ParentID:    fm.ParentID,
+		Owner:       fm.Owner,
+		ClaimedBy:   fm.ClaimedBy,
+		Description: desc,
+		File:        "tasks/" + id + ".md",
+		CreatedAt:   fm.CreatedAt,
+		UpdatedAt:   fm.UpdatedAt,
+		TimerStart:  fm.TimerStart,
 	}
 	idx.UpdatedAt = time.Now().UTC()
+}
+
+// AddTaskWithDescription adds or updates a task in the index with an explicit description.
+// Use this when the full task content (including body/description) is available.
+func (idx *Index) AddTaskWithDescription(id, description string, fm TaskFrontmatter) {
+	idx.Tasks[id] = TaskMeta{
+		Status:      fm.Status,
+		Priority:    fm.Priority,
+		Tags:        fm.Tags,
+		BlockedBy:   fm.BlockedBy,
+		ParentID:    fm.ParentID,
+		Owner:       fm.Owner,
+		ClaimedBy:   fm.ClaimedBy,
+		Description: truncateDescription(description, 200),
+		File:        "tasks/" + id + ".md",
+		CreatedAt:   fm.CreatedAt,
+		UpdatedAt:   fm.UpdatedAt,
+		TimerStart:  fm.TimerStart,
+	}
+	idx.UpdatedAt = time.Now().UTC()
+}
+
+// truncateDescription truncates a description to maxLen characters at a word boundary.
+func truncateDescription(desc string, maxLen int) string {
+	if len(desc) <= maxLen {
+		return desc
+	}
+	// Find last space before maxLen
+	truncated := desc[:maxLen]
+	if idx := strings.LastIndex(truncated, " "); idx > maxLen/2 {
+		truncated = truncated[:idx]
+	}
+	return truncated + "..."
 }
 
 // RemoveTask removes a task from the index.
 func (idx *Index) RemoveTask(id string) {
 	delete(idx.Tasks, id)
-	idx.UpdatedAt = time.Now().UTC()
-}
-
-// SetCounts updates the archive, learnings, and decisions counts.
-func (idx *Index) SetCounts(archived, learnings, decisions int) {
-	idx.ArchivedCount = archived
-	idx.LearningsCount = learnings
-	idx.DecisionsCount = decisions
 	idx.UpdatedAt = time.Now().UTC()
 }
 

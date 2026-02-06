@@ -22,10 +22,11 @@ type PlanItem struct {
 	LineNumber  int
 }
 
-var planSyncCmd = &cobra.Command{
-	Use:   "plan-sync <file>",
-	Short: "Extract tasks from a plan file",
-	Long: `Extract project-level tasks from a markdown plan file and create Tasuku tasks.
+func newPlanSyncCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "plan-sync <file>",
+		Short: "Extract tasks from a plan file",
+		Long: `Extract project-level tasks from a markdown plan file and create Tasuku tasks.
 
 Applies the nudge rule to filter out session-level implementation steps,
 only creating tasks for meaningful project-level work.
@@ -39,13 +40,14 @@ Examples:
   tk hooks plan-sync plan.md           # Sync plan file
   tk hooks plan-sync plan.md --dry-run # Preview without creating
   tk hooks plan-sync plan.md --all     # Skip nudge rule, sync all`,
-	Args: cobra.ExactArgs(1),
-	RunE: runPlanSync,
-}
+		Args: cobra.ExactArgs(1),
+		RunE: runPlanSync,
+	}
 
-func init() {
-	planSyncCmd.Flags().Bool("dry-run", false, "Preview what would be created without making changes")
-	planSyncCmd.Flags().Bool("all", false, "Sync all items, skip nudge rule filtering")
+	cmd.Flags().Bool("dry-run", false, "Preview what would be created without making changes")
+	cmd.Flags().Bool("all", false, "Sync all items, skip nudge rule filtering")
+
+	return cmd
 }
 
 func runPlanSync(cmd *cobra.Command, args []string) error {
@@ -65,7 +67,10 @@ func runPlanSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get storage
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	if !s.Exists() {
 		return fmt.Errorf("no Tasuku storage found - run 'tk init' first")
 	}

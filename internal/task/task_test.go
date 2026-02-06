@@ -493,13 +493,6 @@ func TestDurationString(t *testing.T) {
 	}
 }
 
-func TestDurationTimeDuration(t *testing.T) {
-	d := Duration(time.Hour)
-	if d.TimeDuration() != time.Hour {
-		t.Errorf("expected %v, got %v", time.Hour, d.TimeDuration())
-	}
-}
-
 func TestDurationFormatHumanReadable(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -775,32 +768,6 @@ func TestFormatLocalTime(t *testing.T) {
 	result := FormatLocalTime(time.Now())
 	if result == "" {
 		t.Error("expected non-empty result for non-zero time")
-	}
-}
-
-func TestFormatLocalDateTime(t *testing.T) {
-	// Zero time
-	if FormatLocalDateTime(time.Time{}) != "" {
-		t.Error("expected empty string for zero time")
-	}
-
-	// Non-zero time
-	result := FormatLocalDateTime(time.Now())
-	if result == "" {
-		t.Error("expected non-empty result")
-	}
-}
-
-func TestFormatLocalDateOnly(t *testing.T) {
-	// Zero time
-	if FormatLocalDateOnly(time.Time{}) != "" {
-		t.Error("expected empty string for zero time")
-	}
-
-	// Non-zero time
-	result := FormatLocalDateOnly(time.Now())
-	if result == "" {
-		t.Error("expected non-empty result")
 	}
 }
 

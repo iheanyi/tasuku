@@ -18,7 +18,7 @@ const (
 	StatusInProgress Status = "in_progress"
 	StatusBlocked    Status = "blocked"
 	StatusDone       Status = "done"
-	StatusArchived   Status = "archived"
+	StatusArchived Status = "archived" // Not a real lifecycle status; used for sort ordering of archived tasks
 )
 
 // Priority levels for tasks.
@@ -66,11 +66,6 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 // String returns the duration as a string.
 func (d Duration) String() string {
 	return time.Duration(d).String()
-}
-
-// TimeDuration returns the underlying time.Duration.
-func (d Duration) TimeDuration() time.Duration {
-	return time.Duration(d)
 }
 
 // FormatHumanReadable returns a human-friendly duration string.
@@ -319,17 +314,22 @@ func GenerateTaskID(desc string, existingIDs map[string]struct{}) string {
 
 // generateBaseID creates a deterministic kebab-case ID from description.
 func generateBaseID(desc string) string {
-	result := ""
+	var b strings.Builder
+	b.Grow(len(desc))
 	for _, r := range desc {
 		if r >= 'a' && r <= 'z' {
-			result += string(r)
+			b.WriteRune(r)
 		} else if r >= 'A' && r <= 'Z' {
-			result += string(r + 32) // lowercase
-		} else if r == ' ' && len(result) > 0 && result[len(result)-1] != '-' {
-			result += "-"
+			b.WriteRune(r + 32) // lowercase
+		} else if r == ' ' && b.Len() > 0 {
+			// Peek at last byte to avoid consecutive dashes
+			s := b.String()
+			if s[len(s)-1] != '-' {
+				b.WriteByte('-')
+			}
 		}
 	}
-	result = strings.TrimSuffix(result, "-")
+	result := strings.TrimSuffix(b.String(), "-")
 
 	// Handle empty description
 	if result == "" {
@@ -437,6 +437,42 @@ func (c *Context) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// TaskSummary contains lightweight task metadata for list views.
+// For V4, this is populated from the index.json file (1 file read instead of N).
+// This avoids reading and parsing every individual task .md file for operations
+// that only need metadata (list, stats, health, subtask lookup).
+type TaskSummary struct {
+	ID          string     `json:"id"`
+	Status      string     `json:"status"`
+	Priority    *int       `json:"priority,omitempty"`
+	Tags        []string   `json:"tags,omitempty"`
+	Owner       *string    `json:"owner,omitempty"`
+	BlockedBy   []string   `json:"blocked_by,omitempty"`
+	ParentID    string     `json:"parent_id,omitempty"`
+	Description string     `json:"description"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	TimerStart  *time.Time `json:"timer_start,omitempty"`
+}
+
+// GetPriority returns the priority, defaulting to Normal (2) if not set.
+func (s TaskSummary) GetPriority() int {
+	if s.Priority == nil {
+		return PriorityNormal
+	}
+	return *s.Priority
+}
+
+// HasTag returns true if the summary has the specified tag.
+func (s TaskSummary) HasTag(tag string) bool {
+	for _, t := range s.Tags {
+		if t == tag {
+			return true
+		}
+	}
+	return false
+}
+
 // ArchivedTask represents a completed task that has been archived.
 // It preserves the original task data plus archival metadata.
 type ArchivedTask struct {
@@ -509,24 +545,6 @@ func FormatLocalTime(t time.Time) string {
 		return ""
 	}
 	return t.Local().Format("Jan 2, 2006 3:04 PM")
-}
-
-// FormatLocalDateTime formats a time with full date and time in local timezone.
-// Output: "2006-01-02 15:04:05"
-func FormatLocalDateTime(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return t.Local().Format("2006-01-02 15:04:05")
-}
-
-// FormatLocalDateOnly formats just the date portion in local timezone.
-// Output: "Jan 2, 2006"
-func FormatLocalDateOnly(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	return t.Local().Format("Jan 2, 2006")
 }
 
 // FormatRelativeTime formats a time as relative to now (e.g., "2 hours ago").

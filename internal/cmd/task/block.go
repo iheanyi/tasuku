@@ -24,7 +24,10 @@ Examples:
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			blockers, _ := cmd.Flags().GetStringSlice("by")
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			for _, taskID := range args {
 				if err := s.BlockTask(taskID, blockers); err != nil {

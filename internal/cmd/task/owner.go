@@ -22,7 +22,10 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID := args[0]
 			clearFlag, _ := cmd.Flags().GetBool("clear")
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			if len(args) == 2 {
 				ownerName := args[1]

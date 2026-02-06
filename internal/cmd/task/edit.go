@@ -19,7 +19,10 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		newDesc := args[1]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		if err := s.EditTask(taskID, newDesc); err != nil {
 			return err

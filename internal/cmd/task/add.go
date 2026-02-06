@@ -58,7 +58,10 @@ Examples:
 				}
 			}
 
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			// Generate ID if not provided, checking for collisions
 			if id == "" {

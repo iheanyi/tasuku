@@ -22,7 +22,10 @@ Examples:
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID := args[0]
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			if err := s.RestoreTask(taskID); err != nil {
 				return err

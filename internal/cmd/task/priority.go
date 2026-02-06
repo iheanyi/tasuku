@@ -28,7 +28,10 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		levelStr := args[1]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		level := task.ParsePriority(levelStr)
 		if level < 0 || level > 4 {

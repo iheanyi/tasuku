@@ -21,7 +21,10 @@ Examples:
   tk task done task-1 task-2 task-3       # Mark multiple tasks as complete`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		for _, taskID := range args {
 			// Auto-stop timer if running

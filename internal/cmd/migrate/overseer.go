@@ -232,7 +232,10 @@ func migrateFromOverseer(customPath string, dryRun bool, force bool) error {
 	}
 
 	// 8. Get or create store
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	if !s.Exists() {
 		if err := s.Init(); err != nil {
 			return fmt.Errorf("failed to initialize storage: %w", err)

@@ -96,7 +96,10 @@ Examples:
 }
 
 func runMCP(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	mcpServer := mcp.New(s)
 	return mcpServer.Run()
 }
@@ -105,7 +108,10 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	port, _ := cmd.Flags().GetInt("port")
 	addr, _ := cmd.Flags().GetString("addr")
 
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	httpServer := tkhttp.New(s)
 
 	// --addr takes precedence over --port

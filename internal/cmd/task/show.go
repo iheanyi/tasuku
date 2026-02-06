@@ -29,7 +29,10 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 		f, err := s.Read()
 		if err != nil {
 			return err

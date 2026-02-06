@@ -54,7 +54,10 @@ Examples:
 			ownerFilter, _ := cmd.Flags().GetString("owner")
 			treeView, _ := cmd.Flags().GetBool("tree")
 
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			// Handle archived status specially - query archive directory
 			if status == "archived" {

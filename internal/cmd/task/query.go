@@ -25,7 +25,10 @@ Examples:
   tk task ready                     # List ready tasks
   tk task ready -f json             # Output as JSON`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 		f, err := s.Read()
 		if err != nil {
 			return err
@@ -73,7 +76,10 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query := strings.ToLower(args[0])
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 		f, err := s.Read()
 		if err != nil {
 			return err

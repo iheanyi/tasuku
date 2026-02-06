@@ -23,7 +23,10 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID := args[0]
 			fromBlocker, _ := cmd.Flags().GetString("from")
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			if fromBlocker != "" {
 				if err := s.RemoveBlocker(taskID, fromBlocker); err != nil {

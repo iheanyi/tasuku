@@ -37,10 +37,10 @@ Examples:
   tk serve mcp      # Start MCP server (preferred)`,
 	}
 
-	cmd.AddCommand(serveCmd)
+	cmd.AddCommand(newServeCmd())
 	cmd.AddCommand(newInstallCmd())
-	cmd.AddCommand(uninstallCmd)
-	cmd.AddCommand(configCmd)
+	cmd.AddCommand(newUninstallCmd())
+	cmd.AddCommand(newConfigCmd())
 
 	return cmd
 }
@@ -48,10 +48,11 @@ Examples:
 // Cmd is the parent command for all MCP operations
 var Cmd = newMCPCmd()
 
-var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "Start the MCP server (alias for 'tk serve mcp')",
-	Long: `Start the MCP (Model Context Protocol) server in stdio mode.
+func newServeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Start the MCP server (alias for 'tk serve mcp')",
+		Long: `Start the MCP (Model Context Protocol) server in stdio mode.
 
 This is an alias for 'tk serve mcp'. Prefer using 'tk serve mcp' directly.
 
@@ -64,7 +65,10 @@ to configure your AI tool to run it automatically.
 MCP Tools Exposed:
   tk_list, tk_add, tk_start, tk_done, tk_block, tk_unblock,
   tk_learn, tk_decide, tk_context, and more.`,
-	RunE: runServe,
+		RunE: runServe,
+	}
+
+	return cmd
 }
 
 func newInstallCmd() *cobra.Command {
@@ -104,34 +108,43 @@ Use --tool to target a specific tool (claude, copilot, cursor, codex, opencode, 
 	return cmd
 }
 
-var uninstallCmd = &cobra.Command{
-	Use:   "uninstall",
-	Short: "Remove MCP configuration from AI tools",
-	Long: `Remove the Tasuku MCP server configuration from AI tools.
+func newUninstallCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Remove MCP configuration from AI tools",
+		Long: `Remove the Tasuku MCP server configuration from AI tools.
 
 This removes only the Tasuku configuration; other MCP servers
 will be preserved.
 
 Use --local to remove from project-level .claude.json.`,
-	RunE: runUninstall,
+		RunE: runUninstall,
+	}
+
+	cmd.Flags().Bool("local", false, "Remove from project-level .claude.json")
+
+	return cmd
 }
 
-func init() {
-	uninstallCmd.Flags().Bool("local", false, "Remove from project-level .claude.json")
-}
-
-var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Show MCP configuration snippet",
-	Long: `Display the MCP configuration snippet for manual setup.
+func newConfigCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Show MCP configuration snippet",
+		Long: `Display the MCP configuration snippet for manual setup.
 
 Use this if automatic installation doesn't work or you want
 to configure MCP manually in your AI tool settings.`,
-	RunE: runConfig,
+		RunE: runConfig,
+	}
+
+	return cmd
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	mcpServer := mcp.New(s)
 	return mcpServer.Run()
 }

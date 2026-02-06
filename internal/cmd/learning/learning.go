@@ -136,7 +136,10 @@ Examples:
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -207,11 +210,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	permanent, _ := cmd.Flags().GetBool("permanent")
 	forceRule, _ := cmd.Flags().GetBool("rule")
 	scope, _ := cmd.Flags().GetString("scope")
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 
 	var id string
 	var isRule bool
-	var err error
 
 	var rulePtr *bool
 	if forceRule {
@@ -290,7 +295,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 }
 
 func runRemove(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	query := args[0]
 
 	removedText, err := s.RemoveLearning(query)
@@ -313,7 +321,10 @@ func runRemove(cmd *cobra.Command, args []string) error {
 }
 
 func runPromote(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	query := args[0]
 	targetFile, _ := cmd.Flags().GetString("to")
 	keep, _ := cmd.Flags().GetBool("keep")
@@ -369,7 +380,10 @@ func runPromote(cmd *cobra.Command, args []string) error {
 }
 
 func runRules(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	f, err := s.Read()
 	if err != nil {
 		return err

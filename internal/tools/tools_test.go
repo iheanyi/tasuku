@@ -90,38 +90,6 @@ func TestTool_String(t *testing.T) {
 	}
 }
 
-func TestAll(t *testing.T) {
-	all := All()
-
-	// Should have all 6 tools
-	if len(all) != 6 {
-		t.Errorf("All() returned %d tools, want 6", len(all))
-	}
-
-	// Check all expected tools are present
-	expected := map[Tool]bool{
-		ToolClaude:   false,
-		ToolCursor:   false,
-		ToolCopilot:  false,
-		ToolCodex:    false,
-		ToolOpenCode: false,
-		ToolGemini:   false,
-	}
-
-	for _, tool := range all {
-		if _, ok := expected[tool]; !ok {
-			t.Errorf("All() contains unexpected tool: %q", tool)
-		}
-		expected[tool] = true
-	}
-
-	for tool, found := range expected {
-		if !found {
-			t.Errorf("All() missing tool: %q", tool)
-		}
-	}
-}
-
 func TestValidNames(t *testing.T) {
 	names := ValidNames()
 

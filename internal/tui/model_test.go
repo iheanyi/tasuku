@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -9,17 +8,18 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/iheanyi/tasuku/internal/store"
+	v4 "github.com/iheanyi/tasuku/internal/store/v4"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-// setupTestStore creates a temporary store with test tasks
-func setupTestStore(t *testing.T) (*store.Store, func()) {
+// setupTestStore creates a temporary V4 store with test tasks
+func setupTestStore(t *testing.T) (store.Storage, func()) {
 	t.Helper()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, ".tasuku.json")
+	root := filepath.Join(dir, ".tasuku")
 
-	s := store.New(path)
+	s := v4.New(root)
 	if err := s.Init(); err != nil {
 		t.Fatalf("failed to init store: %v", err)
 	}
@@ -31,9 +31,7 @@ func setupTestStore(t *testing.T) (*store.Store, func()) {
 	_ = s.AddTask("test-done", "A done task")
 	_ = s.SetStatus("test-done", task.StatusDone)
 
-	cleanup := func() {
-		os.RemoveAll(dir)
-	}
+	cleanup := func() {}
 
 	return s, cleanup
 }

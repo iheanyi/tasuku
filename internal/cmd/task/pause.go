@@ -22,7 +22,10 @@ Examples:
   tk task pause task-1 task-2             # Pause multiple tasks`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		for _, taskID := range args {
 			// Auto-stop timer if running

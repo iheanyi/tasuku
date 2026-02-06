@@ -113,7 +113,10 @@ func newStatusCmd() *cobra.Command {
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -194,7 +197,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show stats
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	f, err := s.Read()
 	if err != nil {
 		return nil // Just show targets if no store

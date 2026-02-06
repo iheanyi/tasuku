@@ -911,7 +911,8 @@ func TestRunPlanSyncNoStorage(t *testing.T) {
 	os.WriteFile(planPath, []byte(planContent), 0644)
 
 	// Plan-sync should error when no storage exists
-	err := planSyncCmd.RunE(planSyncCmd, []string{planPath})
+	cmd := newPlanSyncCmd()
+	err := cmd.RunE(cmd, []string{planPath})
 	if err == nil || !strings.Contains(err.Error(), "no Tasuku storage") {
 		t.Errorf("expected 'no Tasuku storage' error, got: %v", err)
 	}

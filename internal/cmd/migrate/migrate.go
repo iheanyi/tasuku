@@ -25,8 +25,8 @@ func newMigrateCmd() *cobra.Command {
 Available subcommands:
   beads    Import from Beads (.beads/issues.jsonl)
   overseer Import from Overseer (.overseer/tasks.db)
-  v3       Migrate to V3 directory-based storage format
-  v4       Migrate to V4 Markdown-based storage format
+  v3       Migrate from V2 (.tasuku.json) to V4 Markdown format
+  v4       Migrate from V3 (.tasuku/ JSON) to V4 Markdown format
 
 Run 'tk migrate <subcommand> --help' for details on each source.`,
 	}
@@ -74,34 +74,22 @@ Examples:
 func newV3Cmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "v3",
-		Short: "Migrate to V3 directory-based storage format",
-		Long: `Migrate from the single .tasuku.json file to the V3 directory-based format.
+		Short: "Migrate from V2 (.tasuku.json) directly to V4 Markdown format",
+		Long: `Migrate from the legacy .tasuku.json file directly to the V4 Markdown format.
 
-The V3 format uses a .tasuku/ directory with one file per task:
-  .tasuku/
-  ├── config.json       # Version and settings
-  ├── tasks/            # One JSON file per task
-  │   ├── task-1.json
-  │   └── task-2.json
-  ├── archive/          # Archived tasks
-  └── context/          # Learnings, decisions, notes
-
-Benefits of V3 format:
-  - No merge conflicts when multiple agents work in parallel
-  - Each task can be edited independently
-  - Cleaner git history (changes show which task was modified)
-  - Archive/restore is just moving files
+Note: V3 is no longer a supported storage format. This command migrates V2
+data directly to V4, which is the current default format.
 
 The original .tasuku.json will be renamed to .tasuku.json.bak.
 
 Use --dry-run to preview what would be migrated without making changes.
 
 Examples:
-  tk migrate v3            # Migrate to V3 format
+  tk migrate v3            # Migrate V2 to V4 format
   tk migrate v3 --dry-run  # Preview migration`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dryRun, _ := cmd.Flags().GetBool("dry-run")
-			return migrateToV3(dryRun)
+			return migrateV2ToV4(dryRun)
 		},
 	}
 
@@ -110,7 +98,7 @@ Examples:
 	return cmd
 }
 
-func migrateToV3(dryRun bool) error {
+func migrateV2ToV4(dryRun bool) error {
 	// Check for existing .tasuku.json (use migration-specific function)
 	oldStore := store.GetV2StoreForMigration()
 	if oldStore == nil {
@@ -131,10 +119,10 @@ func migrateToV3(dryRun bool) error {
 		return fmt.Errorf("failed to read .tasuku.json: %w", err)
 	}
 
-	fmt.Println("V3 Migration Preview")
-	fmt.Println("====================")
-	fmt.Printf("Source: %s\n", oldPath)
-	fmt.Printf("Target: %s/\n", newPath)
+	fmt.Println("V2 → V4 Migration Preview")
+	fmt.Println("=========================")
+	fmt.Printf("Source: %s (V2 JSON)\n", oldPath)
+	fmt.Printf("Target: %s/ (V4 Markdown)\n", newPath)
 	fmt.Println()
 
 	fmt.Printf("Tasks to migrate: %d\n", len(f.Tasks))
@@ -155,8 +143,8 @@ func migrateToV3(dryRun bool) error {
 		return nil
 	}
 
-	// Create new directory store
-	newStore := store.NewDirStore(newPath)
+	// Create V4 store directly
+	newStore := v4store.New(newPath)
 	if err := newStore.Init(); err != nil {
 		return fmt.Errorf("failed to create .tasuku/ directory: %w", err)
 	}
@@ -164,7 +152,8 @@ func migrateToV3(dryRun bool) error {
 	// Migrate tasks
 	for id, t := range f.Tasks {
 		if err := newStore.AddTaskWithTags(id, t.Description, t.Priority, t.Tags); err != nil {
-			return fmt.Errorf("failed to migrate task %s: %w", id, err)
+			fmt.Printf("  Warning: failed to add task %s: %v\n", id, err)
+			continue
 		}
 		// Update additional fields
 		newStore.Update(func(nf *task.File) error {
@@ -182,12 +171,20 @@ func migrateToV3(dryRun bool) error {
 			nf.Tasks[id] = nt
 			return nil
 		})
+
+		// Migrate notes for this task (preserving timestamps)
+		if notes, ok := f.Context.Notes[id]; ok {
+			for _, note := range notes {
+				newStore.AddNoteFull(id, note)
+			}
+		}
+
 		fmt.Printf("  ✓ Task: %s\n", id)
 	}
 
 	// Migrate learnings
 	for _, l := range f.Context.Learnings {
-		newStore.AddLearningWithRule(l.Text, &l.IsRule)
+		newStore.AddLearningFull(l)
 	}
 	if len(f.Context.Learnings) > 0 {
 		fmt.Printf("  ✓ Learnings: %d\n", len(f.Context.Learnings))
@@ -201,20 +198,13 @@ func migrateToV3(dryRun bool) error {
 		fmt.Printf("  ✓ Decisions: %d\n", len(f.Context.Decisions))
 	}
 
-	// Migrate notes
-	for taskID, notes := range f.Context.Notes {
-		for _, note := range notes {
-			newStore.AddNote(taskID, note.Text)
-		}
-	}
-	if noteCount > 0 {
-		fmt.Printf("  ✓ Notes: %d\n", noteCount)
-	}
-
 	// Migrate archive
 	for id, archived := range f.Archive {
 		// Create task, set status to done, then archive
-		newStore.AddTask(id, archived.Description)
+		if err := newStore.AddTask(id, archived.Description); err != nil {
+			fmt.Printf("  Warning: failed to add archived task %s: %v\n", id, err)
+			continue
+		}
 		newStore.Update(func(nf *task.File) error {
 			t := nf.Tasks[id]
 			t.Status = task.StatusDone
@@ -311,7 +301,10 @@ func migrateFromBeads(dryRun bool) error {
 		return nil
 	}
 
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	if !s.Exists() {
 		if err := s.Init(); err != nil {
 			return err
@@ -459,7 +452,7 @@ func migrateToV4(dryRun bool) error {
 	case store.StorageTypeDirV4:
 		return fmt.Errorf("already using V4 format")
 	case store.StorageTypeFile:
-		return fmt.Errorf("please migrate to V3 first: tk migrate v3")
+		return fmt.Errorf("V2 format detected - run 'tk migrate v3' to upgrade directly to V4")
 	case store.StorageTypeNone:
 		return fmt.Errorf("no Tasuku storage found - run 'tk init' first")
 	}

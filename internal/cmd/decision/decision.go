@@ -98,7 +98,10 @@ Examples:
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -159,7 +162,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		Because: because,
 	}
 
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	if err := s.AddDecision(d); err != nil {
 		return err
 	}
@@ -170,7 +176,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 func runRemove(cmd *cobra.Command, args []string) error {
 	decisionID := args[0]
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 
 	return s.Update(func(f *task.File) error {
 		for i, d := range f.Context.Decisions {

@@ -57,18 +57,6 @@ func (t Tool) String() string {
 	return string(t)
 }
 
-// All returns all supported tools.
-func All() []Tool {
-	return []Tool{
-		ToolClaude,
-		ToolCursor,
-		ToolCopilot,
-		ToolCodex,
-		ToolOpenCode,
-		ToolGemini,
-	}
-}
-
 // ValidNames returns a comma-separated string of valid tool names for error messages.
 func ValidNames() string {
 	return "claude, cursor, copilot, codex, opencode, gemini"

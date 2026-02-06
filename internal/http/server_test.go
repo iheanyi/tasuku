@@ -9,33 +9,23 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/iheanyi/tasuku/internal/store"
+	v4 "github.com/iheanyi/tasuku/internal/store/v4"
 )
 
 func setupTestServer(t *testing.T) (*Server, func()) {
 	t.Helper()
 
-	// Create temp directory with .tasuku.json
 	dir := t.TempDir()
-	tasukuPath := filepath.Join(dir, ".tasuku.json")
-	initialData := `{
-		"version": 1,
-		"tasks": {},
-		"context": {
-			"learnings": [],
-			"decisions": [],
-			"notes": {}
-		}
-	}`
-	if err := os.WriteFile(tasukuPath, []byte(initialData), 0644); err != nil {
-		t.Fatalf("failed to create .tasuku.json: %v", err)
+	root := filepath.Join(dir, ".tasuku")
+	s := v4.New(root)
+	if err := s.Init(); err != nil {
+		t.Fatalf("failed to init store: %v", err)
 	}
 
 	// Change to temp directory
 	oldDir, _ := os.Getwd()
 	os.Chdir(dir)
 
-	s := store.Default()
 	srv := New(s)
 
 	cleanup := func() {
@@ -507,8 +497,8 @@ func TestGetContext(t *testing.T) {
 		t.Fatalf("failed to parse response: %v", err)
 	}
 
-	if ctx["version"] != float64(1) {
-		t.Errorf("expected version 1, got '%v'", ctx["version"])
+	if ctx["version"] != float64(4) {
+		t.Errorf("expected version 4, got '%v'", ctx["version"])
 	}
 }
 

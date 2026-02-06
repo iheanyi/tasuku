@@ -27,7 +27,10 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID := args[0]
 			syncFlag, _ := cmd.Flags().GetBool("sync")
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			if err := s.ReleaseTask(taskID); err != nil {
 				return err

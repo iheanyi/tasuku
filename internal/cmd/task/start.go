@@ -31,7 +31,10 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			unblock, _ := cmd.Flags().GetBool("unblock")
 			startTimer, _ := cmd.Flags().GetBool("timer")
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			for _, taskID := range args {
 				// If unblock flag is set, clear blockers first

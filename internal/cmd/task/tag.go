@@ -53,7 +53,10 @@ Examples:
 	Args: cobra.MinimumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		// Collect all tags, splitting comma-separated values
 		var tags []string
@@ -84,7 +87,10 @@ var tagRemoveCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		tag := args[1]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		if err := s.RemoveTag(taskID, tag); err != nil {
 			return err
@@ -110,7 +116,10 @@ var tagListCmd = &cobra.Command{
 	Short: "List tags on a task or all tags in project",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 		f, err := s.Read()
 		if err != nil {
 			return err

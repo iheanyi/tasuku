@@ -7,31 +7,28 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
+	"github.com/iheanyi/tasuku/internal/cmd/agentsmd"
+	"github.com/iheanyi/tasuku/internal/cmd/claudemd"
 	"github.com/iheanyi/tasuku/internal/cmd/config"
 	contextcmd "github.com/iheanyi/tasuku/internal/cmd/context"
 	"github.com/iheanyi/tasuku/internal/cmd/decision"
 	"github.com/iheanyi/tasuku/internal/cmd/hooks"
 	"github.com/iheanyi/tasuku/internal/cmd/learning"
 	"github.com/iheanyi/tasuku/internal/cmd/mcpcmd"
-	"github.com/iheanyi/tasuku/internal/cmd/agentsmd"
-	"github.com/iheanyi/tasuku/internal/cmd/claudemd"
 	"github.com/iheanyi/tasuku/internal/cmd/migrate"
 	"github.com/iheanyi/tasuku/internal/cmd/note"
 	plugincmd "github.com/iheanyi/tasuku/internal/cmd/plugin"
 	"github.com/iheanyi/tasuku/internal/cmd/pr"
 	rulescmd "github.com/iheanyi/tasuku/internal/cmd/rules"
 	"github.com/iheanyi/tasuku/internal/cmd/serve"
-	"github.com/iheanyi/tasuku/internal/cmd/skills"
 	taskcmd "github.com/iheanyi/tasuku/internal/cmd/task"
 	"github.com/iheanyi/tasuku/internal/cmd/ui"
 	"github.com/iheanyi/tasuku/internal/mcp"
 	"github.com/iheanyi/tasuku/internal/store"
-	"github.com/iheanyi/tasuku/internal/store/v4"
+	v4 "github.com/iheanyi/tasuku/internal/store/v4"
 	"github.com/iheanyi/tasuku/internal/task"
 	"github.com/iheanyi/tasuku/internal/version"
 )
@@ -79,7 +76,6 @@ For full documentation: https://github.com/iheanyi/tasuku`,
 	cmd.AddCommand(migrate.Cmd)
 	cmd.AddCommand(pr.Cmd)
 	cmd.AddCommand(ui.Cmd)
-	cmd.AddCommand(skills.Cmd)
 	cmd.AddCommand(plugincmd.Cmd)
 	cmd.AddCommand(rulescmd.Cmd)
 	cmd.AddCommand(claudemd.Cmd)
@@ -217,7 +213,10 @@ func runDoctor() error {
 	}
 
 	// 2. Check Tasuku storage
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	tasukuPath := s.Path()
 	if !s.Exists() {
 		fmt.Printf("✗ No Tasuku storage found (searched from %s)\n", mustGetwd())
@@ -471,11 +470,13 @@ Examples:
 			learningText := args[0]
 			permanent, _ := cmd.Flags().GetBool("permanent")
 			forceRule, _ := cmd.Flags().GetBool("rule")
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 
 			var id string
 			var isRule bool
-			var err error
 
 			if forceRule {
 				ruleVal := true
@@ -546,7 +547,10 @@ Examples:
 				Because: because,
 			}
 
-			s := store.DefaultStorageWithWarning()
+			s, err := store.DefaultStorageWithWarning()
+			if err != nil {
+				return err
+			}
 			if err := s.AddDecision(d); err != nil {
 				return err
 			}
@@ -593,424 +597,4 @@ func appendLearningToCLAUDEmd(content string) error {
 	}
 
 	return os.WriteFile(claudePath, []byte(text), 0644)
-}
-
-// AITool represents a supported AI tool configuration
-type AITool struct {
-	Name         string
-	SettingsPath string
-	MCPKey       string
-}
-
-func getSupportedAITools() []AITool {
-	home, _ := os.UserHomeDir()
-	configDir := home + "/.config"
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		configDir = xdg
-	}
-
-	return []AITool{
-		{"Claude Code", home + "/.claude.json", "mcpServers"},
-		{"Cursor", home + "/.cursor/mcp.json", "mcpServers"},
-		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers"},
-		{"OpenCode", configDir + "/opencode/opencode.json", "mcp"},
-	}
-}
-
-// HealthReport represents the project health check result
-type HealthReport struct {
-	HealthScore     int            `json:"health_score" yaml:"health_score"`
-	HealthStatus    string         `json:"health_status" yaml:"health_status"`
-	TaskCounts      map[string]int `json:"task_counts" yaml:"task_counts"`
-	PriorityCounts  map[string]int `json:"priority_counts" yaml:"priority_counts"`
-	Issues          HealthIssues   `json:"issues" yaml:"issues"`
-	Recommendations []string       `json:"recommendations" yaml:"recommendations"`
-	LearningsCount  int            `json:"learnings_count" yaml:"learnings_count"`
-	DecisionsCount  int            `json:"decisions_count" yaml:"decisions_count"`
-}
-
-// HealthIssues represents issues found in the health check
-type HealthIssues struct {
-	StaleInProgress     []string `json:"stale_in_progress,omitempty" yaml:"stale_in_progress,omitempty"`
-	HighPriorityBlocked []string `json:"high_priority_blocked,omitempty" yaml:"high_priority_blocked,omitempty"`
-	LongRunningTimers   []string `json:"long_running_timers,omitempty" yaml:"long_running_timers,omitempty"`
-	StaleDoneCount      int      `json:"stale_done_count" yaml:"stale_done_count"`
-	RuleLearnings       int      `json:"rule_learnings" yaml:"rule_learnings"`
-}
-
-// newHealthCmd creates the health check command
-func newHealthCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "health",
-		Short: "Check project health and get recommendations",
-		Long: `Perform a project health check with actionable recommendations.
-
-Checks for:
-  - Stale in-progress tasks (not updated in 24h)
-  - High-priority blocked tasks
-  - Long-running timers (4+ hours)
-  - Old done tasks ready for archival
-  - Rule learnings ready for promotion
-
-Examples:
-  tk health              # Show health report
-  tk health -f json      # Output as JSON
-  tk health -f yaml      # Output as YAML`,
-		RunE: runHealth,
-	}
-}
-
-func runHealth(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
-	f, err := s.Read()
-	if err != nil {
-		return err
-	}
-
-	report := computeHealth(f)
-	return outputHealth(report)
-}
-
-func computeHealth(f *task.File) HealthReport {
-	now := time.Now()
-
-	statusCounts := map[string]int{}
-	priorityCounts := map[string]int{}
-	var staleInProgress []string
-	var staleDone []string
-	var longRunningTimers []string
-	var highPriorityBlocked []string
-
-	for id, t := range f.Tasks {
-		statusCounts[string(t.Status)]++
-
-		switch t.GetPriority() {
-		case task.PriorityCritical:
-			priorityCounts["critical"]++
-		case task.PriorityHigh:
-			priorityCounts["high"]++
-		case task.PriorityNormal:
-			priorityCounts["normal"]++
-		case task.PriorityLow:
-			priorityCounts["low"]++
-		case task.PriorityBacklog:
-			priorityCounts["backlog"]++
-		}
-
-		// Stale in_progress (>24h)
-		if t.Status == task.StatusInProgress && now.Sub(t.UpdatedAt) > 24*time.Hour {
-			staleInProgress = append(staleInProgress, id)
-		}
-
-		// Stale done tasks (>7 days)
-		if t.Status == task.StatusDone && now.Sub(t.UpdatedAt) > 7*24*time.Hour {
-			staleDone = append(staleDone, id)
-		}
-
-		// High priority blocked
-		if t.Status == task.StatusBlocked && t.GetPriority() <= task.PriorityHigh {
-			highPriorityBlocked = append(highPriorityBlocked, id)
-		}
-
-		// Long-running timers
-		if t.IsTimerRunning() && t.TimerStart != nil && now.Sub(*t.TimerStart) > 4*time.Hour {
-			longRunningTimers = append(longRunningTimers, id)
-		}
-	}
-
-	// Count rule learnings
-	ruleCount := 0
-	for _, l := range f.Context.Learnings {
-		if l.IsRule {
-			ruleCount++
-		}
-	}
-
-	// Build recommendations
-	var recommendations []string
-
-	if len(staleInProgress) > 0 {
-		recommendations = append(recommendations,
-			fmt.Sprintf("STALE: %d in_progress task(s) not updated in 24h: %v - update or pause them",
-				len(staleInProgress), staleInProgress))
-	}
-
-	if len(highPriorityBlocked) > 0 {
-		recommendations = append(recommendations,
-			fmt.Sprintf("BLOCKED: %d high-priority task(s) blocked: %v - unblock to make progress",
-				len(highPriorityBlocked), highPriorityBlocked))
-	}
-
-	if len(longRunningTimers) > 0 {
-		recommendations = append(recommendations,
-			fmt.Sprintf("TIMERS: %d timer(s) running 4+ hours: %v - stop if not active",
-				len(longRunningTimers), longRunningTimers))
-	}
-
-	if len(staleDone) > 0 {
-		recommendations = append(recommendations,
-			fmt.Sprintf("ARCHIVE: %d done task(s) older than 7 days: consider archiving with 'tk task archive add'",
-				len(staleDone)))
-	}
-
-	if ruleCount > 0 {
-		recommendations = append(recommendations,
-			fmt.Sprintf("PROMOTE: %d rule learning(s) ready for promotion to docs - use 'tk learning list --rules'",
-				ruleCount))
-	}
-
-	// Calculate health score
-	healthScore := 100
-	healthScore -= len(staleInProgress) * 10
-	healthScore -= len(highPriorityBlocked) * 15
-	healthScore -= len(longRunningTimers) * 5
-	if healthScore < 0 {
-		healthScore = 0
-	}
-
-	var healthStatus string
-	if healthScore >= 80 {
-		healthStatus = "healthy"
-	} else if healthScore >= 50 {
-		healthStatus = "needs attention"
-	} else {
-		healthStatus = "unhealthy"
-	}
-
-	return HealthReport{
-		HealthScore:  healthScore,
-		HealthStatus: healthStatus,
-		TaskCounts: map[string]int{
-			"total":       len(f.Tasks),
-			"ready":       statusCounts["ready"],
-			"in_progress": statusCounts["in_progress"],
-			"blocked":     statusCounts["blocked"],
-			"done":        statusCounts["done"],
-		},
-		PriorityCounts: priorityCounts,
-		Issues: HealthIssues{
-			StaleInProgress:     staleInProgress,
-			HighPriorityBlocked: highPriorityBlocked,
-			LongRunningTimers:   longRunningTimers,
-			StaleDoneCount:      len(staleDone),
-			RuleLearnings:       ruleCount,
-		},
-		Recommendations: recommendations,
-		LearningsCount:  len(f.Context.Learnings),
-		DecisionsCount:  len(f.Context.Decisions),
-	}
-}
-
-func outputHealth(report HealthReport) error {
-	switch config.OutputFormat {
-	case "json":
-		data, _ := json.MarshalIndent(report, "", "  ")
-		fmt.Println(string(data))
-	case "yaml":
-		data, _ := yaml.Marshal(report)
-		fmt.Print(string(data))
-	default:
-		// Table format
-		fmt.Println("Project Health Check")
-		fmt.Println("====================")
-		fmt.Println()
-
-		// Health score with emoji
-		var emoji string
-		switch report.HealthStatus {
-		case "healthy":
-			emoji = "✓"
-		case "needs attention":
-			emoji = "⚠"
-		default:
-			emoji = "✗"
-		}
-		fmt.Printf("Health: %s %s (%d/100)\n", emoji, report.HealthStatus, report.HealthScore)
-		fmt.Println()
-
-		// Task counts
-		fmt.Println("Tasks")
-		fmt.Println("-----")
-		fmt.Printf("  Total:       %d\n", report.TaskCounts["total"])
-		fmt.Printf("  Ready:       %d\n", report.TaskCounts["ready"])
-		fmt.Printf("  In Progress: %d\n", report.TaskCounts["in_progress"])
-		fmt.Printf("  Blocked:     %d\n", report.TaskCounts["blocked"])
-		fmt.Printf("  Done:        %d\n", report.TaskCounts["done"])
-		fmt.Println()
-
-		// Priority breakdown
-		if len(report.PriorityCounts) > 0 {
-			fmt.Println("Priority Breakdown")
-			fmt.Println("------------------")
-			for _, p := range []string{"critical", "high", "normal", "low", "backlog"} {
-				if count, ok := report.PriorityCounts[p]; ok && count > 0 {
-					fmt.Printf("  %-10s %d\n", p+":", count)
-				}
-			}
-			fmt.Println()
-		}
-
-		// Context
-		fmt.Println("Context")
-		fmt.Println("-------")
-		fmt.Printf("  Learnings:   %d\n", report.LearningsCount)
-		fmt.Printf("  Decisions:   %d\n", report.DecisionsCount)
-		fmt.Println()
-
-		// Recommendations
-		if len(report.Recommendations) > 0 {
-			fmt.Println("Recommendations")
-			fmt.Println("---------------")
-			for _, rec := range report.Recommendations {
-				fmt.Printf("  • %s\n", rec)
-			}
-		} else {
-			fmt.Println("No issues found. Project is healthy!")
-		}
-	}
-	return nil
-}
-
-// SuggestResult represents the result of analyzing a task description
-type SuggestResult struct {
-	ShouldPersist       bool   `json:"should_persist" yaml:"should_persist"`
-	Reason              string `json:"reason" yaml:"reason"`
-	MatchedKeyword      string `json:"matched_keyword,omitempty" yaml:"matched_keyword,omitempty"`
-	Recommendation      string `json:"recommendation" yaml:"recommendation"`
-	SuggestedCommand    string `json:"suggested_command,omitempty" yaml:"suggested_command,omitempty"`
-	OriginalDescription string `json:"original_description" yaml:"original_description"`
-}
-
-// newSuggestCmd creates the suggest command for analyzing task descriptions
-func newSuggestCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "suggest \"task description\"",
-		Short: "Analyze if a task should persist to tk or stay session-only",
-		Long: `Analyze a task description to determine if it should be tracked in Tasuku
-(project-level, persistent across sessions) or kept as a TodoWrite item only
-(session-level, ephemeral).
-
-This helps agents and users decide where to track work:
-  - Project-level tasks (features, bugs, milestones) → tk task add
-  - Session-level tasks (implementation steps, quick fixes) → TodoWrite only
-
-Examples:
-  tk suggest "Implement user authentication"
-  # → ✓ PERSIST TO TK (project-level feature)
-
-  tk suggest "Fix type error in auth.ts"
-  # → ✗ KEEP SESSION-ONLY (implementation step)
-
-  tk suggest "Add dark mode support" -f json
-  # → JSON output with full analysis`,
-		Args: cobra.ExactArgs(1),
-		RunE: runSuggest,
-	}
-}
-
-func runSuggest(cmd *cobra.Command, args []string) error {
-	description := args[0]
-	result := analyzeSuggestion(description)
-	return outputSuggestion(result)
-}
-
-func analyzeSuggestion(description string) SuggestResult {
-	desc := strings.ToLower(description)
-
-	// Keywords that indicate project-level tasks (should persist to tk)
-	projectKeywords := []string{
-		"implement", "add feature", "build", "create", "develop",
-		"fix bug", "bugfix", "hotfix", "patch",
-		"refactor", "rewrite", "redesign", "rearchitect",
-		"migrate", "upgrade", "update dependency",
-		"integrate", "connect", "setup", "configure",
-		"support", "enable", "add support",
-		"milestone", "epic", "feature", "story",
-		"api endpoint", "database", "schema",
-		"authentication", "authorization", "security",
-		"performance", "optimize", "cache",
-		"deploy", "release", "ship",
-	}
-
-	// Keywords that indicate session-level tasks (TodoWrite only)
-	sessionKeywords := []string{
-		"fix type error", "fix typo", "fix lint",
-		"update file", "edit file", "modify file",
-		"read file", "check file", "review file",
-		"run test", "run build", "run script",
-		"verify", "check", "confirm", "ensure",
-		"debug", "investigate", "look into",
-		"format", "cleanup", "tidy",
-		"add comment", "add docstring", "add import",
-		"remove unused", "delete unused",
-		"rename variable", "rename function",
-	}
-
-	shouldPersist := false
-	reason := "No strong project-level indicators found"
-	matchedKeyword := ""
-
-	// Check for project keywords
-	for _, kw := range projectKeywords {
-		if strings.Contains(desc, kw) {
-			shouldPersist = true
-			matchedKeyword = kw
-			reason = fmt.Sprintf("Contains project-level keyword '%s' - this looks like a feature, bug, or significant change that should be tracked across sessions", kw)
-			break
-		}
-	}
-
-	// Session keywords can override if they match
-	for _, kw := range sessionKeywords {
-		if strings.Contains(desc, kw) {
-			shouldPersist = false
-			matchedKeyword = kw
-			reason = fmt.Sprintf("Contains session-level keyword '%s' - this looks like an implementation step that doesn't need to persist", kw)
-			break
-		}
-	}
-
-	result := SuggestResult{
-		ShouldPersist:       shouldPersist,
-		Reason:              reason,
-		MatchedKeyword:      matchedKeyword,
-		OriginalDescription: description,
-	}
-
-	if shouldPersist {
-		result.SuggestedCommand = fmt.Sprintf("tk task add %q", description)
-		result.Recommendation = "Add this to tk for persistent tracking across sessions"
-	} else {
-		result.Recommendation = "Keep this in TodoWrite only - it's a session-level implementation step"
-	}
-
-	return result
-}
-
-func outputSuggestion(result SuggestResult) error {
-	switch config.OutputFormat {
-	case "json":
-		data, _ := json.MarshalIndent(result, "", "  ")
-		fmt.Println(string(data))
-	case "yaml":
-		data, _ := yaml.Marshal(result)
-		fmt.Print(string(data))
-	default:
-		// Human-readable format
-		if result.ShouldPersist {
-			fmt.Println("✓ PERSIST TO TK")
-			fmt.Println()
-			fmt.Printf("  Reason: %s\n", result.Reason)
-			fmt.Println()
-			fmt.Printf("  Suggested command:\n")
-			fmt.Printf("    %s\n", result.SuggestedCommand)
-		} else {
-			fmt.Println("✗ KEEP SESSION-ONLY")
-			fmt.Println()
-			fmt.Printf("  Reason: %s\n", result.Reason)
-			fmt.Println()
-			fmt.Println("  Use TodoWrite to track this implementation step.")
-		}
-	}
-	return nil
 }

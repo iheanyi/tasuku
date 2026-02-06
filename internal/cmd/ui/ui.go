@@ -42,7 +42,10 @@ Then open http://localhost:8080 in your browser.`,
 }
 
 func runUI(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 
 	if !s.Exists() {
 		return fmt.Errorf("no Tasuku storage found - run 'tk init' first")

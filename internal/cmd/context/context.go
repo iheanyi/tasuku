@@ -113,7 +113,10 @@ Examples:
 }
 
 func runShow(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -131,7 +134,10 @@ func runShow(cmd *cobra.Command, args []string) error {
 
 // RunValidate validates the Tasuku storage for correctness.
 func RunValidate(cmd *cobra.Command, args []string) error {
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 	f, err := s.Read()
 	if err != nil {
 		return fmt.Errorf("validation failed: %w", err)

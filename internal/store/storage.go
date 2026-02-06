@@ -14,8 +14,16 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
+// MigrationReader defines the minimal interface for legacy storage backends (V2/V3).
+// These backends are only used to read data for migration to the current format (V4).
+type MigrationReader interface {
+	Read() (*task.File, error)
+	Exists() bool
+	Path() string
+}
+
 // Storage defines the interface for task storage backends.
-// Both Store (single file) and DirStore (directory) implement this interface.
+// Only the V4 store implements this interface.
 type Storage interface {
 	// Core operations
 	Path() string
@@ -23,6 +31,12 @@ type Storage interface {
 	Init() error
 	Read() (*task.File, error)
 	Update(fn func(*task.File) error) error
+
+	// Index-based fast reads (reads index.json instead of all task files)
+	ListFromIndex() ([]task.TaskSummary, error)                   // Returns task summaries from index
+	CountByStatus() (map[string]int, error)                       // Returns status counts from index
+	GetSubtaskIDs(parentID string) ([]string, error)              // Returns subtask IDs from index
+	ContextCounts() (learnings int, decisions int, err error)     // Returns learnings/decisions counts from index
 
 	// Task operations
 	AddTask(id, description string) error
@@ -179,14 +193,10 @@ func DetectStorageTypeUp() (StorageType, string) {
 	}
 }
 
-// ErrV2Detected is returned when legacy V2 format is detected.
-// Users should migrate to V3 using 'tk migrate v3'.
-var ErrV2Detected = fmt.Errorf("legacy .tasuku.json format detected - run 'tk migrate v3' to upgrade")
-
 // AutoDetect returns the appropriate storage backend based on what exists.
-// It supports V4 (.tasuku/ with config.json version=4) and V3 (.tasuku/) formats.
-// If V2 (.tasuku.json) is detected, it returns nil and users should migrate.
-// If neither exists, returns a V4 Markdown store (the default for new projects).
+// Only V4 (.tasuku/ with config.json version=4) is supported as a full storage backend.
+// Legacy formats (V2 .tasuku.json, V3 .tasuku/) return nil and require migration.
+// If no storage exists, returns a V4 Markdown store (the default for new projects).
 func AutoDetect() Storage {
 	storageType, dir := DetectStorageTypeUp()
 
@@ -194,9 +204,10 @@ func AutoDetect() Storage {
 	case StorageTypeDirV4:
 		return v4.New(filepath.Join(dir, DirName))
 	case StorageTypeDir:
-		return NewDirStore(filepath.Join(dir, DirName))
+		// V3 detected - return nil to signal migration needed
+		return nil
 	case StorageTypeFile:
-		// V2 detected - return nil to signal error
+		// V2 detected - return nil to signal migration needed
 		return nil
 	default:
 		// Default to V4 Markdown-based storage for new projects
@@ -205,7 +216,7 @@ func AutoDetect() Storage {
 }
 
 // AutoDetectWithWarning returns the storage backend and an error if
-// the V1/V2 format is detected and must be migrated.
+// a legacy format (V2 or V3) is detected and must be migrated.
 func AutoDetectWithWarning() (Storage, error) {
 	storageType, dir := DetectStorageTypeUp()
 
@@ -213,20 +224,15 @@ func AutoDetectWithWarning() (Storage, error) {
 	case StorageTypeDirV4:
 		return v4.New(filepath.Join(dir, DirName)), nil
 	case StorageTypeDir:
-		return NewDirStore(filepath.Join(dir, DirName)), nil
+		// V3 detected - return error requiring migration
+		return nil, fmt.Errorf("legacy V3 format detected at %s - run 'tk migrate v4' to upgrade", filepath.Join(dir, DirName))
 	case StorageTypeFile:
 		// V2 detected - return error requiring migration
-		return nil, fmt.Errorf("legacy .tasuku.json format detected at %s - run 'tk migrate v3' to upgrade", filepath.Join(dir, DefaultFileName))
+		return nil, fmt.Errorf("legacy .tasuku.json format detected at %s - run 'tk migrate v4' to upgrade", filepath.Join(dir, DefaultFileName))
 	default:
 		// Default to V4 Markdown-based storage for new projects
 		return v4.New(DirName), nil
 	}
-}
-
-// NeedsMigration returns true if a V1/V2 file exists and should be migrated.
-func NeedsMigration() bool {
-	storageType, _ := DetectStorageTypeUp()
-	return storageType == StorageTypeFile
 }
 
 // GetV2StoreForMigration returns the V2 file store for migration purposes.
@@ -234,7 +240,7 @@ func NeedsMigration() bool {
 // This is the ONLY function that should access V2 storage directly.
 // Note: This directly checks for .tasuku.json file regardless of whether
 // .tasuku/ directory exists, so migration can detect "already migrated" state.
-func GetV2StoreForMigration() Storage {
+func GetV2StoreForMigration() MigrationReader {
 	dir, err := os.Getwd()
 	if err != nil {
 		return nil
@@ -261,20 +267,16 @@ func GetV2StoreForMigration() Storage {
 	}
 }
 
-// DefaultStorage returns the auto-detected storage backend.
-// This is the recommended way to get a storage instance in CLI commands.
-func DefaultStorage() Storage {
-	return AutoDetect()
+// GetV3StoreForMigration returns the V3 directory store for migration purposes.
+// Returns nil if no V3 storage is detected.
+// This is the ONLY function that should access V3 storage directly.
+func GetV3StoreForMigration(root string) MigrationReader {
+	return NewDirStore(root)
 }
 
 // DefaultStorageWithWarning returns the auto-detected storage backend.
-// If legacy V2 format is detected, prints an error and exits.
+// If legacy format is detected, returns an error requiring migration.
 // This is the recommended function for CLI commands.
-func DefaultStorageWithWarning() Storage {
-	storage, err := AutoDetectWithWarning()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
-		os.Exit(1)
-	}
-	return storage
+func DefaultStorageWithWarning() (Storage, error) {
+	return AutoDetectWithWarning()
 }

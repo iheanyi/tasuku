@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func isEmptyString(s string) bool {
 
 // filterEmptyStrings removes empty/whitespace-only strings from a slice.
 func filterEmptyStrings(slice []string) []string {
-	var result []string
+	result := make([]string, 0, len(slice))
 	for _, s := range slice {
 		if !isEmptyString(s) {
 			result = append(result, s)
@@ -191,14 +192,16 @@ func (s *Store) writeTask(id string, t task.Task, notes []task.Note) error {
 
 	// Update index
 	return s.updateIndex(func(idx *Index) {
-		idx.AddTask(id, TaskFrontmatter{
-			Status:    string(t.Status),
-			Priority:  t.Priority,
-			Tags:      t.Tags,
-			BlockedBy: t.BlockedBy,
-			ParentID:  ptrToStr(t.ParentID),
-			Owner:     ptrToStr(t.Owner),
-			UpdatedAt: t.UpdatedAt,
+		idx.AddTaskWithDescription(id, t.Description, TaskFrontmatter{
+			Status:     string(t.Status),
+			Priority:   t.Priority,
+			Tags:       t.Tags,
+			BlockedBy:  t.BlockedBy,
+			ParentID:   ptrToStr(t.ParentID),
+			Owner:      ptrToStr(t.Owner),
+			CreatedAt:  t.CreatedAt,
+			UpdatedAt:  t.UpdatedAt,
+			TimerStart: t.TimerStart,
 		})
 	})
 }
@@ -226,7 +229,7 @@ func (s *Store) listTaskIDs() ([]string, error) {
 		return nil, fmt.Errorf("store: failed to list tasks: %w", err)
 	}
 
-	var ids []string
+	ids := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
@@ -253,8 +256,11 @@ func (s *Store) updateIndex(fn func(*Index)) error {
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 
-	// Read current
-	data, _ := os.ReadFile(idxPath)
+	// Read current from locked fd
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("store: failed to seek index: %w", err)
+	}
+	data, _ := io.ReadAll(f)
 	var idx *Index
 	if len(data) > 0 {
 		idx, _ = ParseIndex(data)
@@ -292,7 +298,7 @@ func (s *Store) regenerateIndex() error {
 			continue // Skip malformed files
 		}
 
-		idx.AddTask(id, parsed.Frontmatter)
+		idx.AddTaskWithDescription(id, parsed.Description, parsed.Frontmatter)
 	}
 
 	// Count archived
@@ -348,8 +354,11 @@ func (s *Store) updateTask(id string, fn func(*task.Task, *[]task.Note) error) e
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 
-	// Read current state
-	data, err := os.ReadFile(path)
+	// Read current state from locked fd
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("store: failed to seek: %w", err)
+	}
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return fmt.Errorf("store: failed to read: %w", err)
 	}
@@ -531,9 +540,14 @@ func (s *Store) AddTaskWithPriority(id, description string, priority *int) error
 	}
 
 	path := s.taskPath(id)
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("store: task %q already exists", id)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("store: task %q already exists", id)
+		}
+		return fmt.Errorf("store: failed to create task file: %w", err)
 	}
+	f.Close()
 
 	t := task.NewTask(description)
 	t.Priority = priority
@@ -550,9 +564,14 @@ func (s *Store) AddTaskWithTags(id, description string, priority *int, tags []st
 	}
 
 	path := s.taskPath(id)
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("store: task %q already exists", id)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("store: task %q already exists", id)
+		}
+		return fmt.Errorf("store: failed to create task file: %w", err)
 	}
+	f.Close()
 
 	t := task.NewTask(description)
 	t.Priority = priority
@@ -572,10 +591,19 @@ func (s *Store) AddSubtask(id, description, parentID string) error {
 		return fmt.Errorf("store: parent id cannot be empty")
 	}
 
-	if _, err := os.Stat(s.taskPath(id)); err == nil {
-		return fmt.Errorf("store: task %q already exists", id)
+	path := s.taskPath(id)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("store: task %q already exists", id)
+		}
+		return fmt.Errorf("store: failed to create task file: %w", err)
 	}
+	f.Close()
+
 	if _, err := os.Stat(s.taskPath(parentID)); os.IsNotExist(err) {
+		// Clean up the placeholder file we just created
+		os.Remove(path)
 		return fmt.Errorf("store: parent task %q not found (create it first with: tk task add \"description\" --id %s)", parentID, parentID)
 	}
 
@@ -1516,6 +1544,128 @@ func (s *Store) ClearArchive() (int, error) {
 	})
 
 	return count, nil
+}
+
+// =============================================================================
+// Index-Based Fast Reads
+// =============================================================================
+
+// readIndex reads and parses the index.json file.
+func (s *Store) readIndex() (*Index, error) {
+	if !s.Exists() {
+		return nil, ErrNotInitialized
+	}
+
+	idxPath := filepath.Join(s.root, IndexFileName)
+	data, err := os.ReadFile(idxPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Index doesn't exist yet, regenerate it
+			if err := s.regenerateIndex(); err != nil {
+				return nil, fmt.Errorf("store: failed to regenerate index: %w", err)
+			}
+			data, err = os.ReadFile(idxPath)
+			if err != nil {
+				return nil, fmt.Errorf("store: failed to read index: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("store: failed to read index: %w", err)
+		}
+	}
+
+	idx, err := ParseIndex(data)
+	if err != nil {
+		return nil, fmt.Errorf("store: failed to parse index: %w", err)
+	}
+	return idx, nil
+}
+
+// ListFromIndex returns task summaries from the index without reading individual task files.
+// This is O(1) file reads instead of O(n) for the full Read() method.
+func (s *Store) ListFromIndex() ([]task.TaskSummary, error) {
+	idx, err := s.readIndex()
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]task.TaskSummary, 0, len(idx.Tasks))
+	for id, meta := range idx.Tasks {
+		summary := task.TaskSummary{
+			ID:          id,
+			Status:      meta.Status,
+			Priority:    meta.Priority,
+			Tags:        meta.Tags,
+			BlockedBy:   meta.BlockedBy,
+			ParentID:    meta.ParentID,
+			Description: meta.Description,
+			CreatedAt:   meta.CreatedAt,
+			UpdatedAt:   meta.UpdatedAt,
+			TimerStart:  meta.TimerStart,
+		}
+		if meta.Owner != "" {
+			owner := meta.Owner
+			summary.Owner = &owner
+		}
+		// Ensure non-nil slices for JSON serialization
+		if summary.BlockedBy == nil {
+			summary.BlockedBy = []string{}
+		}
+		if summary.Tags == nil {
+			summary.Tags = []string{}
+		}
+		summaries = append(summaries, summary)
+	}
+
+	return summaries, nil
+}
+
+// CountByStatus returns task counts grouped by status from the index.
+// This avoids reading any task files at all.
+func (s *Store) CountByStatus() (map[string]int, error) {
+	idx, err := s.readIndex()
+	if err != nil {
+		return nil, err
+	}
+
+	counts := map[string]int{
+		"ready":       0,
+		"in_progress": 0,
+		"blocked":     0,
+		"done":        0,
+	}
+
+	for _, meta := range idx.Tasks {
+		counts[meta.Status]++
+	}
+
+	return counts, nil
+}
+
+// GetSubtaskIDs returns the IDs of all subtasks of a given parent from the index.
+func (s *Store) GetSubtaskIDs(parentID string) ([]string, error) {
+	idx, err := s.readIndex()
+	if err != nil {
+		return nil, err
+	}
+
+	var ids []string
+	for id, meta := range idx.Tasks {
+		if meta.ParentID == parentID {
+			ids = append(ids, id)
+		}
+	}
+
+	return ids, nil
+}
+
+// ContextCounts returns the number of learnings and decisions from the index.
+// This avoids reading and parsing the learnings.md and decisions.md files.
+func (s *Store) ContextCounts() (learnings int, decisions int, err error) {
+	idx, err := s.readIndex()
+	if err != nil {
+		return 0, 0, err
+	}
+	return idx.LearningsCount, idx.DecisionsCount, nil
 }
 
 // =============================================================================

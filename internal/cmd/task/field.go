@@ -62,7 +62,10 @@ Examples:
 		taskID := args[0]
 		key := args[1]
 		value := args[2]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		if err := s.SetField(taskID, key, value); err != nil {
 			return err
@@ -87,7 +90,10 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		key := args[1]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		f, err := s.Read()
 		if err != nil {
@@ -138,7 +144,10 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		f, err := s.Read()
 		if err != nil {
@@ -201,7 +210,10 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
 		key := args[1]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		if err := s.RemoveField(taskID, key); err != nil {
 			return err

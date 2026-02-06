@@ -20,7 +20,10 @@ Examples:
   tk task delete task-1 task-2 task-3     # Delete multiple tasks`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		for _, taskID := range args {
 			if err := s.DeleteTask(taskID); err != nil {

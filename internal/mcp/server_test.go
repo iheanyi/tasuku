@@ -8,17 +8,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/iheanyi/tasuku/internal/store"
+	v4 "github.com/iheanyi/tasuku/internal/store/v4"
 )
 
 func setupTestServer(t *testing.T) (*Server, string) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, ".tasuku.json")
-	s := store.New(path)
+	root := filepath.Join(dir, ".tasuku")
+	s := v4.New(root)
 	if err := s.Init(); err != nil {
 		t.Fatalf("failed to init store: %v", err)
 	}
-	return New(s), path
+	return New(s), root
 }
 
 func TestTools(t *testing.T) {
@@ -897,13 +897,16 @@ func TestHandleToolCall_Unblock(t *testing.T) {
 
 	// Add tasks
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "blocked-task",
+		"description": "Blocked task",
+		"id":          "blocked-task",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "blocker-1",
+		"description": "Blocker 1",
+		"id":          "blocker-1",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "blocker-2",
+		"description": "Blocker 2",
+		"id":          "blocker-2",
 	})
 
 	// Block task
@@ -1380,10 +1383,12 @@ func TestHandleToolCall_Who(t *testing.T) {
 
 	// Add and claim tasks
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "who-test-1",
+		"description": "Who test 1",
+		"id":          "who-test-1",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "who-test-2",
+		"description": "Who test 2",
+		"id":          "who-test-2",
 	})
 	server.HandleToolCall("tk_task", map[string]interface{}{
 		"action": "claim",
@@ -1422,16 +1427,19 @@ func TestHandleToolCall_Stats(t *testing.T) {
 
 	// Add tasks with different statuses
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "stats-ready",
+		"description": "Stats ready task",
+		"id":          "stats-ready",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "stats-progress",
+		"description": "Stats progress task",
+		"id":          "stats-progress",
 	})
 	server.HandleToolCall("tk_start", map[string]interface{}{
 		"id": "stats-progress",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "stats-done",
+		"description": "Stats done task",
+		"id":          "stats-done",
 	})
 	server.HandleToolCall("tk_done", map[string]interface{}{
 		"id": "stats-done",
@@ -1551,7 +1559,8 @@ func TestHandleToolCall_NoteOperations(t *testing.T) {
 
 	// Add a task with notes
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "note-ops-test",
+		"description": "Note operations test",
+		"id":          "note-ops-test",
 	})
 	server.HandleToolCall("tk_note", map[string]interface{}{
 		"task_id": "note-ops-test",
@@ -1608,13 +1617,16 @@ func TestHandleToolCall_Deps(t *testing.T) {
 
 	// Create task dependency chain: A blocked by B, B blocked by C
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "dep-a",
+		"description": "Dependency A",
+		"id":          "dep-a",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "dep-b",
+		"description": "Dependency B",
+		"id":          "dep-b",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "dep-c",
+		"description": "Dependency C",
+		"id":          "dep-c",
 	})
 	server.HandleToolCall("tk_block", map[string]interface{}{
 		"id":         "dep-a",
@@ -1647,7 +1659,8 @@ func TestHandleToolCall_Health(t *testing.T) {
 
 	// Add some data
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "health-test",
+		"description": "Health check test task",
+		"id":          "health-test",
 	})
 	server.HandleToolCall("tk_learn", map[string]interface{}{
 		"insight": "Never do this",
@@ -1673,10 +1686,12 @@ func TestHandleToolCall_StartWithUnblock(t *testing.T) {
 
 	// Create blocked task
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "blocked-start",
+		"description": "Task to start while blocked",
+		"id":          "blocked-start",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "blocker",
+		"description": "Blocker task",
+		"id":          "blocker",
 	})
 	server.HandleToolCall("tk_block", map[string]interface{}{
 		"id":         "blocked-start",
@@ -2688,16 +2703,19 @@ func TestHandleToolCall_ListArchivedSortOrder(t *testing.T) {
 
 	// Create tasks in different states
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "active-task",
+		"description": "Active task",
+		"id":          "active-task",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "done-task",
+		"description": "Done task",
+		"id":          "done-task",
 	})
 	server.HandleToolCall("tk_done", map[string]interface{}{
 		"id": "done-task",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "to-archive",
+		"description": "Task to archive",
+		"id":          "to-archive",
 	})
 	server.HandleToolCall("tk_done", map[string]interface{}{
 		"id": "to-archive",
@@ -2737,10 +2755,12 @@ func TestConsolidatedTool_BlockViaTaskAction(t *testing.T) {
 	server, _ := setupTestServer(t)
 
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "blocker",
+		"description": "Blocker task",
+		"id":          "blocker",
 	})
 	server.HandleToolCall("tk_add", map[string]interface{}{
-		"id": "blocked",
+		"description": "Blocked task",
+		"id":          "blocked",
 	})
 
 	// Block via tk_task consolidated tool

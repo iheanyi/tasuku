@@ -73,7 +73,10 @@ func runArchive(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--summary can only be used when archiving a single task")
 	}
 
-	s := store.DefaultStorageWithWarning()
+	s, err := store.DefaultStorageWithWarning()
+	if err != nil {
+		return err
+	}
 
 	// Bulk archive mode
 	if olderThan != "" {
@@ -165,7 +168,10 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		taskID := args[0]
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		archived, err := s.GetArchivedTask(taskID)
 		if err != nil {
@@ -222,7 +228,10 @@ This action cannot be undone. Use with caution.
 Examples:
   tk task archive clear`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		s := store.DefaultStorageWithWarning()
+		s, err := store.DefaultStorageWithWarning()
+		if err != nil {
+			return err
+		}
 
 		count, err := s.ClearArchive()
 		if err != nil {
