@@ -13,15 +13,16 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/iheanyi/tasuku/internal/cmd/config"
-	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
+
+	v4store "github.com/iheanyi/tasuku/internal/store/v4"
 )
 
 // Harness provides test utilities for CLI commands.
 type Harness struct {
 	t       *testing.T
 	tempDir string
-	store   *store.DirStore
+	store   *v4store.Store
 	stdout  *bytes.Buffer
 	stderr  *bytes.Buffer
 	origDir string
@@ -38,7 +39,7 @@ func New(t *testing.T) *Harness {
 
 	// Initialize storage in temp directory
 	storePath := filepath.Join(tempDir, ".tasuku")
-	s := store.NewDirStore(storePath)
+	s := v4store.New(storePath)
 	if err := s.Init(); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("failed to init store: %v", err)
@@ -74,7 +75,7 @@ func New(t *testing.T) *Harness {
 }
 
 // Store returns the test storage.
-func (h *Harness) Store() *store.DirStore {
+func (h *Harness) Store() *v4store.Store {
 	return h.store
 }
 

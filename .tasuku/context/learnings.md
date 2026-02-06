@@ -48,3 +48,7 @@ Cursor commands use plain Markdown files in .cursor/commands/ without YAML front
 ## bab923 - 2026-01-21T17:21:49Z
 Codex CLI (rmcp SDK) sends MCP notifications with full method names like 'notifications/initialized', not just 'initialized'. Always handle both forms: `case "initialized", "notifications/initialized":` to ensure compatibility.
 
+## 11b742 - 2026-02-05T22:43:45Z
+scope: internal/cmd/testutil/**
+Always ensure the test harness storage backend matches the production default. When migrating storage formats (V3→V4), the test harness must also be updated — otherwise ALL command tests pass but exercise the wrong backend. Added TestHarness_UsesV4Storage as a regression guard that detects if harness and AutoDetect() ever diverge.
+

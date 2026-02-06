@@ -283,6 +283,7 @@ func (s *Server) handleHooksInstall(args map[string]interface{}) (interface{}, e
 	codexOnly, _ := args["codex"].(bool)
 	opencodeOnly, _ := args["opencode"].(bool)
 	copilotOnly, _ := args["copilot"].(bool)
+	cursorOnly, _ := args["cursor"].(bool)
 	local, _ := args["local"].(bool)
 	force, _ := args["force"].(bool)
 
@@ -301,6 +302,9 @@ func (s *Server) handleHooksInstall(args map[string]interface{}) (interface{}, e
 	}
 	if copilotOnly {
 		cmd += " --copilot"
+	}
+	if cursorOnly {
+		cmd += " --cursor"
 	}
 	if local {
 		cmd += " --local"
@@ -324,6 +328,7 @@ func (s *Server) handleHooksUninstall(args map[string]interface{}) (interface{},
 	codexOnly, _ := args["codex"].(bool)
 	opencodeOnly, _ := args["opencode"].(bool)
 	copilotOnly, _ := args["copilot"].(bool)
+	cursorOnly, _ := args["cursor"].(bool)
 	local, _ := args["local"].(bool)
 
 	cmd := "tk hooks uninstall"
@@ -341,6 +346,9 @@ func (s *Server) handleHooksUninstall(args map[string]interface{}) (interface{},
 	}
 	if copilotOnly {
 		cmd += " --copilot"
+	}
+	if cursorOnly {
+		cmd += " --cursor"
 	}
 	if local {
 		cmd += " --local"

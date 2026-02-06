@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/iheanyi/tasuku/internal/store"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
@@ -86,6 +87,19 @@ func TestHarness_Learning(t *testing.T) {
 	}
 	if id == "" {
 		t.Error("learning ID should not be empty")
+	}
+}
+
+// TestHarness_UsesLatestStorage is a regression guard ensuring the test harness
+// uses the same storage format that AutoDetect resolves to in production.
+// If this test fails, it means the harness and production storage backends
+// have diverged — all command tests would be testing the wrong backend.
+func TestHarness_UsesLatestStorage(t *testing.T) {
+	h := New(t)
+
+	storageType := store.DetectStorageType(h.TempDir())
+	if storageType != store.LatestStorageType {
+		t.Fatalf("test harness uses storage type %d, but LatestStorageType is %d — update the harness", storageType, store.LatestStorageType)
 	}
 }
 

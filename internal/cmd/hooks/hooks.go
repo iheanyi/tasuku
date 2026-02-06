@@ -24,8 +24,8 @@ func newHooksCmd() *cobra.Command {
 		Long: `Manage hooks for git and AI tool integration with Tasuku.
 
 Install/Uninstall:
-  install    Install hooks (git, Claude Code, Codex, OpenCode, Copilot CLI)
-  uninstall  Remove hooks (git, Claude Code, Codex, OpenCode, Copilot CLI)
+  install    Install hooks (git, Claude Code, Codex, OpenCode, Copilot CLI, Cursor)
+  uninstall  Remove hooks (git, Claude Code, Codex, OpenCode, Copilot CLI, Cursor)
 
 Utility Commands:
   session        Display Tasuku context summary at session start
@@ -50,6 +50,13 @@ OpenCode hooks provide (via plugin):
   - session.created: Shows context summary at session start
   - session.idle: Reminds about running timers
   - todo.updated: Checks for project-level tasks
+
+Cursor hooks provide:
+  - sessionStart: Shows project context summary when session begins
+  - stop: Reminds about running timers and in-progress tasks
+  - preCompact: Shows context summary before compaction
+  - postToolUse: Checks if TodoWrite items should persist
+  - beforeSubmitPrompt: Detects task intent in prompts
 
 The sync/plan-sync commands apply the nudge rule: only project-level tasks
 are synced, session-level implementation steps are skipped.
@@ -79,7 +86,7 @@ func newInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install Tasuku hooks",
-		Long: `Install Tasuku hooks for git and AI tools (Claude Code, Codex, OpenCode).
+		Long: `Install Tasuku hooks for git and AI tools (Claude Code, Codex, OpenCode, Copilot CLI, Cursor).
 
 By default, installs all hooks. Use flags to install specific hooks only.
 
@@ -106,14 +113,23 @@ Copilot CLI hooks (always local in .github/hooks/):
   - userPromptSubmitted: Detects task intent in prompts
   - postToolUse: Checks if TodoWrite items should persist
 
+Cursor hooks (global ~/.cursor/ by default, or local ./.cursor/ with --local):
+  - sessionStart: Shows project context summary when session begins
+  - stop: Reminds about running timers and in-progress tasks
+  - preCompact: Shows context summary before compaction
+  - postToolUse: Checks if TodoWrite items should persist
+  - beforeSubmitPrompt: Detects task intent in prompts
+
 Examples:
-  tk hooks install              # Git + Claude + Codex + OpenCode + Copilot (global where applicable)
-  tk hooks install --local      # Git + Claude + OpenCode (local to project)
+  tk hooks install              # Git + Claude + Codex + OpenCode + Copilot + Cursor (global where applicable)
+  tk hooks install --local      # Git + Claude + OpenCode + Cursor (local to project)
   tk hooks install --git        # Install only git hooks
   tk hooks install --claude     # Install only Claude Code hooks (global)
   tk hooks install --codex      # Install only Codex hooks
   tk hooks install --opencode   # Install only OpenCode hooks (global)
   tk hooks install --copilot    # Install only Copilot CLI hooks (always local)
+  tk hooks install --cursor     # Install only Cursor hooks (global)
+  tk hooks install --cursor --local    # Cursor hooks local to project
   tk hooks install --opencode --local  # OpenCode hooks local to project`,
 		RunE: runInstall,
 	}
@@ -123,6 +139,7 @@ Examples:
 	cmd.Flags().Bool("codex", false, "Install Codex hooks only")
 	cmd.Flags().Bool("opencode", false, "Install OpenCode hooks only")
 	cmd.Flags().Bool("copilot", false, "Install Copilot CLI hooks only (always local)")
+	cmd.Flags().Bool("cursor", false, "Install Cursor hooks only")
 	cmd.Flags().Bool("force", false, "Overwrite existing hooks")
 	cmd.Flags().Bool("local", false, "Install hooks to project instead of global")
 
@@ -133,7 +150,7 @@ func newUninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove Tasuku hooks",
-		Long: `Remove Tasuku hooks from git and AI tools (Claude Code, Codex, OpenCode, Copilot CLI).
+		Long: `Remove Tasuku hooks from git and AI tools (Claude Code, Codex, OpenCode, Copilot CLI, Cursor).
 
 By default, removes all hooks. Use flags to remove specific hooks only.
 
@@ -145,7 +162,9 @@ Examples:
   tk hooks uninstall --codex             # Remove Codex hooks
   tk hooks uninstall --opencode          # Remove OpenCode hooks (global)
   tk hooks uninstall --opencode --local  # Remove OpenCode hooks (project)
-  tk hooks uninstall --copilot           # Remove Copilot CLI hooks`,
+  tk hooks uninstall --copilot           # Remove Copilot CLI hooks
+  tk hooks uninstall --cursor            # Remove Cursor hooks (global)
+  tk hooks uninstall --cursor --local    # Remove Cursor hooks (project)`,
 		RunE: runUninstall,
 	}
 
@@ -154,6 +173,7 @@ Examples:
 	cmd.Flags().Bool("codex", false, "Remove Codex hooks only")
 	cmd.Flags().Bool("opencode", false, "Remove OpenCode hooks only")
 	cmd.Flags().Bool("copilot", false, "Remove Copilot CLI hooks only")
+	cmd.Flags().Bool("cursor", false, "Remove Cursor hooks only")
 	cmd.Flags().Bool("local", false, "Remove hooks from project instead of global")
 
 	return cmd
@@ -165,16 +185,18 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	codexOnly, _ := cmd.Flags().GetBool("codex")
 	opencodeOnly, _ := cmd.Flags().GetBool("opencode")
 	copilotOnly, _ := cmd.Flags().GetBool("copilot")
+	cursorOnly, _ := cmd.Flags().GetBool("cursor")
 	force, _ := cmd.Flags().GetBool("force")
 	local, _ := cmd.Flags().GetBool("local")
 
 	// Determine what to install based on flags
-	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly || copilotOnly
+	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly || copilotOnly || cursorOnly
 	installGit := !anySpecific || gitOnly
 	installClaude := !anySpecific || claudeOnly
 	installCodex := !anySpecific || codexOnly
 	installOpenCode := !anySpecific || opencodeOnly
 	installCopilot := !anySpecific || copilotOnly
+	installCursor := !anySpecific || cursorOnly
 
 	var errors []string
 
@@ -210,6 +232,12 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if installCursor {
+		if err := installCursorHooks(force, local); err != nil {
+			errors = append(errors, fmt.Sprintf("cursor: %v", err))
+		}
+	}
+
 	if len(errors) > 0 {
 		return fmt.Errorf("some hooks failed to install:\n  %s", strings.Join(errors, "\n  "))
 	}
@@ -223,15 +251,17 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	codexOnly, _ := cmd.Flags().GetBool("codex")
 	opencodeOnly, _ := cmd.Flags().GetBool("opencode")
 	copilotOnly, _ := cmd.Flags().GetBool("copilot")
+	cursorOnly, _ := cmd.Flags().GetBool("cursor")
 	local, _ := cmd.Flags().GetBool("local")
 
 	// Determine what to uninstall based on flags
-	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly || copilotOnly
+	anySpecific := gitOnly || claudeOnly || codexOnly || opencodeOnly || copilotOnly || cursorOnly
 	uninstallGit := !anySpecific || gitOnly
 	uninstallClaude := !anySpecific || claudeOnly
 	uninstallCodex := !anySpecific || codexOnly
 	uninstallOpenCode := !anySpecific || opencodeOnly
 	uninstallCopilot := !anySpecific || copilotOnly
+	uninstallCursor := !anySpecific || cursorOnly
 
 	var errors []string
 
@@ -262,6 +292,12 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	if uninstallCopilot {
 		if err := uninstallCopilotHooks(); err != nil {
 			errors = append(errors, fmt.Sprintf("copilot: %v", err))
+		}
+	}
+
+	if uninstallCursor {
+		if err := uninstallCursorHooks(local); err != nil {
+			errors = append(errors, fmt.Sprintf("cursor: %v", err))
 		}
 	}
 

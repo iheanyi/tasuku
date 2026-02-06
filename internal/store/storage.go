@@ -95,6 +95,11 @@ const (
 	StorageTypeDirV4            // .tasuku/ (V4 Markdown)
 )
 
+// LatestStorageType is the current default storage format for new projects.
+// Update this when adding a new storage version so AutoDetect, the test
+// harness, and any assertions stay in sync automatically.
+const LatestStorageType = StorageTypeDirV4
+
 // DetectStorageType checks which storage format exists in the given directory.
 func DetectStorageType(dir string) StorageType {
 	// Check for directory format first (V3 or V4)
@@ -181,7 +186,7 @@ var ErrV2Detected = fmt.Errorf("legacy .tasuku.json format detected - run 'tk mi
 // AutoDetect returns the appropriate storage backend based on what exists.
 // It supports V4 (.tasuku/ with config.json version=4) and V3 (.tasuku/) formats.
 // If V2 (.tasuku.json) is detected, it returns nil and users should migrate.
-// If neither exists, returns a V3 directory store (the default for new projects).
+// If neither exists, returns a V4 Markdown store (the default for new projects).
 func AutoDetect() Storage {
 	storageType, dir := DetectStorageTypeUp()
 
@@ -194,8 +199,8 @@ func AutoDetect() Storage {
 		// V2 detected - return nil to signal error
 		return nil
 	default:
-		// Default to V3 directory-based storage for new projects
-		return NewDirStore(DirName)
+		// Default to V4 Markdown-based storage for new projects
+		return v4.New(DirName)
 	}
 }
 
@@ -213,8 +218,8 @@ func AutoDetectWithWarning() (Storage, error) {
 		// V2 detected - return error requiring migration
 		return nil, fmt.Errorf("legacy .tasuku.json format detected at %s - run 'tk migrate v3' to upgrade", filepath.Join(dir, DefaultFileName))
 	default:
-		// Default to V3 directory-based storage for new projects
-		return NewDirStore(DirName), nil
+		// Default to V4 Markdown-based storage for new projects
+		return v4.New(DirName), nil
 	}
 }
 

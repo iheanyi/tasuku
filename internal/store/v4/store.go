@@ -904,6 +904,15 @@ func (s *Store) StartTimer(id string) error {
 	})
 }
 
+// StartTimerAt starts a timer at a specific time (for testing stale timers).
+func (s *Store) StartTimerAt(id string, at time.Time) error {
+	return s.updateTask(id, func(t *task.Task, notes *[]task.Note) error {
+		t.TimerStart = &at
+		t.UpdatedAt = time.Now().UTC()
+		return nil
+	})
+}
+
 // StopTimer stops a running timer.
 func (s *Store) StopTimer(id string) (time.Duration, error) {
 	var elapsed time.Duration
@@ -1330,14 +1339,10 @@ func (s *Store) ArchiveTask(id string, summary string) error {
 		return fmt.Errorf("store: task %q must be done to archive (current status: %s)", id, t.Status)
 	}
 
-	// Write to archive (include summary in description if provided)
+	// Write to archive with summary in frontmatter
 	archiveTask := *t
-	if summary != "" {
-		archiveTask.Description = t.Description + "\n\n## Summary\n" + summary
-	}
-
 	archPath := s.archivePath(id)
-	content, err := WriteTaskFile(id, archiveTask, notes)
+	content, err := WriteTaskFileWithSummary(id, archiveTask, notes, summary)
 	if err != nil {
 		return err
 	}
@@ -1451,6 +1456,7 @@ func (s *Store) GetArchivedTasks() (map[string]task.ArchivedTask, error) {
 		result[id] = task.ArchivedTask{
 			Task:       t,
 			ArchivedAt: t.UpdatedAt,
+			Summary:    parsed.Frontmatter.Summary,
 			TotalTime:  t.Duration,
 		}
 	}
@@ -1478,6 +1484,7 @@ func (s *Store) GetArchivedTask(id string) (*task.ArchivedTask, error) {
 	return &task.ArchivedTask{
 		Task:       t,
 		ArchivedAt: t.UpdatedAt,
+		Summary:    parsed.Frontmatter.Summary,
 		TotalTime:  t.Duration,
 	}, nil
 }

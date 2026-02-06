@@ -29,6 +29,7 @@ type TaskFrontmatter struct {
 	UpdatedAt  time.Time         `yaml:"updated_at"`
 	ClaimedAt  *time.Time        `yaml:"claimed_at,omitempty"`
 	TimerStart *time.Time        `yaml:"timer_start,omitempty"`
+	Summary    string            `yaml:"summary,omitempty"` // Archive summary
 }
 
 // ParsedTask represents a fully parsed task from a Markdown file.
@@ -274,6 +275,11 @@ func (p *ParsedTask) ToNotes() []task.Note {
 
 // WriteTaskFile generates Markdown content for a task.
 func WriteTaskFile(id string, t task.Task, notes []task.Note) ([]byte, error) {
+	return WriteTaskFileWithSummary(id, t, notes, "")
+}
+
+// WriteTaskFileWithSummary writes a task to Markdown format with an optional archive summary.
+func WriteTaskFileWithSummary(id string, t task.Task, notes []task.Note, summary string) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// Build frontmatter
@@ -287,6 +293,7 @@ func WriteTaskFile(id string, t task.Task, notes []task.Note) ([]byte, error) {
 		UpdatedAt:  t.UpdatedAt,
 		ClaimedAt:  t.ClaimedAt,
 		TimerStart: t.TimerStart,
+		Summary:    summary,
 	}
 
 	if t.ParentID != nil {
