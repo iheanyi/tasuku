@@ -254,9 +254,9 @@ func TestUninstallNoConfig(t *testing.T) {
 func TestBuildMCPEntry(t *testing.T) {
 	executable := "/usr/bin/tk"
 
-	// Test Claude Code / Cursor entry (stdio type)
+	// Test Claude Code / Cursor entry (stdio type, no project dir)
 	claudeTool := AITool{Name: "Claude Code", MCPKey: "mcpServers"}
-	entry := buildMCPEntry(claudeTool, executable)
+	entry := buildMCPEntry(claudeTool, executable, "")
 	if entry["type"] != "stdio" {
 		t.Errorf("expected type 'stdio', got %v", entry["type"])
 	}
@@ -270,7 +270,7 @@ func TestBuildMCPEntry(t *testing.T) {
 
 	// Test Copilot CLI entry (local type with separate command and args)
 	copilotTool := AITool{Name: "Copilot CLI", MCPKey: "mcpServers"}
-	entry = buildMCPEntry(copilotTool, executable)
+	entry = buildMCPEntry(copilotTool, executable, "")
 	if entry["type"] != "local" {
 		t.Errorf("expected type 'local' for Copilot CLI, got %v", entry["type"])
 	}
@@ -284,13 +284,51 @@ func TestBuildMCPEntry(t *testing.T) {
 
 	// Test OpenCode entry (local type with command array)
 	openCodeTool := AITool{Name: "OpenCode", MCPKey: "mcp"}
-	entry = buildMCPEntry(openCodeTool, executable)
+	entry = buildMCPEntry(openCodeTool, executable, "")
 	if entry["type"] != "local" {
 		t.Errorf("expected type 'local' for OpenCode, got %v", entry["type"])
 	}
 	cmdArray, ok := entry["command"].([]string)
 	if !ok || len(cmdArray) != 3 || cmdArray[0] != executable || cmdArray[1] != "serve" || cmdArray[2] != "mcp" {
 		t.Errorf("expected command ['%s', 'serve', 'mcp'] for OpenCode, got %v", executable, entry["command"])
+	}
+}
+
+func TestBuildMCPEntryWithProjectDir(t *testing.T) {
+	executable := "/usr/bin/tk"
+	projectDir := "/home/user/myproject"
+
+	// Claude Code with --dir
+	claudeTool := AITool{Name: "Claude Code", MCPKey: "mcpServers"}
+	entry := buildMCPEntry(claudeTool, executable, projectDir)
+	args, ok := entry["args"].([]string)
+	if !ok || len(args) != 4 {
+		t.Fatalf("expected 4 args, got %v", entry["args"])
+	}
+	if args[0] != "serve" || args[1] != "mcp" || args[2] != "--dir" || args[3] != projectDir {
+		t.Errorf("expected args ['serve', 'mcp', '--dir', '%s'], got %v", projectDir, args)
+	}
+
+	// Copilot CLI with --dir
+	copilotTool := AITool{Name: "Copilot CLI", MCPKey: "mcpServers"}
+	entry = buildMCPEntry(copilotTool, executable, projectDir)
+	args, ok = entry["args"].([]string)
+	if !ok || len(args) != 4 {
+		t.Fatalf("expected 4 args for Copilot CLI, got %v", entry["args"])
+	}
+	if args[2] != "--dir" || args[3] != projectDir {
+		t.Errorf("expected --dir %s in Copilot CLI args, got %v", projectDir, args)
+	}
+
+	// OpenCode with --dir (command array)
+	openCodeTool := AITool{Name: "OpenCode", MCPKey: "mcp"}
+	entry = buildMCPEntry(openCodeTool, executable, projectDir)
+	cmdArray, ok := entry["command"].([]string)
+	if !ok || len(cmdArray) != 5 {
+		t.Fatalf("expected 5 elements in OpenCode command, got %v", entry["command"])
+	}
+	if cmdArray[3] != "--dir" || cmdArray[4] != projectDir {
+		t.Errorf("expected --dir %s in OpenCode command, got %v", projectDir, cmdArray)
 	}
 }
 
@@ -305,7 +343,7 @@ func TestInstallToJSON(t *testing.T) {
 		MCPEntryKey:  "tasuku",
 	}
 
-	installed, wasReinstall, err := installToJSON(tool, "/usr/bin/tk", false, false)
+	installed, wasReinstall, err := installToJSON(tool, "/usr/bin/tk", "", false, false)
 	if err != nil {
 		t.Fatalf("failed to install: %v", err)
 	}
@@ -326,7 +364,7 @@ func TestInstallToJSON(t *testing.T) {
 	}
 
 	// Test re-install without force (should skip)
-	installed, wasReinstall, err = installToJSON(tool, "/usr/bin/tk", false, true)
+	installed, wasReinstall, err = installToJSON(tool, "/usr/bin/tk", "", false, true)
 	if err != nil {
 		t.Fatalf("failed on re-install check: %v", err)
 	}
@@ -335,7 +373,7 @@ func TestInstallToJSON(t *testing.T) {
 	}
 
 	// Test re-install with force
-	installed, wasReinstall, err = installToJSON(tool, "/usr/bin/tk", true, true)
+	installed, wasReinstall, err = installToJSON(tool, "/usr/bin/tk", "", true, true)
 	if err != nil {
 		t.Fatalf("failed on force reinstall: %v", err)
 	}
@@ -359,7 +397,7 @@ func TestInstallToTOML(t *testing.T) {
 		Format:       FormatTOML,
 	}
 
-	installed, wasReinstall, err := installToTOML(tool, "/usr/bin/tk", false, false)
+	installed, wasReinstall, err := installToTOML(tool, "/usr/bin/tk", "", false, false)
 	if err != nil {
 		t.Fatalf("failed to install TOML: %v", err)
 	}
@@ -384,7 +422,7 @@ func TestInstallToTOML(t *testing.T) {
 	}
 
 	// Test re-install without force (should skip)
-	installed, wasReinstall, err = installToTOML(tool, "/usr/bin/tk", false, true)
+	installed, wasReinstall, err = installToTOML(tool, "/usr/bin/tk", "", false, true)
 	if err != nil {
 		t.Fatalf("failed on re-install check: %v", err)
 	}
@@ -393,7 +431,7 @@ func TestInstallToTOML(t *testing.T) {
 	}
 
 	// Test re-install with force
-	installed, wasReinstall, err = installToTOML(tool, "/usr/bin/tk", true, true)
+	installed, wasReinstall, err = installToTOML(tool, "/usr/bin/tk", "", true, true)
 	if err != nil {
 		t.Fatalf("failed on force reinstall: %v", err)
 	}
@@ -575,7 +613,7 @@ func TestInstallWithExistingJSONConfig(t *testing.T) {
 		MCPEntryKey:  "tasuku",
 	}
 
-	installed, _, err := installToJSON(tool, "/usr/bin/tk", false, true)
+	installed, _, err := installToJSON(tool, "/usr/bin/tk", "", false, true)
 	if err != nil {
 		t.Fatalf("failed to install: %v", err)
 	}

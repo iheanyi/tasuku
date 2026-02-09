@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 func TestServeCmd(t *testing.T) {
@@ -138,21 +137,15 @@ func TestHTTPCmdDefaultPort(t *testing.T) {
 	}
 }
 
-func TestMCPCmdNoFlags(t *testing.T) {
+func TestMCPCmdDirFlag(t *testing.T) {
 	cmd := newMCPCmd()
 
-	// MCP command should have no flags
-	if cmd.Flags().HasFlags() {
-		// Check if there are any non-persistent flags
-		nonPersistent := false
-		cmd.Flags().VisitAll(func(f *pflag.Flag) {
-			if !f.Hidden {
-				nonPersistent = true
-			}
-		})
-		if nonPersistent {
-			t.Error("expected MCP command to have no flags")
-		}
+	dirFlag := cmd.Flags().Lookup("dir")
+	if dirFlag == nil {
+		t.Error("expected --dir flag on MCP command")
+	}
+	if dirFlag.DefValue != "" {
+		t.Errorf("expected --dir default to be empty, got %s", dirFlag.DefValue)
 	}
 }
 

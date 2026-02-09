@@ -3,6 +3,7 @@ package serve
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -53,9 +54,12 @@ MCP Tools Exposed:
   tk_learn, tk_decide, tk_context, and more.
 
 Examples:
-  tk serve mcp    # Start MCP server`,
+  tk serve mcp                        # Start MCP server
+  tk serve mcp --dir /path/to/project # Start with explicit project dir`,
 		RunE: runMCP,
 	}
+
+	cmd.Flags().String("dir", "", "Project directory (overrides cwd for storage detection)")
 
 	return cmd
 }
@@ -96,6 +100,11 @@ Examples:
 }
 
 func runMCP(cmd *cobra.Command, args []string) error {
+	if dir, _ := cmd.Flags().GetString("dir"); dir != "" {
+		if err := os.Chdir(dir); err != nil {
+			return fmt.Errorf("failed to change to project directory %s: %w", dir, err)
+		}
+	}
 	s, err := store.DefaultStorageWithWarning()
 	if err != nil {
 		return err

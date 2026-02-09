@@ -68,6 +68,8 @@ MCP Tools Exposed:
 		RunE: runServe,
 	}
 
+	cmd.Flags().String("dir", "", "Project directory (overrides cwd for storage detection)")
+
 	return cmd
 }
 
@@ -141,6 +143,11 @@ to configure MCP manually in your AI tool settings.`,
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
+	if dir, _ := cmd.Flags().GetString("dir"); dir != "" {
+		if err := os.Chdir(dir); err != nil {
+			return fmt.Errorf("failed to change to project directory %s: %w", dir, err)
+		}
+	}
 	s, err := store.DefaultStorageWithWarning()
 	if err != nil {
 		return err
@@ -157,6 +164,22 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	// For local installs, capture the project directory so we can embed
+	// --dir in the generated config. This ensures the MCP server can find
+	// .tasuku/ even when the AI tool spawns it from a different cwd.
+	var projectDir string
+	if local {
+		projectDir, err = os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get project directory: %w", err)
+		}
+		// Ensure it's absolute
+		projectDir, err = filepath.Abs(projectDir)
+		if err != nil {
+			return fmt.Errorf("failed to resolve project directory: %w", err)
+		}
 	}
 
 	tools := getSupportedAITools(local)
@@ -206,9 +229,9 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 		switch tool.Format {
 		case FormatTOML:
-			installed, wasReinstall, err = installToTOML(tool, executable, force, settingsExist)
+			installed, wasReinstall, err = installToTOML(tool, executable, projectDir, force, settingsExist)
 		default: // FormatJSON
-			installed, wasReinstall, err = installToJSON(tool, executable, force, settingsExist)
+			installed, wasReinstall, err = installToJSON(tool, executable, projectDir, force, settingsExist)
 		}
 
 		if err != nil {
@@ -378,18 +401,25 @@ func runConfig(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
+	// Include --dir with the current directory so the MCP server
+	// can find .tasuku/ regardless of where the AI tool spawns it.
+	projectDir, _ := filepath.Abs(".")
+
 	config := map[string]interface{}{
 		"tasuku": map[string]interface{}{
 			"command": executable,
-			"args":    []string{"serve", "mcp"},
+			"args":    []string{"serve", "mcp", "--dir", projectDir},
 			"type":    "stdio",
 		},
 	}
 
 	data, _ := json.MarshalIndent(config, "", "  ")
-	fmt.Println("Add this to ~/.claude.json under 'mcpServers':")
+	fmt.Println("Add this to your AI tool's MCP config (e.g. ~/.claude.json under 'mcpServers'):")
 	fmt.Println()
 	fmt.Println(string(data))
+	fmt.Println()
+	fmt.Printf("The --dir flag ensures the MCP server can find .tasuku/ in %s.\n", projectDir)
+	fmt.Println("You can also set TASUKU_PROJECT_DIR environment variable instead.")
 	return nil
 }
 
@@ -412,8 +442,9 @@ type AITool struct {
 }
 
 // installToJSON installs the MCP config to a JSON settings file.
+// projectDir is included as --dir in args when non-empty (local installs).
 // Returns (installed, wasReinstall, error)
-func installToJSON(tool AITool, executable string, force, settingsExist bool) (bool, bool, error) {
+func installToJSON(tool AITool, executable, projectDir string, force, settingsExist bool) (bool, bool, error) {
 	var settings map[string]interface{}
 
 	if settingsExist {
@@ -443,7 +474,7 @@ func installToJSON(tool AITool, executable string, force, settingsExist bool) (b
 	}
 
 	// Build MCP entry based on tool type
-	mcpEntry := buildMCPEntry(tool, executable)
+	mcpEntry := buildMCPEntry(tool, executable, projectDir)
 	mcpServers[tool.MCPEntryKey] = mcpEntry
 	settings[tool.MCPKey] = mcpServers
 
@@ -485,8 +516,9 @@ type CodexMCPServer struct {
 }
 
 // installToTOML installs the MCP config to a TOML settings file (Codex).
+// projectDir is included as --dir in args when non-empty (local installs).
 // Returns (installed, wasReinstall, error)
-func installToTOML(tool AITool, executable string, force, settingsExist bool) (bool, bool, error) {
+func installToTOML(tool AITool, executable, projectDir string, force, settingsExist bool) (bool, bool, error) {
 	var config map[string]interface{}
 
 	if settingsExist {
@@ -524,9 +556,13 @@ func installToTOML(tool AITool, executable string, force, settingsExist bool) (b
 	}
 
 	// Add tasuku MCP server for Codex (TOML format)
+	args := []interface{}{"serve", "mcp"}
+	if projectDir != "" {
+		args = append(args, "--dir", projectDir)
+	}
 	mcpServers[tool.MCPEntryKey] = map[string]interface{}{
 		"command": executable,
-		"args":    []interface{}{"serve", "mcp"},
+		"args":    args,
 	}
 	config["mcp_servers"] = mcpServers
 
@@ -557,14 +593,23 @@ func installToTOML(tool AITool, executable string, force, settingsExist bool) (b
 	return true, wasReinstall, nil
 }
 
-// buildMCPEntry creates the appropriate MCP entry structure for a tool
-func buildMCPEntry(tool AITool, executable string) map[string]interface{} {
+// buildMCPEntry creates the appropriate MCP entry structure for a tool.
+// If projectDir is non-empty, --dir is added to args so the MCP server
+// can find .tasuku/ even when the AI tool spawns it from a different cwd.
+func buildMCPEntry(tool AITool, executable, projectDir string) map[string]interface{} {
 	nameLower := strings.ToLower(tool.Name)
+
+	args := []string{"serve", "mcp"}
+	if projectDir != "" {
+		args = append(args, "--dir", projectDir)
+	}
+
 	// OpenCode uses "type": "local" and "command" as array
 	if strings.Contains(nameLower, "opencode") {
+		cmdArray := append([]string{executable}, args...)
 		return map[string]interface{}{
 			"type":    "local",
-			"command": []string{executable, "serve", "mcp"},
+			"command": cmdArray,
 		}
 	}
 	// Copilot CLI uses "type": "local" with separate command and args
@@ -572,13 +617,13 @@ func buildMCPEntry(tool AITool, executable string) map[string]interface{} {
 		return map[string]interface{}{
 			"type":    "local",
 			"command": executable,
-			"args":    []string{"serve", "mcp"},
+			"args":    args,
 		}
 	}
-	// Claude Code, Cursor use "type": "stdio"
+	// Claude Code, Cursor, Gemini use "type": "stdio"
 	return map[string]interface{}{
 		"command": executable,
-		"args":    []string{"serve", "mcp"},
+		"args":    args,
 		"type":    "stdio",
 	}
 }

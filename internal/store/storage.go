@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/iheanyi/tasuku/internal/store/v4"
+	v4 "github.com/iheanyi/tasuku/internal/store/v4"
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
@@ -33,10 +33,10 @@ type Storage interface {
 	Update(fn func(*task.File) error) error
 
 	// Index-based fast reads (reads index.json instead of all task files)
-	ListFromIndex() ([]task.TaskSummary, error)                   // Returns task summaries from index
-	CountByStatus() (map[string]int, error)                       // Returns status counts from index
-	GetSubtaskIDs(parentID string) ([]string, error)              // Returns subtask IDs from index
-	ContextCounts() (learnings int, decisions int, err error)     // Returns learnings/decisions counts from index
+	ListFromIndex() ([]task.TaskSummary, error)               // Returns task summaries from index
+	CountByStatus() (map[string]int, error)                   // Returns status counts from index
+	GetSubtaskIDs(parentID string) ([]string, error)          // Returns subtask IDs from index
+	ContextCounts() (learnings int, decisions int, err error) // Returns learnings/decisions counts from index
 
 	// Task operations
 	AddTask(id, description string) error
@@ -103,10 +103,10 @@ type Storage interface {
 type StorageType int
 
 const (
-	StorageTypeNone StorageType = iota
-	StorageTypeFile             // .tasuku.json (V1/V2)
-	StorageTypeDir              // .tasuku/ (V3 JSON)
-	StorageTypeDirV4            // .tasuku/ (V4 Markdown)
+	StorageTypeNone  StorageType = iota
+	StorageTypeFile              // .tasuku.json (V1/V2)
+	StorageTypeDir               // .tasuku/ (V3 JSON)
+	StorageTypeDirV4             // .tasuku/ (V4 Markdown)
 )
 
 // LatestStorageType is the current default storage format for new projects.
@@ -156,10 +156,15 @@ func detectV4Format(dirPath string) bool {
 
 // DetectStorageTypeUp searches up directories to detect storage type.
 // Returns the storage type and the directory where storage was found.
+// Checks TASUKU_PROJECT_DIR env var first, falling back to os.Getwd().
 func DetectStorageTypeUp() (StorageType, string) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return StorageTypeNone, ""
+	dir := os.Getenv("TASUKU_PROJECT_DIR")
+	if dir == "" {
+		var err error
+		dir, err = os.Getwd()
+		if err != nil {
+			return StorageTypeNone, ""
+		}
 	}
 
 	for {
