@@ -161,6 +161,13 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	local, _ := cmd.Flags().GetBool("local")
 	toolFilter, _ := cmd.Flags().GetString("tool")
 
+	// Cursor requires project-level config (global MCP has no project context).
+	// Auto-promote to --local when --tool cursor is used without --local.
+	if !local && strings.ToLower(toolFilter) == "cursor" {
+		local = true
+		fmt.Println("Note: Cursor requires project-level MCP config (using --local automatically).")
+	}
+
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
@@ -663,9 +670,8 @@ func getSupportedAITools(local bool) []AITool {
 		{"Claude Code", home + "/.claude.json", "mcpServers", []string{home + "/.claude"}, FormatJSON, "tasuku"},
 		// Copilot CLI: detect by ~/.copilot/ directory, config at ~/.copilot/mcp-config.json
 		{"Copilot CLI", copilotConfigDir + "/mcp-config.json", "mcpServers", []string{copilotConfigDir}, FormatJSON, "tasuku"},
-		// Cursor: detect by ~/.cursor/ directory
-		{"Cursor", home + "/.cursor/mcp.json", "mcpServers", []string{home + "/.cursor"}, FormatJSON, "tasuku"},
-		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers", []string{home + "/Library/Application Support/Cursor"}, FormatJSON, "tasuku"},
+		// Cursor: excluded from global installs — requires project-level config
+		// because Cursor doesn't set cwd to the workspace. Use --local instead.
 		// Codex: config at ~/.codex/config.toml (TOML format)
 		{"Codex", home + "/.codex/config.toml", "mcp_servers", []string{home + "/.codex"}, FormatTOML, "tasuku"},
 		// OpenCode: config at ~/.config/opencode/opencode.json

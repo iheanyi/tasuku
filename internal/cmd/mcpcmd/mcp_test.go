@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/iheanyi/tasuku/internal/cmd/testutil"
@@ -132,6 +133,13 @@ func TestGetSupportedAITools(t *testing.T) {
 	}
 	if localTools[4].DetectPaths[0] != ".gemini" || localTools[4].DetectPaths[1] != "GEMINI.md" {
 		t.Errorf("expected DetectPaths ['.gemini', 'GEMINI.md'], got %v", localTools[4].DetectPaths)
+	}
+
+	// Verify Cursor is NOT in global tools (requires project-level config)
+	for _, tool := range tools {
+		if strings.Contains(tool.Name, "Cursor") {
+			t.Errorf("Cursor should not be in global tools (requires --local), found: %s", tool.Name)
+		}
 	}
 
 	// Check global tools include Copilot CLI
@@ -704,6 +712,42 @@ func TestInstallLocalWithCursorrules(t *testing.T) {
 	// Verify .cursor/mcp.json was created
 	if _, err := os.Stat(filepath.Join(dir, ".cursor", "mcp.json")); os.IsNotExist(err) {
 		t.Error("expected .cursor/mcp.json to be created when .cursorrules exists")
+	}
+}
+
+func TestInstallCursorAutoLocal(t *testing.T) {
+	h := testutil.New(t)
+	dir := h.TempDir()
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// Create .cursor/ directory so detection works
+	os.MkdirAll(filepath.Join(dir, ".cursor"), 0755)
+
+	// Run install with --tool cursor but WITHOUT --local
+	// Should auto-promote to local install
+	err := h.Execute(Cmd, "install", "--tool", "cursor")
+	h.AssertNoError(err)
+
+	// Should mention auto-promotion and install
+	h.AssertOutputContains("project-level")
+	h.AssertOutputContains("Cursor")
+
+	// Verify .cursor/mcp.json was created (local, not global)
+	if _, err := os.Stat(filepath.Join(dir, ".cursor", "mcp.json")); os.IsNotExist(err) {
+		t.Error("expected .cursor/mcp.json to be created via auto-local promotion")
+	}
+
+	// Verify it includes --dir flag
+	data, err := os.ReadFile(filepath.Join(dir, ".cursor", "mcp.json"))
+	if err != nil {
+		t.Fatalf("failed to read config: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "--dir") {
+		t.Error("expected --dir flag in auto-local Cursor config")
 	}
 }
 
