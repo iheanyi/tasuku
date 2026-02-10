@@ -121,8 +121,19 @@ The following features are available via CLI only (not exposed via MCP):
 
 ```bash
 tk serve mcp               # Start MCP server via stdio (for AI tools)
-tk serve http --port 3000  # Start HTTP REST API
+tk serve mcp --dir /path/to/project  # Explicit project dir (recommended when cwd may be wrong)
+tk serve http --port 3000   # Start HTTP REST API
 ```
+
+## Troubleshooting
+
+### "no Tasuku storage found" when .tasuku/ exists
+
+AI tools (Cursor, Claude Code) may spawn the MCP server with a working directory outside your project. Storage is detected by walking up from cwd. Fix:
+
+1. **Set cwd in MCP config** – In your project's `.cursor/mcp.json` or MCP settings, set `"cwd": "/absolute/path/to/project"`.
+2. **Use --dir** – Configure your MCP command as `tk serve mcp --dir /path/to/project`.
+3. **TASUKU_PROJECT_DIR** – Set this env var to the project path (if supported by your MCP client).
 
 ## TUI Keybindings
 
@@ -151,3 +162,5 @@ Launch the TUI with `tk ui`. Keybindings:
 | `r` | Refresh |
 | `?` | Help |
 | `q` | Quit |
+
+**Create/Edit modal:** `Ctrl+S` or `Alt+Enter` to submit, `Esc` to cancel. `Enter` adds newlines.

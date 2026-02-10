@@ -161,7 +161,7 @@ func (s *Server) Tools() []Tool {
 			Description: "Record an architectural decision with the choice made, alternatives considered, and reasoning. Use PROACTIVELY when: (1) Selecting technologies or libraries, (2) Choosing between implementation approaches, (3) Making trade-offs (performance vs simplicity, etc.), (4) Deciding on patterns or conventions. Decisions help future agents understand WHY things were built a certain way. AGENT SELF-AWARENESS: Call this immediately when user explains 'because we...', 'we chose X over Y because...', or 'the reason is...'. Record the decision while context is fresh!",
 			InputSchema: map[string]interface{}{
 				"type":     "object",
-				"required": []string{"id", "chose", "over", "because"},
+				"required": []string{"id", "chose", "because"},
 				"properties": map[string]interface{}{
 					"id": map[string]interface{}{
 						"type":        "string",
@@ -174,7 +174,7 @@ func (s *Server) Tools() []Tool {
 					"over": map[string]interface{}{
 						"type":        "array",
 						"items":       map[string]interface{}{"type": "string"},
-						"description": "Alternatives that were considered",
+						"description": "Alternatives that were considered (optional)",
 					},
 					"because": map[string]interface{}{
 						"type":        "string",
@@ -204,6 +204,78 @@ func (s *Server) Tools() []Tool {
 		{
 			Name:        "tk_context",
 			Description: "Get full project context including all tasks (todos), learnings, and decisions. Use this at the start of a session to understand current state. Returns a complete overview/summary of project status for agent consumption.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		{
+			Name:        "tk_ready",
+			Description: "List tasks that are ready to work on (status=ready and not blocked). Use when picking up work, planning next steps, or checking what can be started. Returns tasks sorted by priority.",
+			InputSchema: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+		{
+			Name:        "tk_deps",
+			Description: "Show dependencies for a task: what blocks it and what it blocks. Use when understanding task relationships, planning order, or checking impact of completing a task.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to show dependencies for",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_suggest",
+			Description: "Suggest whether a task should be in tk (Tasuku) or a session TodoWrite. Use when user provides a task description to determine the right tracking system.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"description"},
+				"properties": map[string]interface{}{
+					"description": map[string]interface{}{
+						"type":        "string",
+						"description": "The task description to analyze",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_timer_start",
+			Description: "Start a timer on a task for time tracking.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to start timer on",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_timer_stop",
+			Description: "Stop the timer on a task and record elapsed time.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"id"},
+				"properties": map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "Task ID to stop timer on",
+					},
+				},
+			},
+		},
+		{
+			Name:        "tk_timer_status",
+			Description: "List all tasks with running timers. Use to check what is currently being tracked.",
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},

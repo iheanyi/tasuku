@@ -40,6 +40,18 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleDecide(args)
 	case "tk_block":
 		return s.handleBlock(args)
+	case "tk_ready":
+		return s.handleReady(args)
+	case "tk_deps":
+		return s.handleDeps(args)
+	case "tk_suggest":
+		return s.handleSuggest(args)
+	case "tk_timer_start":
+		return s.handleTimerStart(args)
+	case "tk_timer_stop":
+		return s.handleTimerStop(args)
+	case "tk_timer_status":
+		return s.handleTimerStatus(args)
 
 	// Tier 2: Consolidated tools
 	case "tk_task":

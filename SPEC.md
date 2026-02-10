@@ -221,7 +221,7 @@ tk task timer stop <id>          # Stop timer, record elapsed
 tk task timer status             # Show running timers
 
 # Archiving
-tk task archive add <id>         # Archive a done task
+tk task archive <id>             # Archive a done task
 tk task archive list             # List archived tasks
 tk task archive restore <id>     # Restore archived task
 

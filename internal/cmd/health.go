@@ -148,7 +148,7 @@ func computeHealth(f *task.File) HealthReport {
 
 	if len(staleDone) > 0 {
 		recommendations = append(recommendations,
-			fmt.Sprintf("ARCHIVE: %d done task(s) older than 7 days: consider archiving with 'tk task archive add'",
+			fmt.Sprintf("ARCHIVE: %d done task(s) older than 7 days: consider archiving with 'tk task archive <id>'",
 				len(staleDone)))
 	}
 
