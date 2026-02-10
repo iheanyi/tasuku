@@ -746,6 +746,43 @@ func TestRefresh_HandlesMissingTask(t *testing.T) {
 	}
 }
 
+func TestNoSelectionMessage(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	m := newTestModel(t, s)
+
+	// With tasks and selection available, noSelectionMessage returns "Select a task first"
+	// But we need empty list to test - create model with empty store
+	dir := t.TempDir()
+	root := filepath.Join(dir, ".tasuku")
+	emptyStore := v4.New(root)
+	if err := emptyStore.Init(); err != nil {
+		t.Fatalf("empty store init: %v", err)
+	}
+	emptyModel := newTestModel(t, emptyStore)
+
+	got := emptyModel.noSelectionMessage()
+	if got != "No tasks yet. Press n to add one." {
+		t.Errorf("noSelectionMessage (empty) = %q, want %q", got, "No tasks yet. Press n to add one.")
+	}
+
+	// With tasks but filter results in empty - filter to blocked (3), setupTestStore has no blocked tasks
+	filtered, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	filteredModel := filtered.(Model)
+	got = filteredModel.noSelectionMessage()
+	if got != "No tasks match filter. Press / to clear or n to add." {
+		t.Errorf("noSelectionMessage (filtered empty) = %q, want filter message", got)
+	}
+
+	// With tasks and items - need to clear selection to trigger "Select a task first"
+	// When list has items but none selected - actually the list always has a selection (index 0)
+	// So we can't easily get "Select a task first" in a normal scenario - it happens when
+	// SelectedItem() returns nil. With 0 items, we get the empty message. With items, there's
+	// always a selection. So "Select a task first" might only happen in edge cases.
+	// Test the filtered-empty case is sufficient.
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))

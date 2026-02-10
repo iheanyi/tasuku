@@ -14,7 +14,7 @@
      │    ┃                                                               │     
      │    ┃                                                               │     
      │                                                                    │     
-     │   ctrl+s: save  esc: cancel  (Enter adds newlines)                 │     
+     │   Ctrl+S or Alt+Enter: save  Esc: cancel  (Enter adds newlines)    │     
      │                                                                    │     
      ╰────────────────────────────────────────────────────────────────────╯     
                                                                                 

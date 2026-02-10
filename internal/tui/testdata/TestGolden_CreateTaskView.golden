@@ -3,19 +3,19 @@
                                                                                 
                                                                                 
                                                                                 
-     ╭────────────────────────────────────────────────────────────────────╮     
-     │                                                                    │     
-     │   New Task                                                         │     
-     │                                                                    │     
-     │    ┃ Enter task description...                                     │     
-     │    ┃ (Shift+Enter for newlines, Enter to submit)                   │     
-     │    ┃                                                               │     
-     │    ┃                                                               │     
-     │    ┃                                                               │     
-     │                                                                    │     
-     │   ctrl+s: create  esc: cancel  (Enter adds newlines)               │     
-     │                                                                    │     
-     ╰────────────────────────────────────────────────────────────────────╯     
+    ╭─────────────────────────────────────────────────────────────────────╮     
+    │                                                                     │     
+    │   New Task                                                          │     
+    │                                                                     │     
+    │    ┃ Enter task description...                                      │     
+    │    ┃ (Ctrl+S or Alt+Enter to submit, Enter adds newlines)           │     
+    │    ┃                                                                │     
+    │    ┃                                                                │     
+    │    ┃                                                                │     
+    │                                                                     │     
+    │   Ctrl+S or Alt+Enter: create  Esc: cancel  (Enter adds newlines)   │     
+    │                                                                     │     
+    ╰─────────────────────────────────────────────────────────────────────╯     
                                                                                 
                                                                                 
                                                                                 

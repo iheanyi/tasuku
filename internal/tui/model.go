@@ -87,6 +87,9 @@ type Model struct {
 	// Task editing state
 	editInput  textarea.Model // textarea for editing task
 	editTaskID string         // ID of task being edited
+
+	// Transient feedback when task-dependent action triggered without selection
+	statusMsg string
 }
 
 // TaskItem implements list.Item for the task list
@@ -347,7 +350,7 @@ func pauseTaskCmd(s store.Storage, id string) tea.Cmd {
 func New(s store.Storage) (*Model, error) {
 	// Initialize progress bar with theme colors
 	prog := progress.New(
-		progress.WithScaledGradient(string(ColorMuted), string(ColorAccent)),
+		progress.WithScaledGradient(progressColorA(), progressColorB()),
 		progress.WithoutPercentage(),
 	)
 
@@ -442,6 +445,7 @@ func (m *Model) initTaskList() {
 	m.taskList.SetShowStatusBar(false) // Status bar is redundant - we have counts in header + progress bar
 	m.taskList.SetShowHelp(false)      // Disable built-in help - we have custom help lines
 	m.taskList.SetFilteringEnabled(true)
+	m.taskList.SetStatusBarItemName("task", "tasks") // "No tasks." instead of "No items."
 	m.taskList.Styles.Title = TitleStyle
 	m.taskList.Styles.NoItems = lipgloss.NewStyle().PaddingLeft(2) // Align with title
 
@@ -454,7 +458,7 @@ func (m *Model) initTaskList() {
 
 func (m *Model) initCreateInput() {
 	ta := textarea.New()
-	ta.Placeholder = "Enter task description...\n(Shift+Enter for newlines, Enter to submit)"
+	ta.Placeholder = "Enter task description...\n(Ctrl+S or Alt+Enter to submit, Enter adds newlines)"
 	ta.CharLimit = 2000 // Allow much longer descriptions
 	ta.SetWidth(60)
 	ta.SetHeight(5) // Multi-line input
@@ -464,7 +468,7 @@ func (m *Model) initCreateInput() {
 
 func (m *Model) initEditInput(taskID string, currentDesc string) {
 	ta := textarea.New()
-	ta.Placeholder = "Edit task description...\n(Shift+Enter for newlines, Enter to submit)"
+	ta.Placeholder = "Edit task description...\n(Ctrl+S or Alt+Enter to save, Enter adds newlines)"
 	ta.CharLimit = 2000
 	ta.SetWidth(60)
 	ta.SetHeight(5)
@@ -649,6 +653,17 @@ func (m Model) countDoneTasks() int {
 		}
 	}
 	return count
+}
+
+// noSelectionMessage returns contextual feedback when a task-dependent action is triggered without a selected task.
+func (m Model) noSelectionMessage() string {
+	if len(m.taskList.Items()) == 0 {
+		if m.file != nil && len(m.file.Tasks) > 0 {
+			return "No tasks match filter. Press / to clear or n to add."
+		}
+		return "No tasks yet. Press n to add one."
+	}
+	return "Select a task first (↑/↓)"
 }
 
 // runAction saves selection state, sets loading, and returns the given command.
@@ -998,6 +1013,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.confirmMessage = fmt.Sprintf("Delete task '%s'? (y/n)", item.ID)
 					m.view = ViewConfirm
 					return m, nil
+				} else {
+					m.statusMsg = m.noSelectionMessage()
+					return m, nil
 				}
 			}
 
@@ -1008,6 +1026,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if item.Task.Status == task.StatusReady || item.Task.Status == task.StatusInProgress {
 						return m.runAction(setStatusCmd(m.store, item.ID, task.StatusBlocked))
 					}
+				} else {
+					m.statusMsg = m.noSelectionMessage()
+					return m, nil
 				}
 			}
 
@@ -1018,6 +1039,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if item.Task.Status == task.StatusBlocked {
 						return m.runAction(unblockAndReadyCmd(m.store, item.ID))
 					}
+				} else {
+					m.statusMsg = m.noSelectionMessage()
+					return m, nil
 				}
 			}
 
@@ -1028,6 +1052,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if item.Task.Status == task.StatusInProgress {
 						return m.runAction(pauseTaskCmd(m.store, item.ID))
 					}
+				} else {
+					m.statusMsg = m.noSelectionMessage()
+					return m, nil
 				}
 			}
 		}
@@ -1084,8 +1111,8 @@ func (m Model) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.err)
 	}
 
-	// Show loading indicator while async operations are in progress
-	if m.loading && m.file != nil && len(m.file.Tasks) == 0 {
+	// Show full-screen loading when initial load (no file yet)
+	if m.loading && m.file == nil {
 		return HelpStyle.Render("Loading tasks...")
 	}
 
@@ -1151,16 +1178,29 @@ func (m Model) viewDashboard() string {
 	progressBar := m.progress.ViewAs(progressPercent)
 	progressLine := lipgloss.NewStyle().MarginBottom(1).Render(progressLabel + progressBar)
 
+	// Build dashboard content
+	parts := []string{stats, progressLine}
+	if m.loading {
+		parts = append(parts, HelpStyle.Render("⟳ Loading..."))
+	}
+	// Empty state CTA when no tasks to show
+	if len(m.taskList.Items()) == 0 {
+		cta := "Press " + KeyStyle.Render("n") + " to add your first task"
+		if m.file != nil && len(m.file.Tasks) > 0 {
+			cta = "No tasks match filter. Press " + KeyStyle.Render("/") + " to clear or " + KeyStyle.Render("n") + " to add."
+		}
+		parts = append(parts, HelpStyle.Render(cta))
+	}
+	parts = append(parts, m.taskList.View())
+
 	help1 := HelpStyle.Render("n:new  e:edit  s:start  d:done  P:pause  b:block  u:unblock  x:delete  t:timer  a:archive")
 	help2 := HelpStyle.Render("0-4:status  p:priority  N:notes  L:learnings  D:decisions  /:filter  r:refresh  ?:help  q:quit")
+	if m.statusMsg != "" {
+		parts = append(parts, HelpStyle.Render(m.statusMsg))
+	}
+	parts = append(parts, help1, help2)
 
-	return lipgloss.JoinVertical(lipgloss.Left,
-		stats,
-		progressLine,
-		m.taskList.View(),
-		help1,
-		help2,
-	)
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m Model) viewConfirmOverlay() string {
@@ -1230,6 +1270,8 @@ func (m Model) viewHelpOverlay() string {
 		"  "+KeyStyle.Render("r")+"      Refresh",
 		"  "+KeyStyle.Render("?")+"      Help",
 		"  "+KeyStyle.Render("q")+"      Quit",
+		"",
+		HelpStyle.Render("Create/Edit modal: Ctrl+S or Alt+Enter submit, Esc cancel, Enter newlines"),
 		"",
 		HelpStyle.Render("?/esc: close"),
 	)
@@ -1357,7 +1399,7 @@ func (m Model) renderEmptyState(message string, cliCommand string) string {
 
 // renderModal creates a consistent modal dialog with title, content, and help text.
 // Set useBorder to false for textarea content to avoid double-border artifacts.
-func (m Model) renderModal(title string, borderColor lipgloss.Color, content string, helpText string, useBorder bool) string {
+func (m Model) renderModal(title string, borderColor lipgloss.TerminalColor, content string, helpText string, useBorder bool) string {
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
@@ -1446,7 +1488,7 @@ func (m Model) viewCreate() string {
 		"New Task",
 		ColorAccent,
 		m.createInput.View(),
-		"ctrl+s: create  esc: cancel  (Enter adds newlines)",
+		"Ctrl+S or Alt+Enter: create  Esc: cancel  (Enter adds newlines)",
 		false, // no inner border for textarea
 	)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
@@ -1459,7 +1501,7 @@ func (m Model) viewEdit() string {
 		"Edit Task",
 		ColorPrimary,
 		content,
-		"ctrl+s: save  esc: cancel  (Enter adds newlines)",
+		"Ctrl+S or Alt+Enter: save  Esc: cancel  (Enter adds newlines)",
 		false, // no inner border for textarea
 	)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)

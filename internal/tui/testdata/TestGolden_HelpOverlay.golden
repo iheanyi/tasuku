@@ -1,34 +1,36 @@
-                    ╭─────────────────────────────────────╮                     
-                    │                                     │                     
-                    │   Keyboard Shortcuts                │                     
-                    │                                     │                     
-                    │   Tasks                             │                     
-                    │     n      New task                 │                     
-                    │     e      Edit task description    │                     
-                    │     s      Start ready task         │                     
-                    │     d      Mark done                │                     
-                    │     P      Pause in-progress task   │                     
-                    │     b      Block task               │                     
-                    │     u      Unblock task             │                     
-                    │     x      Delete task              │                     
-                    │     t      Toggle timer             │                     
-                    │     a      Archive done task        │                     
-                    │     A      Archive all done         │                     
-                    │     enter  View details             │                     
-                    │                                     │                     
-                    │   Navigation                        │                     
-                    │     /      Filter tasks             │                     
-                    │     0-4    Status filter            │                     
-                    │     p      Priority sort            │                     
-                    │     N      Notes                    │                     
-                    │     L      Learnings                │                     
-                    │     D      Decisions                │                     
-                    │                                     │                     
-                    │   General                           │                     
-                    │     r      Refresh                  │                     
-                    │     ?      Help                     │                     
-                    │     q      Quit                     │                     
-                    │                                     │                     
-                    │   ?/esc: close                      │                     
-                    │                                     │                     
-                    ╰─────────────────────────────────────╯                     
+╭───────────────────────────────────────────────────────────────────────────────╮
+│                                                                               │
+│   Keyboard Shortcuts                                                          │
+│                                                                               │
+│   Tasks                                                                       │
+│     n      New task                                                           │
+│     e      Edit task description                                              │
+│     s      Start ready task                                                   │
+│     d      Mark done                                                          │
+│     P      Pause in-progress task                                             │
+│     b      Block task                                                         │
+│     u      Unblock task                                                       │
+│     x      Delete task                                                        │
+│     t      Toggle timer                                                       │
+│     a      Archive done task                                                  │
+│     A      Archive all done                                                   │
+│     enter  View details                                                       │
+│                                                                               │
+│   Navigation                                                                  │
+│     /      Filter tasks                                                       │
+│     0-4    Status filter                                                      │
+│     p      Priority sort                                                      │
+│     N      Notes                                                              │
+│     L      Learnings                                                          │
+│     D      Decisions                                                          │
+│                                                                               │
+│   General                                                                     │
+│     r      Refresh                                                            │
+│     ?      Help                                                               │
+│     q      Quit                                                               │
+│                                                                               │
+│   Create/Edit modal: Ctrl+S or Alt+Enter submit, Esc cancel, Enter newlines   │
+│                                                                               │
+│   ?/esc: close                                                                │
+│                                                                               │
+╰───────────────────────────────────────────────────────────────────────────────╯

@@ -1,117 +1,99 @@
 // Package tui provides a terminal user interface for tasuku.
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"os"
 
-// Theme colors based on iheanyi.com dark theme
-var (
-	// Base colors
-	ColorBg    = lipgloss.Color("#1a1a1a") // Near-black background
-	ColorFg    = lipgloss.Color("#f0f0f0") // Light gray foreground
-	ColorMuted = lipgloss.Color("#6b7280") // Gray for comments/muted text
-	ColorSlate = lipgloss.Color("#94a3b8") // Slate for punctuation/dim
-
-	// Accent colors
-	ColorAccent  = lipgloss.Color("#5eead4") // Teal/cyan for highlights
-	ColorPrimary = lipgloss.Color("#5c9eff") // Bright blue for primary
-	ColorPurple  = lipgloss.Color("#c4b5fd") // Light purple for functions
-	ColorAmber   = lipgloss.Color("#fbbf24") // Amber/gold for warnings
-
-	// Status colors
-	ColorReady      = lipgloss.Color("#5eead4") // Teal for ready tasks
-	ColorInProgress = lipgloss.Color("#fbbf24") // Amber for in-progress
-	ColorBlocked    = lipgloss.Color("#ef4444") // Red for blocked
-	ColorDone       = lipgloss.Color("#9ca3af") // Brighter gray for done (5:1 contrast)
-	ColorCritical   = lipgloss.Color("#ef4444") // Red for critical priority
-	ColorHigh       = lipgloss.Color("#f97316") // Orange for high priority
+	"github.com/charmbracelet/lipgloss"
 )
 
-// Style presets
+// Theme colors (TerminalColor allows NoColor when NO_COLOR env set - https://no-color.org/)
 var (
-	// Title style
-	TitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorPrimary).
-			MarginBottom(1)
-
-	// Task styles by status
-	TaskReadyStyle = lipgloss.NewStyle().
-			Foreground(ColorReady)
-
-	TaskInProgressStyle = lipgloss.NewStyle().
-				Foreground(ColorInProgress).
-				Bold(true)
-
-	TaskBlockedStyle = lipgloss.NewStyle().
-				Foreground(ColorBlocked)
-
-	TaskDoneStyle = lipgloss.NewStyle().
-			Foreground(ColorDone).
-			Strikethrough(true)
-
-	// Priority styles
-	PriorityCriticalStyle = lipgloss.NewStyle().
-				Foreground(ColorCritical).
-				Bold(true)
-
-	PriorityHighStyle = lipgloss.NewStyle().
-				Foreground(ColorHigh).
-				Bold(true)
-
-	PriorityNormalStyle = lipgloss.NewStyle().
-				Foreground(ColorFg)
-
-	PriorityLowStyle = lipgloss.NewStyle().
-				Foreground(ColorMuted)
-
-	// Panel styles
-	PanelStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorSlate).
-			Padding(1, 2)
-
-	// Selected item style - high contrast white on dark blue
-	SelectedStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("#2d4a7c")). // Darker blue for better contrast
-			Foreground(lipgloss.Color("#ffffff")). // Pure white text
-			Bold(true)
-
-	// Selected description style - slightly dimmer but still readable
-	SelectedDescStyle = lipgloss.NewStyle().
-				Background(lipgloss.Color("#2d4a7c")).
-				Foreground(lipgloss.Color("#c0c0c0")) // Light gray for description
-
-	// Help style - uses ColorSlate for better contrast on dark backgrounds
-	HelpStyle = lipgloss.NewStyle().
-			Foreground(ColorSlate)
-
-	// Keybind style
-	KeyStyle = lipgloss.NewStyle().
-			Foreground(ColorAccent).
-			Bold(true)
-
-	// Tag style
-	TagStyle = lipgloss.NewStyle().
-			Foreground(ColorPurple).
-			Background(lipgloss.Color("#2d2d2d")).
-			Padding(0, 1)
-
-	// Timer running style - no blink to avoid distracting/triggering users
-	TimerRunningStyle = lipgloss.NewStyle().
-				Foreground(ColorAmber).
-				Bold(true)
-
-	// Rule style
-	RuleStyle = lipgloss.NewStyle().
-			Foreground(ColorAmber).
-			Bold(true)
-
-	// Filter match style - highlight matched characters during search
-	FilterMatchStyle = lipgloss.NewStyle().
-				Foreground(ColorAmber).
-				Bold(true).
-				Underline(true)
+	ColorBg    lipgloss.TerminalColor = lipgloss.Color("#1a1a1a")
+	ColorFg    lipgloss.TerminalColor = lipgloss.Color("#f0f0f0")
+	ColorMuted lipgloss.TerminalColor = lipgloss.Color("#6b7280")
+	ColorSlate lipgloss.TerminalColor = lipgloss.Color("#94a3b8")
+	ColorAccent  lipgloss.TerminalColor = lipgloss.Color("#5eead4")
+	ColorPrimary lipgloss.TerminalColor = lipgloss.Color("#5c9eff")
+	ColorPurple  lipgloss.TerminalColor = lipgloss.Color("#c4b5fd")
+	ColorAmber   lipgloss.TerminalColor = lipgloss.Color("#fbbf24")
+	ColorReady      lipgloss.TerminalColor = lipgloss.Color("#5eead4")
+	ColorInProgress lipgloss.TerminalColor = lipgloss.Color("#fbbf24")
+	ColorBlocked    lipgloss.TerminalColor = lipgloss.Color("#ef4444")
+	ColorDone       lipgloss.TerminalColor = lipgloss.Color("#9ca3af")
+	ColorCritical   lipgloss.TerminalColor = lipgloss.Color("#ef4444")
+	ColorHigh       lipgloss.TerminalColor = lipgloss.Color("#f97316")
 )
+
+// Style presets (built in init after NO_COLOR check)
+var (
+	TitleStyle, TaskReadyStyle, TaskInProgressStyle, TaskBlockedStyle, TaskDoneStyle lipgloss.Style
+	PriorityCriticalStyle, PriorityHighStyle, PriorityNormalStyle, PriorityLowStyle     lipgloss.Style
+	PanelStyle, SelectedStyle, SelectedDescStyle, HelpStyle, KeyStyle, TagStyle       lipgloss.Style
+	TimerRunningStyle, RuleStyle, FilterMatchStyle                                   lipgloss.Style
+)
+
+func init() {
+	disabled := os.Getenv("NO_COLOR") != ""
+	nc := lipgloss.NoColor{}
+	if disabled {
+		ColorBg, ColorFg, ColorMuted, ColorSlate = nc, nc, nc, nc
+		ColorAccent, ColorPrimary, ColorPurple, ColorAmber = nc, nc, nc, nc
+		ColorReady, ColorInProgress, ColorBlocked, ColorDone = nc, nc, nc, nc
+		ColorCritical, ColorHigh = nc, nc
+	}
+
+	// Inline colors for SelectedStyle, SelectedDescStyle, TagStyle
+	var bg, fg, descFg, tagBg lipgloss.TerminalColor
+	if disabled {
+		bg, fg, descFg, tagBg = nc, nc, nc, nc
+	} else {
+		bg = lipgloss.Color("#2d4a7c")
+		fg = lipgloss.Color("#ffffff")
+		descFg = lipgloss.Color("#c0c0c0")
+		tagBg = lipgloss.Color("#2d2d2d")
+	}
+
+	TitleStyle = lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).MarginBottom(1)
+	TaskReadyStyle = lipgloss.NewStyle().Foreground(ColorReady)
+	TaskInProgressStyle = lipgloss.NewStyle().Foreground(ColorInProgress).Bold(true)
+	TaskBlockedStyle = lipgloss.NewStyle().Foreground(ColorBlocked)
+	TaskDoneStyle = lipgloss.NewStyle().Foreground(ColorDone).Strikethrough(true)
+	PriorityCriticalStyle = lipgloss.NewStyle().Foreground(ColorCritical).Bold(true)
+	PriorityHighStyle = lipgloss.NewStyle().Foreground(ColorHigh).Bold(true)
+	PriorityNormalStyle = lipgloss.NewStyle().Foreground(ColorFg)
+	PriorityLowStyle = lipgloss.NewStyle().Foreground(ColorMuted)
+	PanelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(ColorSlate).Padding(1, 2)
+	SelectedStyle = lipgloss.NewStyle().Background(bg).Foreground(fg).Bold(true)
+	SelectedDescStyle = lipgloss.NewStyle().Background(bg).Foreground(descFg)
+	HelpStyle = lipgloss.NewStyle().Foreground(ColorSlate)
+	KeyStyle = lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
+	TagStyle = lipgloss.NewStyle().Foreground(ColorPurple).Background(tagBg).Padding(0, 1)
+	TimerRunningStyle = lipgloss.NewStyle().Foreground(ColorAmber).Bold(true)
+	RuleStyle = lipgloss.NewStyle().Foreground(ColorAmber).Bold(true)
+	FilterMatchStyle = lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Underline(true)
+}
+
+// progressColorA and progressColorB return hex strings for the progress bar gradient.
+// When NO_COLOR is set, returns neutral grays so the bar remains visible.
+func progressColorA() string {
+	if _, ok := ColorMuted.(lipgloss.NoColor); ok {
+		return "#6b7280"
+	}
+	if c, ok := ColorMuted.(lipgloss.Color); ok {
+		return string(c)
+	}
+	return "#6b7280"
+}
+func progressColorB() string {
+	if _, ok := ColorAccent.(lipgloss.NoColor); ok {
+		return "#94a3b8"
+	}
+	if c, ok := ColorAccent.(lipgloss.Color); ok {
+		return string(c)
+	}
+	return "#94a3b8"
+}
 
 // StatusSymbol returns a colored symbol for a task status
 func StatusSymbol(status string) string {
