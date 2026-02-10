@@ -75,10 +75,10 @@ func init() {
 }
 
 // progressColorA and progressColorB return hex strings for the progress bar gradient.
-// When NO_COLOR is set, returns neutral grays so the bar remains visible.
+// When NO_COLOR is set, returns empty strings to suppress ANSI color output.
 func progressColorA() string {
 	if _, ok := ColorMuted.(lipgloss.NoColor); ok {
-		return "#6b7280"
+		return ""
 	}
 	if c, ok := ColorMuted.(lipgloss.Color); ok {
 		return string(c)
@@ -87,7 +87,7 @@ func progressColorA() string {
 }
 func progressColorB() string {
 	if _, ok := ColorAccent.(lipgloss.NoColor); ok {
-		return "#94a3b8"
+		return ""
 	}
 	if c, ok := ColorAccent.(lipgloss.Color); ok {
 		return string(c)

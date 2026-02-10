@@ -684,6 +684,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// --- Handle Async Results ---
 	case TasksLoadedMsg:
 		m.loading = false
+		m.statusMsg = "" // Clear transient feedback on data reload
 		if msg.Err != nil {
 			m.err = msg.Err
 			return m, nil
@@ -703,6 +704,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, loadTasksCmd(m.store)
 
 	case tea.KeyMsg:
+		// Clear transient status message on any keypress
+		m.statusMsg = ""
+
 		// Handle confirmation dialog
 		if m.view == ViewConfirm {
 			switch {
