@@ -188,7 +188,7 @@ func (s *Server) handleHelp(args map[string]interface{}) (interface{}, error) {
 		return map[string]interface{}{
 			"topic":       "Tasuku Overview",
 			"description": "Agent-first task management system",
-			"tool_count":  17,
+			"tool_count":  20,
 			"tools": map[string]string{
 				"tk_help":     "This help system",
 				"tk_list":     "List tasks",
@@ -196,6 +196,9 @@ func (s *Server) handleHelp(args map[string]interface{}) (interface{}, error) {
 				"tk_start":    "Start working",
 				"tk_done":     "Complete task",
 				"tk_block":    "Block a task",
+				"tk_ready":    "Mark task as ready",
+				"tk_deps":     "Show task dependencies",
+				"tk_suggest":  "Suggest next task to work on",
 				"tk_show":     "Task details",
 				"tk_note":     "Add note",
 				"tk_context":  "Full project state",

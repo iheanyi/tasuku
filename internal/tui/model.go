@@ -662,7 +662,7 @@ func (m Model) countDoneTasks() int {
 func (m Model) noSelectionMessage() string {
 	if len(m.taskList.Items()) == 0 {
 		if m.file != nil && len(m.file.Tasks) > 0 {
-			return "No tasks match filter. Press / to clear or n to add."
+			return "No tasks match filter. Press 0 to clear or n to add."
 		}
 		return "No tasks yet. Press n to add one."
 	}
@@ -1119,8 +1119,8 @@ func (m Model) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.err)
 	}
 
-	// Show full-screen loading when initial load (no file yet)
-	if m.loading && m.file == nil {
+	// Show full-screen loading when initial load (file exists but empty)
+	if m.loading && m.file != nil && len(m.file.Tasks) == 0 {
 		return HelpStyle.Render("Loading tasks...")
 	}
 
@@ -1195,7 +1195,7 @@ func (m Model) viewDashboard() string {
 	if len(m.taskList.Items()) == 0 {
 		cta := "Press " + KeyStyle.Render("n") + " to add your first task"
 		if m.file != nil && len(m.file.Tasks) > 0 {
-			cta = "No tasks match filter. Press " + KeyStyle.Render("/") + " to clear or " + KeyStyle.Render("n") + " to add."
+			cta = "No tasks match filter. Press " + KeyStyle.Render("0") + " to clear or " + KeyStyle.Render("n") + " to add."
 		}
 		parts = append(parts, HelpStyle.Render(cta))
 	}

@@ -771,7 +771,7 @@ func TestNoSelectionMessage(t *testing.T) {
 	filtered, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
 	filteredModel := filtered.(Model)
 	got = filteredModel.noSelectionMessage()
-	if got != "No tasks match filter. Press / to clear or n to add." {
+	if got != "No tasks match filter. Press 0 to clear or n to add." {
 		t.Errorf("noSelectionMessage (filtered empty) = %q, want filter message", got)
 	}
 

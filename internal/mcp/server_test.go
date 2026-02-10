@@ -2747,8 +2747,8 @@ func TestHandleToolCall_HelpOverviewToolCount(t *testing.T) {
 	json.Unmarshal(data, &help)
 
 	toolCount := int(help["tool_count"].(float64))
-	if toolCount != 17 {
-		t.Errorf("expected tool_count 17, got %d", toolCount)
+	if toolCount != 20 {
+		t.Errorf("expected tool_count 20, got %d", toolCount)
 	}
 
 	tools := help["tools"].(map[string]interface{})

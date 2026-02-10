@@ -34,7 +34,7 @@ var (
 )
 
 func init() {
-	disabled := os.Getenv("NO_COLOR") != ""
+	_, disabled := os.LookupEnv("NO_COLOR")
 	nc := lipgloss.NoColor{}
 	if disabled {
 		ColorBg, ColorFg, ColorMuted, ColorSlate = nc, nc, nc, nc
