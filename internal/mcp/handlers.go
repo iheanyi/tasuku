@@ -455,11 +455,11 @@ func (s *Server) handleList(args map[string]interface{}) (interface{}, error) {
 
 	// Sort by status priority, then by task priority, then by ID
 	statusOrder := map[task.Status]int{
-		task.StatusInProgress:   0,
-		task.StatusReady:        1,
-		task.StatusBlocked:      2,
-		task.StatusDone:         3,
-		task.StatusArchived: 4,
+		task.StatusInProgress: 0,
+		task.StatusReady:      1,
+		task.StatusBlocked:    2,
+		task.StatusDone:       3,
+		task.StatusArchived:   4,
 	}
 	slices.SortFunc(results, func(a, b taskResult) int {
 		// Status order first
