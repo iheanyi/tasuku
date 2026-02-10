@@ -25,7 +25,7 @@ func TestTools(t *testing.T) {
 	server, _ := setupTestServer(t)
 	tools := server.Tools()
 
-	// 23 tools total: 18 core + 3 action-based + 2 utility
+	// 20 tools total: 15 core + 3 consolidated + 2 utility
 	expectedTools := []string{
 		// Tier 1: Core tools (kept individual)
 		"tk_help",
@@ -41,9 +41,6 @@ func TestTools(t *testing.T) {
 		"tk_ready",
 		"tk_deps",
 		"tk_suggest",
-		"tk_timer_start",
-		"tk_timer_stop",
-		"tk_timer_status",
 		"tk_show",
 		"tk_find",
 		// Tier 2: Consolidated tools
@@ -146,33 +143,6 @@ func TestHandleToolCall_tk_deps(t *testing.T) {
 	r := result.(map[string]interface{})
 	if r["blocked_by"] == nil {
 		t.Error("expected blocked_by in response")
-	}
-}
-
-func TestHandleToolCall_TimerStartStopStatus(t *testing.T) {
-	server, _ := setupTestServer(t)
-	server.HandleToolCall("tk_add", map[string]interface{}{"description": "Timer task", "id": "timer-task"})
-
-	// Start timer
-	_, err := server.HandleToolCall("tk_timer_start", map[string]interface{}{"id": "timer-task"})
-	if err != nil {
-		t.Fatalf("tk_timer_start error: %v", err)
-	}
-
-	// Status should show running timer
-	statusResult, err := server.HandleToolCall("tk_timer_status", map[string]interface{}{})
-	if err != nil {
-		t.Fatalf("tk_timer_status error: %v", err)
-	}
-	sr := statusResult.(map[string]interface{})
-	if sr["timers"] == nil {
-		t.Error("expected timers in status response")
-	}
-
-	// Stop timer
-	_, err = server.HandleToolCall("tk_timer_stop", map[string]interface{}{"id": "timer-task"})
-	if err != nil {
-		t.Fatalf("tk_timer_stop error: %v", err)
 	}
 }
 
@@ -556,8 +526,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 23 {
-		t.Errorf("expected 23 tools, got %d", len(tools))
+	if len(tools) != 20 {
+		t.Errorf("expected 20 tools, got %d", len(tools))
 	}
 }
 

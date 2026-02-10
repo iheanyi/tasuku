@@ -46,12 +46,6 @@ func (s *Server) HandleToolCall(name string, args map[string]interface{}) (inter
 		return s.handleDeps(args)
 	case "tk_suggest":
 		return s.handleSuggest(args)
-	case "tk_timer_start":
-		return s.handleTimerStart(args)
-	case "tk_timer_stop":
-		return s.handleTimerStop(args)
-	case "tk_timer_status":
-		return s.handleTimerStatus(args)
 
 	// Tier 2: Consolidated tools
 	case "tk_task":
@@ -1050,11 +1044,11 @@ func (s *Server) handleTimerStatus(args map[string]interface{}) (interface{}, er
 
 	if len(warnings) > 0 {
 		response["warnings"] = warnings
-		response["hint"] = "Long-running timers detected. If you're not actively working, stop them with tk_timer_stop."
+		response["hint"] = "Long-running timers detected. If you're not actively working, stop them with `tk task timer stop <id>`."
 	}
 
 	if len(results) == 0 {
-		response["hint"] = "No active timers. Start one with tk_timer_start when beginning focused work."
+		response["hint"] = "No active timers. Start one with `tk task timer start <id>` when beginning focused work."
 	}
 
 	return response, nil

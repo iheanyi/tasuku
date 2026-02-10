@@ -305,16 +305,14 @@ func (s *Server) handleToolCall(name string, args json.RawMessage) (interface{},
         return s.list(args)
     case "tk_add":
         return s.add(args)
-    case "tk_timer_start":
-        return s.timerStart(args)
     case "tk_tag_add":
         return s.tagAdd(args)
-    // ... 25+ tools with full CLI parity
+    // ... additional MCP tools
     }
 }
 ```
 
-The MCP server runs over stdio, communicating with Claude Code via JSON-RPC. All CLI functionality is exposed via MCP tools for agent parity.
+The MCP server runs over stdio, communicating with Claude Code via JSON-RPC. Most core task/context workflows are exposed via MCP tools; some operations (like timer controls) remain CLI-first by design.
 
 ## Data Flow
 

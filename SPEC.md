@@ -315,10 +315,6 @@ Full CLI parity - every CLI command has a corresponding MCP tool:
 | `tk_tag_remove` | `id: string, tag: string` | Remove tag |
 | `tk_field_set` | `id: string, key: string, value: string` | Set custom field |
 | `tk_field_remove` | `id: string, key: string` | Remove custom field |
-| **Time Tracking** |||
-| `tk_timer_start` | `id: string` | Start timer |
-| `tk_timer_stop` | `id: string` | Stop timer |
-| `tk_timer_status` | none | Get running timers |
 | **Context** |||
 | `tk_context` | none | Get full context |
 | `tk_find` | `query: string` | Search tasks/notes/learnings |

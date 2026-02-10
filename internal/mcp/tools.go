@@ -245,42 +245,6 @@ func (s *Server) Tools() []Tool {
 				},
 			},
 		},
-		{
-			Name:        "tk_timer_start",
-			Description: "Start a timer on a task for time tracking.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to start timer on",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_timer_stop",
-			Description: "Stop the timer on a task and record elapsed time.",
-			InputSchema: map[string]interface{}{
-				"type":     "object",
-				"required": []string{"id"},
-				"properties": map[string]interface{}{
-					"id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID to stop timer on",
-					},
-				},
-			},
-		},
-		{
-			Name:        "tk_timer_status",
-			Description: "List all tasks with running timers. Use to check what is currently being tracked.",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
 		// === TIER 2: Consolidated tools ===
 		{
 			Name: "tk_task",
