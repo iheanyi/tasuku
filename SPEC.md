@@ -221,7 +221,7 @@ tk task timer stop <id>          # Stop timer, record elapsed
 tk task timer status             # Show running timers
 
 # Archiving
-tk task archive add <id>         # Archive a done task
+tk task archive <id>             # Archive a done task
 tk task archive list             # List archived tasks
 tk task archive restore <id>     # Restore archived task
 
@@ -315,10 +315,6 @@ Full CLI parity - every CLI command has a corresponding MCP tool:
 | `tk_tag_remove` | `id: string, tag: string` | Remove tag |
 | `tk_field_set` | `id: string, key: string, value: string` | Set custom field |
 | `tk_field_remove` | `id: string, key: string` | Remove custom field |
-| **Time Tracking** |||
-| `tk_timer_start` | `id: string` | Start timer |
-| `tk_timer_stop` | `id: string` | Stop timer |
-| `tk_timer_status` | none | Get running timers |
 | **Context** |||
 | `tk_context` | none | Get full context |
 | `tk_find` | `query: string` | Search tasks/notes/learnings |

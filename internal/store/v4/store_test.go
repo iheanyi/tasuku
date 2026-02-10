@@ -1,8 +1,10 @@
 package v4
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -842,6 +844,44 @@ func TestStoreClearArchive(t *testing.T) {
 	archived, _ := s.GetArchivedTasks()
 	if len(archived) != 0 {
 		t.Error("Archive should be empty")
+	}
+}
+
+func TestUpdateConcurrent(t *testing.T) {
+	s := setupTestStore(t)
+
+	// Add initial task
+	if err := s.AddTask("base", "Base task"); err != nil {
+		t.Fatalf("AddTask error = %v", err)
+	}
+
+	// Run concurrent Updates - should serialize without race
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			id := fmt.Sprintf("task-%d", n)
+			_ = s.Update(func(f *task.File) error {
+				f.Tasks[id] = task.Task{
+					Description: "Concurrent task " + fmt.Sprint(n),
+					Status:      task.StatusReady,
+					CreatedAt:   time.Now().UTC(),
+					UpdatedAt:   time.Now().UTC(),
+				}
+				return nil
+			})
+		}(i)
+	}
+	wg.Wait()
+
+	f, err := s.Read()
+	if err != nil {
+		t.Fatalf("Read error = %v", err)
+	}
+	// base + 10 concurrent = 11 tasks (0-9)
+	if len(f.Tasks) != 11 {
+		t.Errorf("Expected 11 tasks after concurrent Update, got %d", len(f.Tasks))
 	}
 }
 

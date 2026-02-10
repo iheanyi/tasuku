@@ -133,7 +133,7 @@ tk task ready              # Tasks ready to work on
 tk task list --tree        # Hierarchical view
 tk task find "query"       # Search everything
 tk task timer status       # Check running timers
-tk task archive add <id>   # Archive completed task
+tk task archive <id>       # Archive completed task
 tk learning rules          # List rule-type learnings
 tk rules sync              # Sync to editor rules
 ```

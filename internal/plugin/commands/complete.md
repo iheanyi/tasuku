@@ -58,7 +58,7 @@ Show the user:
 
 ```bash
 # If task is simple/no longer needed:
-tk task archive add <task-id>
+tk task archive <task-id>
 
 # Show what's next:
 tk task ready
@@ -84,7 +84,7 @@ Agent:
    ✓ This unblocked: deploy-to-prod, write-auth-tests
 
 4. Next steps:
-   - Archive this task? (tk task archive add fix-auth-bug)
+   - Archive this task? (tk task archive fix-auth-bug)
    - Next ready task: deploy-to-prod (high priority)
 ```
 

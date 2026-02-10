@@ -25,7 +25,7 @@ func TestTools(t *testing.T) {
 	server, _ := setupTestServer(t)
 	tools := server.Tools()
 
-	// 17 tools total: 12 core + 3 action-based + 2 utility
+	// 20 tools total: 15 core + 3 consolidated + 2 utility
 	expectedTools := []string{
 		// Tier 1: Core tools (kept individual)
 		"tk_help",
@@ -38,6 +38,9 @@ func TestTools(t *testing.T) {
 		"tk_decide",
 		"tk_note",
 		"tk_context",
+		"tk_ready",
+		"tk_deps",
+		"tk_suggest",
 		"tk_show",
 		"tk_find",
 		// Tier 2: Consolidated tools
@@ -109,6 +112,67 @@ func TestHandleToolCall_AddWithID(t *testing.T) {
 	r := result.(map[string]interface{})
 	if r["id"] != "custom-id" {
 		t.Errorf("expected id 'custom-id', got %v", r["id"])
+	}
+}
+
+func TestHandleToolCall_tk_ready(t *testing.T) {
+	server, _ := setupTestServer(t)
+	server.HandleToolCall("tk_add", map[string]interface{}{"description": "Ready task", "id": "ready-1"})
+	server.HandleToolCall("tk_add", map[string]interface{}{"description": "Another ready", "id": "ready-2"})
+
+	result, err := server.HandleToolCall("tk_ready", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("tk_ready error: %v", err)
+	}
+	r := result.(map[string]interface{})
+	if r["tasks"] == nil {
+		t.Error("expected tasks in response")
+	}
+}
+
+func TestHandleToolCall_tk_deps(t *testing.T) {
+	server, _ := setupTestServer(t)
+	server.HandleToolCall("tk_add", map[string]interface{}{"description": "Blocker", "id": "blocker"})
+	server.HandleToolCall("tk_add", map[string]interface{}{"description": "Blocked", "id": "blocked"})
+	server.HandleToolCall("tk_block", map[string]interface{}{"id": "blocked", "blocked_by": []interface{}{"blocker"}})
+
+	result, err := server.HandleToolCall("tk_deps", map[string]interface{}{"id": "blocked"})
+	if err != nil {
+		t.Fatalf("tk_deps error: %v", err)
+	}
+	r := result.(map[string]interface{})
+	if r["blocked_by"] == nil {
+		t.Error("expected blocked_by in response")
+	}
+}
+
+func TestHandleToolCall_Suggest(t *testing.T) {
+	server, _ := setupTestServer(t)
+	result, err := server.HandleToolCall("tk_suggest", map[string]interface{}{
+		"description": "Implement user authentication",
+	})
+	if err != nil {
+		t.Fatalf("tk_suggest error: %v", err)
+	}
+	r := result.(map[string]interface{})
+	if r["should_persist"] != true {
+		t.Errorf("expected should_persist true for project-level task, got %v", r["should_persist"])
+	}
+}
+
+func TestHandleToolCall_DecideWithoutOver(t *testing.T) {
+	server, _ := setupTestServer(t)
+	result, err := server.HandleToolCall("tk_decide", map[string]interface{}{
+		"id":      "no-over-test",
+		"chose":   "Option A",
+		"because": "Simple choice, no alternatives considered",
+	})
+	if err != nil {
+		t.Fatalf("tk_decide without over error: %v", err)
+	}
+	r := result.(map[string]interface{})
+	if r["status"] != "recorded" {
+		t.Errorf("expected status 'recorded', got %v", r["status"])
 	}
 }
 
@@ -462,8 +526,8 @@ func TestMCPProtocol_ToolsList(t *testing.T) {
 		t.Fatalf("expected tools to be array, got %T", result["tools"])
 	}
 
-	if len(tools) != 17 {
-		t.Errorf("expected 17 tools, got %d", len(tools))
+	if len(tools) != 20 {
+		t.Errorf("expected 20 tools, got %d", len(tools))
 	}
 }
 

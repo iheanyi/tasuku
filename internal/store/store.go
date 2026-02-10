@@ -14,7 +14,7 @@ import (
 )
 
 // ErrNotInitialized is returned when no Tasuku storage exists.
-var ErrNotInitialized = errors.New("no Tasuku storage found - run 'tk init' to create one")
+var ErrNotInitialized = errors.New("no Tasuku storage found - run 'tk init' to create one (MCP users: set cwd to project root or use tk serve mcp --dir <path>)")
 
 const (
 	DefaultFileName = ".tasuku.json"

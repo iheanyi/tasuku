@@ -26,13 +26,33 @@ func setupTestServer(t *testing.T) (*Server, func()) {
 	oldDir, _ := os.Getwd()
 	os.Chdir(dir)
 
-	srv := New(s)
+	srv, err := New(s)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
 
 	cleanup := func() {
 		os.Chdir(oldDir)
 	}
 
 	return srv, cleanup
+}
+
+func TestNewSucceeds(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, ".tasuku")
+	s := v4.New(root)
+	if err := s.Init(); err != nil {
+		t.Fatalf("Init error = %v", err)
+	}
+
+	srv, err := New(s)
+	if err != nil {
+		t.Fatalf("New error = %v", err)
+	}
+	if srv == nil {
+		t.Error("New should return non-nil server")
+	}
 }
 
 func TestHealthCheck(t *testing.T) {

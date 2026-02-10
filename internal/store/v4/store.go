@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -61,7 +62,8 @@ type Config struct {
 
 // Store implements Markdown-based storage for V4.
 type Store struct {
-	root string
+	root     string
+	updateMu sync.Mutex // serializes Update() read-modify-write to prevent races
 }
 
 // New creates a new V4 store.
@@ -103,7 +105,10 @@ func (s *Store) Init() error {
 	// Write config
 	config := Config{Version: 4}
 	configPath := filepath.Join(s.root, ConfigFileName)
-	data, _ := json.MarshalIndent(config, "", "  ")
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("store: failed to marshal config: %w", err)
+	}
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("store: failed to write config: %w", err)
 	}
@@ -121,7 +126,10 @@ func (s *Store) Init() error {
 
 	// Initialize empty index
 	idx := NewIndex()
-	idxData, _ := idx.Marshal()
+	idxData, err := idx.Marshal()
+	if err != nil {
+		return fmt.Errorf("store: failed to marshal index: %w", err)
+	}
 	if err := os.WriteFile(filepath.Join(s.root, IndexFileName), idxData, 0644); err != nil {
 		return fmt.Errorf("store: failed to write index: %w", err)
 	}
@@ -260,10 +268,16 @@ func (s *Store) updateIndex(fn func(*Index)) error {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return fmt.Errorf("store: failed to seek index: %w", err)
 	}
-	data, _ := io.ReadAll(f)
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return fmt.Errorf("store: failed to read index: %w", err)
+	}
 	var idx *Index
 	if len(data) > 0 {
-		idx, _ = ParseIndex(data)
+		idx, err = ParseIndex(data)
+		if err != nil {
+			return fmt.Errorf("store: failed to parse index: %w", err)
+		}
 	}
 	if idx == nil {
 		idx = NewIndex()
@@ -273,7 +287,10 @@ func (s *Store) updateIndex(fn func(*Index)) error {
 	fn(idx)
 
 	// Write back
-	newData, _ := idx.Marshal()
+	newData, err := idx.Marshal()
+	if err != nil {
+		return fmt.Errorf("store: failed to marshal index: %w", err)
+	}
 	return os.WriteFile(idxPath, newData, 0644)
 }
 
@@ -316,21 +333,28 @@ func (s *Store) regenerateIndex() error {
 	// Count learnings
 	learningsPath := filepath.Join(s.root, ContextDir, "learnings.md")
 	if data, err := os.ReadFile(learningsPath); err == nil {
-		if lf, err := ParseLearningsFile(data); err == nil {
-			idx.LearningsCount = len(lf.Learnings)
+		lf, err := ParseLearningsFile(data)
+		if err != nil {
+			return fmt.Errorf("store: failed to parse learnings: %w", err)
 		}
+		idx.LearningsCount = len(lf.Learnings)
 	}
 
 	// Count decisions
 	decisionsPath := filepath.Join(s.root, ContextDir, "decisions.md")
 	if data, err := os.ReadFile(decisionsPath); err == nil {
-		if df, err := ParseDecisionsFile(data); err == nil {
-			idx.DecisionsCount = len(df.Decisions)
+		df, err := ParseDecisionsFile(data)
+		if err != nil {
+			return fmt.Errorf("store: failed to parse decisions: %w", err)
 		}
+		idx.DecisionsCount = len(df.Decisions)
 	}
 
 	// Write index
-	idxData, _ := idx.Marshal()
+	idxData, err := idx.Marshal()
+	if err != nil {
+		return fmt.Errorf("store: failed to marshal index: %w", err)
+	}
 	return os.WriteFile(filepath.Join(s.root, IndexFileName), idxData, 0644)
 }
 
@@ -456,7 +480,11 @@ func (s *Store) Read() (*task.File, error) {
 }
 
 // Update implements the legacy interface by loading all data, modifying, and saving.
+// Held under updateMu to prevent concurrent read-modify-write races.
 func (s *Store) Update(fn func(*task.File) error) error {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+
 	f, err := s.Read()
 	if err != nil {
 		return err
@@ -473,10 +501,12 @@ func (s *Store) Update(fn func(*task.File) error) error {
 func (s *Store) writeAll(f *task.File) error {
 	// Find existing task files to detect deletions
 	existingTasks := make(map[string]bool)
-	if ids, err := s.listTaskIDs(); err == nil {
-		for _, id := range ids {
-			existingTasks[id] = true
-		}
+	ids, err := s.listTaskIDs()
+	if err != nil {
+		return fmt.Errorf("store: failed to list tasks: %w", err)
+	}
+	for _, id := range ids {
+		existingTasks[id] = true
 	}
 
 	// Write tasks
@@ -490,7 +520,9 @@ func (s *Store) writeAll(f *task.File) error {
 
 	// Delete task files that were removed
 	for id := range existingTasks {
-		os.Remove(s.taskPath(id))
+		if err := os.Remove(s.taskPath(id)); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("store: failed to remove task %s: %w", id, err)
+		}
 	}
 
 	// Write learnings
@@ -510,7 +542,7 @@ func (s *Store) writeAll(f *task.File) error {
 		archPath := s.archivePath(id)
 		content, err := WriteTaskFile(id, archived.Task, nil)
 		if err != nil {
-			continue
+			return fmt.Errorf("store: failed to serialize archived task %s: %w", id, err)
 		}
 		if err := os.WriteFile(archPath, content, 0644); err != nil {
 			return fmt.Errorf("store: failed to write archived task: %w", err)
@@ -1031,10 +1063,16 @@ func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool,
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 
-	data, _ := os.ReadFile(learningsPath)
+	data, err := readFromLockedFD(f)
+	if err != nil {
+		return "", false, fmt.Errorf("store: failed to read learnings: %w", err)
+	}
 	var lf *LearningsFile
 	if len(data) > 0 {
-		lf, _ = ParseLearningsFile(data)
+		lf, err = ParseLearningsFile(data)
+		if err != nil {
+			return "", false, fmt.Errorf("store: failed to parse learnings: %w", err)
+		}
 	}
 	if lf == nil {
 		lf = &LearningsFile{Learnings: []task.Learning{}}
@@ -1056,14 +1094,16 @@ func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool,
 	}
 	lf.Learnings = append(lf.Learnings, learning)
 
-	if err := os.WriteFile(learningsPath, WriteLearningsFile(lf.Learnings), 0644); err != nil {
+	if err := writeToLockedFD(f, WriteLearningsFile(lf.Learnings)); err != nil {
 		return "", false, fmt.Errorf("store: failed to write learnings: %w", err)
 	}
 
 	// Update index
-	s.updateIndex(func(idx *Index) {
+	if err := s.updateIndex(func(idx *Index) {
 		idx.LearningsCount = len(lf.Learnings)
-	})
+	}); err != nil {
+		return id, isRule, fmt.Errorf("store: failed to update index: %w", err)
+	}
 
 	return id, isRule, nil
 }
@@ -1087,10 +1127,16 @@ func (s *Store) AddLearningWithScope(text, scope string, forceRule *bool) (strin
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 
-	data, _ := os.ReadFile(learningsPath)
+	data, err := readFromLockedFD(f)
+	if err != nil {
+		return "", false, fmt.Errorf("store: failed to read learnings: %w", err)
+	}
 	var lf *LearningsFile
 	if len(data) > 0 {
-		lf, _ = ParseLearningsFile(data)
+		lf, err = ParseLearningsFile(data)
+		if err != nil {
+			return "", false, fmt.Errorf("store: failed to parse learnings: %w", err)
+		}
 	}
 	if lf == nil {
 		lf = &LearningsFile{Learnings: []task.Learning{}}
@@ -1113,14 +1159,16 @@ func (s *Store) AddLearningWithScope(text, scope string, forceRule *bool) (strin
 	}
 	lf.Learnings = append(lf.Learnings, learning)
 
-	if err := os.WriteFile(learningsPath, WriteLearningsFile(lf.Learnings), 0644); err != nil {
+	if err := writeToLockedFD(f, WriteLearningsFile(lf.Learnings)); err != nil {
 		return "", false, fmt.Errorf("store: failed to write learnings: %w", err)
 	}
 
 	// Update index
-	s.updateIndex(func(idx *Index) {
+	if err := s.updateIndex(func(idx *Index) {
 		idx.LearningsCount = len(lf.Learnings)
-	})
+	}); err != nil {
+		return id, isRule, fmt.Errorf("store: failed to update index: %w", err)
+	}
 
 	return id, isRule, nil
 }
@@ -1141,10 +1189,16 @@ func (s *Store) AddLearningFull(l task.Learning) error {
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 
-	data, _ := os.ReadFile(learningsPath)
+	data, err := readFromLockedFD(f)
+	if err != nil {
+		return fmt.Errorf("store: failed to read learnings: %w", err)
+	}
 	var lf *LearningsFile
 	if len(data) > 0 {
-		lf, _ = ParseLearningsFile(data)
+		lf, err = ParseLearningsFile(data)
+		if err != nil {
+			return fmt.Errorf("store: failed to parse learnings: %w", err)
+		}
 	}
 	if lf == nil {
 		lf = &LearningsFile{Learnings: []task.Learning{}}
@@ -1162,14 +1216,16 @@ func (s *Store) AddLearningFull(l task.Learning) error {
 
 	lf.Learnings = append(lf.Learnings, l)
 
-	if err := os.WriteFile(learningsPath, WriteLearningsFile(lf.Learnings), 0644); err != nil {
+	if err := writeToLockedFD(f, WriteLearningsFile(lf.Learnings)); err != nil {
 		return fmt.Errorf("store: failed to write learnings: %w", err)
 	}
 
 	// Update index
-	s.updateIndex(func(idx *Index) {
+	if err := s.updateIndex(func(idx *Index) {
 		idx.LearningsCount = len(lf.Learnings)
-	})
+	}); err != nil {
+		return fmt.Errorf("store: failed to update index: %w", err)
+	}
 
 	return nil
 }
@@ -1189,8 +1245,14 @@ func (s *Store) RemoveLearning(id string) (string, error) {
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 
-	data, _ := os.ReadFile(learningsPath)
-	lf, _ := ParseLearningsFile(data)
+	data, err := readFromLockedFD(f)
+	if err != nil {
+		return "", fmt.Errorf("store: failed to read learnings: %w", err)
+	}
+	lf, err := ParseLearningsFile(data)
+	if err != nil {
+		return "", fmt.Errorf("store: failed to parse learnings: %w", err)
+	}
 	if lf == nil {
 		return "", errors.New("learning not found")
 	}
@@ -1208,12 +1270,16 @@ func (s *Store) RemoveLearning(id string) (string, error) {
 		return "", errors.New("learning not found")
 	}
 
-	os.WriteFile(learningsPath, WriteLearningsFile(lf.Learnings), 0644)
+	if err := writeToLockedFD(f, WriteLearningsFile(lf.Learnings)); err != nil {
+		return "", fmt.Errorf("store: failed to write learnings: %w", err)
+	}
 
 	// Update index
-	s.updateIndex(func(idx *Index) {
+	if err := s.updateIndex(func(idx *Index) {
 		idx.LearningsCount = len(lf.Learnings)
-	})
+	}); err != nil {
+		return "", fmt.Errorf("store: failed to update index: %w", err)
+	}
 
 	return removedText, nil
 }
@@ -1267,10 +1333,16 @@ func (s *Store) AddDecision(d task.Decision) error {
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 
-	data, _ := os.ReadFile(decisionsPath)
+	data, err := readFromLockedFD(f)
+	if err != nil {
+		return fmt.Errorf("store: failed to read decisions: %w", err)
+	}
 	var df *DecisionsFile
 	if len(data) > 0 {
-		df, _ = ParseDecisionsFile(data)
+		df, err = ParseDecisionsFile(data)
+		if err != nil {
+			return fmt.Errorf("store: failed to parse decisions: %w", err)
+		}
 	}
 	if df == nil {
 		df = &DecisionsFile{Decisions: []task.Decision{}}
@@ -1278,14 +1350,16 @@ func (s *Store) AddDecision(d task.Decision) error {
 
 	df.Decisions = append(df.Decisions, d)
 
-	if err := os.WriteFile(decisionsPath, WriteDecisionsFile(df.Decisions), 0644); err != nil {
+	if err := writeToLockedFD(f, WriteDecisionsFile(df.Decisions)); err != nil {
 		return fmt.Errorf("store: failed to write decisions: %w", err)
 	}
 
 	// Update index
-	s.updateIndex(func(idx *Index) {
+	if err := s.updateIndex(func(idx *Index) {
 		idx.DecisionsCount = len(df.Decisions)
-	})
+	}); err != nil {
+		return fmt.Errorf("store: failed to update index: %w", err)
+	}
 
 	return nil
 }
@@ -1677,4 +1751,24 @@ func ptrToStr(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+// readFromLockedFD reads the full content from an open file (caller holds lock).
+func readFromLockedFD(f *os.File) ([]byte, error) {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+	return io.ReadAll(f)
+}
+
+// writeToLockedFD truncates and writes data to an open file (caller holds lock).
+func writeToLockedFD(f *os.File, data []byte) error {
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	_, err := f.Write(data)
+	return err
 }

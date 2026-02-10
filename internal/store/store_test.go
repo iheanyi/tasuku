@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/iheanyi/tasuku/internal/task"
@@ -151,9 +152,11 @@ func TestStore_MigrationReader(t *testing.T) {
 }
 
 func TestStore_ErrNotInitialized(t *testing.T) {
-	expectedMsg := "no Tasuku storage found - run 'tk init' to create one"
-	if ErrNotInitialized.Error() != expectedMsg {
+	if !strings.Contains(ErrNotInitialized.Error(), "no Tasuku storage found") {
 		t.Errorf("unexpected error message: %s", ErrNotInitialized.Error())
+	}
+	if !strings.Contains(ErrNotInitialized.Error(), "tk init") {
+		t.Errorf("error should mention tk init: %s", ErrNotInitialized.Error())
 	}
 }
 

@@ -28,5 +28,5 @@ tk task done <id1> <id2> <id3>   # Mark multiple tasks complete
 
 Consider:
 - Recording learnings: `tk learn "what you discovered"`
-- Archiving if no longer needed: `tk task archive add <id>`
+- Archiving if no longer needed: `tk task archive <id>`
 - Starting the next ready task: `tk task ready`
