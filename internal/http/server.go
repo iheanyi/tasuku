@@ -28,12 +28,11 @@ type Server struct {
 	templates *template.Template
 }
 
-// New creates a new HTTP server.
-func New(s store.Storage) *Server {
-	// Parse templates
+// New creates a new HTTP server. Returns an error if templates fail to parse.
+func New(s store.Storage) (*Server, error) {
 	tmpl, err := template.ParseFS(templateFS, "templates/*.html")
 	if err != nil {
-		panic(fmt.Sprintf("failed to parse templates: %v", err))
+		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}
 
 	srv := &Server{
@@ -42,7 +41,7 @@ func New(s store.Storage) *Server {
 		templates: tmpl,
 	}
 	srv.registerRoutes()
-	return srv
+	return srv, nil
 }
 
 // ServeHTTP implements http.Handler for testing.

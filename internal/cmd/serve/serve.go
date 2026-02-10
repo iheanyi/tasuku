@@ -49,6 +49,10 @@ The server communicates via stdin/stdout using the MCP protocol.
 You typically don't run this directly - instead use 'tk mcp install'
 to configure your AI tool to run it automatically.
 
+Storage detection uses the current working directory. When AI tools spawn
+the MCP server, cwd may be wrong. Fix by: (1) set "cwd" in your MCP config
+to the project root, or (2) use --dir to specify the project path.
+
 MCP Tools Exposed:
   tk_list, tk_add, tk_start, tk_done, tk_block, tk_unblock,
   tk_learn, tk_decide, tk_context, and more.
@@ -121,7 +125,10 @@ func runHTTP(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	httpServer := tkhttp.New(s)
+	httpServer, err := tkhttp.New(s)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP server: %w", err)
+	}
 
 	// --addr takes precedence over --port
 	if addr != "" {
