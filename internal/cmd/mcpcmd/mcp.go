@@ -22,7 +22,7 @@ func newMCPCmd() *cobra.Command {
 		Long: `Model Context Protocol (MCP) configuration for AI tool integration.
 
 Available subcommands:
-  install    Auto-configure Tasuku MCP in Claude Code, Cursor, Codex, Copilot CLI, OpenCode
+  install    Auto-configure Tasuku MCP in Claude Code, Cursor, Codex, Copilot CLI, OpenCode, Amp
   uninstall  Remove Tasuku MCP configuration from AI tools
   config     Display MCP configuration JSON for manual setup
   serve      Alias for 'tk serve mcp' (backwards compatibility)
@@ -86,6 +86,7 @@ Supported tools:
   - Codex (~/.codex/config.toml)
   - OpenCode (~/.config/opencode/opencode.json or ./opencode.json with --local)
   - Gemini (~/.gemini/mcp.json or .gemini/mcp.json with --local)
+  - Amp (~/.config/amp/settings.json or ./.amp/settings.json with --local)
 
 Detection signals (local install):
   - Claude Code: .claude/ directory OR CLAUDE.md file
@@ -93,19 +94,20 @@ Detection signals (local install):
   - Cursor: .cursorrules file OR .cursor/ directory
   - OpenCode: opencode.json file
   - Gemini: .gemini/ directory OR GEMINI.md file
+  - Amp: .amp/ directory OR AGENTS.md file
 
 The configuration will be added to existing settings without
 overwriting other MCP servers or configurations.
 
 Use --local to install to project-level config instead of global.
 Use --force to reinstall even if already configured.
-Use --tool to target a specific tool (claude, copilot, cursor, codex, opencode, gemini).`,
+Use --tool to target a specific tool (claude, copilot, cursor, codex, opencode, gemini, amp).`,
 		RunE: runInstall,
 	}
 
 	cmd.Flags().Bool("force", false, "Force reinstall even if already configured")
 	cmd.Flags().Bool("local", false, "Install to project-level config")
-	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode, gemini")
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, codex, opencode, gemini, amp")
 
 	return cmd
 }
@@ -202,7 +204,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			}
 		}
 		if len(filtered) == 0 {
-			return fmt.Errorf("unknown tool: %s (valid: claude, copilot, cursor, codex, opencode, gemini)", toolFilter)
+			return fmt.Errorf("unknown tool: %s (valid: claude, copilot, cursor, codex, opencode, gemini, amp)", toolFilter)
 		}
 		tools = filtered
 	}
@@ -627,6 +629,13 @@ func buildMCPEntry(tool AITool, executable, projectDir string) map[string]interf
 			"args":    args,
 		}
 	}
+	// Amp uses command/args without type field
+	if strings.Contains(nameLower, "amp") {
+		return map[string]interface{}{
+			"command": executable,
+			"args":    args,
+		}
+	}
 	// Claude Code, Cursor, Gemini use "type": "stdio"
 	return map[string]interface{}{
 		"command": executable,
@@ -648,6 +657,7 @@ func getSupportedAITools(local bool) []AITool {
 			{"Cursor (project)", ".cursor/mcp.json", "mcpServers", []string{".cursorrules", ".cursor"}, FormatJSON, "tasuku"},
 			{"OpenCode (project)", "opencode.json", "mcp", []string{"opencode.json"}, FormatJSON, "tasuku"},
 			{"Gemini (project)", ".gemini/mcp.json", "mcpServers", []string{".gemini", "GEMINI.md"}, FormatJSON, "tasuku"},
+		{"Amp (project)", ".amp/settings.json", "amp.mcpServers", []string{".amp", "AGENTS.md"}, FormatJSON, "tasuku"},
 		}
 	}
 
@@ -678,5 +688,7 @@ func getSupportedAITools(local bool) []AITool {
 		{"OpenCode", configDir + "/opencode/opencode.json", "mcp", []string{configDir + "/opencode"}, FormatJSON, "tasuku"},
 		// Gemini: config at ~/.gemini/mcp.json
 		{"Gemini", home + "/.gemini/mcp.json", "mcpServers", []string{home + "/.gemini"}, FormatJSON, "tasuku"},
+		// Amp: config at ~/.config/amp/settings.json
+		{"Amp", configDir + "/amp/settings.json", "amp.mcpServers", []string{configDir + "/amp"}, FormatJSON, "tasuku"},
 	}
 }

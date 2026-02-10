@@ -81,8 +81,8 @@ func TestGetSupportedAITools(t *testing.T) {
 
 	// Test local tools
 	localTools := getSupportedAITools(true)
-	if len(localTools) != 5 {
-		t.Errorf("expected 5 local tools, got %d", len(localTools))
+	if len(localTools) != 6 {
+		t.Errorf("expected 6 local tools, got %d", len(localTools))
 	}
 	// Check Claude Code (project) - should detect via .claude/ OR CLAUDE.md
 	if localTools[0].Name != "Claude Code (project)" {
@@ -133,6 +133,20 @@ func TestGetSupportedAITools(t *testing.T) {
 	}
 	if localTools[4].DetectPaths[0] != ".gemini" || localTools[4].DetectPaths[1] != "GEMINI.md" {
 		t.Errorf("expected DetectPaths ['.gemini', 'GEMINI.md'], got %v", localTools[4].DetectPaths)
+	}
+
+	// Check Amp (project)
+	if localTools[5].Name != "Amp (project)" {
+		t.Errorf("expected 'Amp (project)', got %s", localTools[5].Name)
+	}
+	if localTools[5].MCPKey != "amp.mcpServers" {
+		t.Errorf("expected MCPKey 'amp.mcpServers', got %s", localTools[5].MCPKey)
+	}
+	if len(localTools[5].DetectPaths) != 2 {
+		t.Errorf("expected 2 DetectPaths for Amp, got %d", len(localTools[5].DetectPaths))
+	}
+	if localTools[5].DetectPaths[0] != ".amp" || localTools[5].DetectPaths[1] != "AGENTS.md" {
+		t.Errorf("expected DetectPaths ['.amp', 'AGENTS.md'], got %v", localTools[5].DetectPaths)
 	}
 
 	// Verify Cursor is NOT in global tools (requires project-level config)
@@ -748,6 +762,77 @@ func TestInstallCursorAutoLocal(t *testing.T) {
 	content := string(data)
 	if !strings.Contains(content, "--dir") {
 		t.Error("expected --dir flag in auto-local Cursor config")
+	}
+}
+
+func TestInstallLocalWithAmp(t *testing.T) {
+	h := testutil.New(t)
+	dir := h.TempDir()
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// Create .amp/ directory
+	os.MkdirAll(filepath.Join(dir, ".amp"), 0755)
+
+	err := h.Execute(Cmd, "install", "--local", "--tool", "amp")
+	h.AssertNoError(err)
+
+	h.AssertOutputContains("Amp")
+
+	// Verify .amp/settings.json was created
+	configPath := filepath.Join(dir, ".amp", "settings.json")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Error("expected .amp/settings.json to be created")
+	}
+
+	// Verify config content
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read config: %v", err)
+	}
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	mcpServers, ok := config["amp.mcpServers"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected amp.mcpServers key")
+	}
+	tasuku, ok := mcpServers["tasuku"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected tasuku entry")
+	}
+	// Amp entries should NOT have a type field
+	if _, hasType := tasuku["type"]; hasType {
+		t.Error("expected no type field for Amp MCP entry")
+	}
+	if tasuku["command"] == nil {
+		t.Error("expected command field")
+	}
+}
+
+func TestInstallLocalWithAgentsMD(t *testing.T) {
+	h := testutil.New(t)
+	dir := h.TempDir()
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// Create only AGENTS.md (no .amp/ directory)
+	os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("# Test"), 0644)
+
+	err := h.Execute(Cmd, "install", "--local", "--tool", "amp")
+	h.AssertNoError(err)
+
+	h.AssertOutputContains("Amp")
+
+	// Verify .amp/settings.json was created
+	if _, err := os.Stat(filepath.Join(dir, ".amp", "settings.json")); os.IsNotExist(err) {
+		t.Error("expected .amp/settings.json to be created when AGENTS.md exists")
 	}
 }
 
