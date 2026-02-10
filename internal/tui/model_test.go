@@ -783,6 +783,34 @@ func TestNoSelectionMessage(t *testing.T) {
 	// Test the filtered-empty case is sufficient.
 }
 
+func TestStatusMsgClearsAfterNoSelectionFeedback(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	model := newTestModel(t, s)
+
+	// Apply blocked filter (3) so list is empty in setup fixture.
+	filtered, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	model = filtered.(Model)
+	if len(model.taskList.Items()) != 0 {
+		t.Fatalf("expected empty filtered list, got %d items", len(model.taskList.Items()))
+	}
+
+	// Trigger a task-dependent action with no selected item.
+	withMsg, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	model = withMsg.(Model)
+	if model.statusMsg == "" {
+		t.Fatal("expected statusMsg to be set for no-selection feedback")
+	}
+
+	// Next dashboard keypress should clear stale status feedback.
+	cleared, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("0")})
+	model = cleared.(Model)
+	if model.statusMsg != "" {
+		t.Fatalf("expected statusMsg to clear, got %q", model.statusMsg)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))

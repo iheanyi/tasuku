@@ -348,11 +348,14 @@ func pauseTaskCmd(s store.Storage, id string) tea.Cmd {
 // New creates a new TUI model.
 // The model starts in a loading state; Init() triggers async data loading.
 func New(s store.Storage) (*Model, error) {
-	// Initialize progress bar with theme colors
-	prog := progress.New(
-		progress.WithScaledGradient(progressColorA(), progressColorB()),
-		progress.WithoutPercentage(),
-	)
+	// Initialize progress bar. Respect NO_COLOR by not applying gradients.
+	progOpts := []progress.Option{progress.WithoutPercentage()}
+	if !noColorEnabled() {
+		progOpts = append([]progress.Option{
+			progress.WithScaledGradient(progressColorA(), progressColorB()),
+		}, progOpts...)
+	}
+	prog := progress.New(progOpts...)
 
 	// Initialize markdown renderer for rich content display
 	mdRenderer, _ := glamour.NewTermRenderer(
@@ -688,6 +691,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 			return m, nil
 		}
+		m.statusMsg = ""
 		m.file = msg.File
 		m.initTaskList()
 		m.restoreSelection(m.lastSelectedID, m.lastSelectedIdx)
@@ -699,6 +703,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 			return m, nil
 		}
+		m.statusMsg = ""
 		// Action succeeded, refresh data from storage
 		return m, loadTasksCmd(m.store)
 
@@ -817,6 +822,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Normal keybinding handling when NOT filtering
+		if m.view == ViewDashboard {
+			m.statusMsg = ""
+		}
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit

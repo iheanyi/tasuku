@@ -74,21 +74,20 @@ func init() {
 	FilterMatchStyle = lipgloss.NewStyle().Foreground(ColorAmber).Bold(true).Underline(true)
 }
 
+// noColorEnabled reports whether theme colors are disabled via NO_COLOR.
+func noColorEnabled() bool {
+	_, ok := ColorAccent.(lipgloss.NoColor)
+	return ok
+}
+
 // progressColorA and progressColorB return hex strings for the progress bar gradient.
-// When NO_COLOR is set, returns neutral grays so the bar remains visible.
 func progressColorA() string {
-	if _, ok := ColorMuted.(lipgloss.NoColor); ok {
-		return "#6b7280"
-	}
 	if c, ok := ColorMuted.(lipgloss.Color); ok {
 		return string(c)
 	}
 	return "#6b7280"
 }
 func progressColorB() string {
-	if _, ok := ColorAccent.(lipgloss.NoColor); ok {
-		return "#94a3b8"
-	}
 	if c, ok := ColorAccent.(lipgloss.Color); ok {
 		return string(c)
 	}

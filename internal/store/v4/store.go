@@ -1099,9 +1099,11 @@ func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool,
 	}
 
 	// Update index
-	s.updateIndex(func(idx *Index) {
+	if err := s.updateIndex(func(idx *Index) {
 		idx.LearningsCount = len(lf.Learnings)
-	})
+	}); err != nil {
+		return id, isRule, fmt.Errorf("store: failed to update index: %w", err)
+	}
 
 	return id, isRule, nil
 }
