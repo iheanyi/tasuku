@@ -53,6 +53,11 @@ Cursor hooks provide:
   - postToolUse: Checks if TodoWrite items should persist
   - beforeSubmitPrompt: Detects task intent in prompts
 
+Amp uses a different model (skills + MCP, no hooks):
+  - Install skill: tk plugin install --tool amp
+  - Install MCP: tk mcp install --tool amp
+  - See docs/hooks.md for details
+
 The sync/plan-sync commands apply the nudge rule: only project-level tasks
 are synced, session-level implementation steps are skipped.
 

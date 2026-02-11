@@ -124,8 +124,8 @@ func TestConvertToCursorCommand(t *testing.T) {
 
 func TestGetSupportedTools(t *testing.T) {
 	tools := GetSupportedTools()
-	if len(tools) != 4 {
-		t.Errorf("expected 4 supported tools, got %d", len(tools))
+	if len(tools) != 5 {
+		t.Errorf("expected 5 supported tools, got %d", len(tools))
 	}
 
 	// Check that all required tools are present
@@ -134,7 +134,7 @@ func TestGetSupportedTools(t *testing.T) {
 		names[tool.Name] = true
 	}
 
-	expected := []string{"Claude Code", "Cursor", "Copilot CLI", "Codex"}
+	expected := []string{"Claude Code", "Cursor", "Copilot CLI", "Codex", "Amp"}
 	for _, name := range expected {
 		if !names[name] {
 			t.Errorf("expected tool %q not found", name)
@@ -156,6 +156,8 @@ func TestGetToolByName(t *testing.T) {
 		{"copilotcli", "Copilot CLI"},
 		{"github", "Copilot CLI"},
 		{"codex", "Codex"},
+		{"amp", "Amp"},
+		{"ampcode", "Amp"},
 		{"unknown", ""},
 	}
 
@@ -359,6 +361,164 @@ func TestGetDetectedTools(t *testing.T) {
 	detected = GetDetectedTools()
 	if len(detected) != 2 {
 		t.Errorf("expected 2 detected tools, got %d", len(detected))
+	}
+}
+
+func TestInstallToToolAmpSkillMD(t *testing.T) {
+	dir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// Create .amp directory to trigger detection
+	os.Mkdir(".amp", 0755)
+
+	tool := ToolTarget{
+		Name:      "Amp",
+		Format:    "skill-md",
+		LocalDir:  ".agents/skills/tasuku",
+		GlobalDir: filepath.Join(dir, "global/agents/skills/tasuku"),
+	}
+
+	result := InstallToTool(tool, true) // local install
+
+	if len(result.Errors) > 0 {
+		t.Errorf("unexpected errors: %v", result.Errors)
+	}
+
+	if len(result.FilesAdded) == 0 {
+		t.Error("expected files to be added")
+	}
+
+	// Verify files were created in correct directory
+	for _, path := range result.FilesAdded {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			t.Errorf("file %s was not created", path)
+		}
+		// Should be in .agents/skills/tasuku/
+		if !strings.Contains(path, ".agents/skills/tasuku") {
+			t.Errorf("file %s should be in .agents/skills/tasuku/", path)
+		}
+		// Should be .md files
+		if !strings.HasSuffix(path, ".md") {
+			t.Errorf("file %s should have .md extension", path)
+		}
+	}
+}
+
+func TestUninstallFromToolAmpSkillMD(t *testing.T) {
+	dir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// Create skills directory with files
+	skillsDir := ".agents/skills/tasuku"
+	os.MkdirAll(skillsDir, 0755)
+	os.WriteFile(filepath.Join(skillsDir, "test.md"), []byte("test"), 0644)
+	os.WriteFile(filepath.Join(skillsDir, "other.txt"), []byte("not a skill"), 0644)
+
+	tool := ToolTarget{
+		Name:     "Amp",
+		Format:   "skill-md",
+		LocalDir: skillsDir,
+	}
+
+	result := UninstallFromTool(tool, true) // local uninstall
+
+	if len(result.Errors) > 0 {
+		t.Errorf("unexpected errors: %v", result.Errors)
+	}
+
+	// Only .md files should be removed
+	if len(result.FilesAdded) != 1 {
+		t.Errorf("expected 1 file removed, got %d", len(result.FilesAdded))
+	}
+
+	// .txt file should still exist
+	if _, err := os.Stat(filepath.Join(skillsDir, "other.txt")); os.IsNotExist(err) {
+		t.Error("non-.md files should NOT be removed")
+	}
+}
+
+func TestGetDetectedToolsAmp(t *testing.T) {
+	dir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// Test detection via .amp directory
+	os.Mkdir(".amp", 0755)
+	detected := GetDetectedTools()
+
+	foundAmp := false
+	for _, d := range detected {
+		if d.Name == "Amp" {
+			foundAmp = true
+			break
+		}
+	}
+	if !foundAmp {
+		t.Error("expected Amp to be detected via .amp/ directory")
+	}
+
+	// Clean up and test detection via AGENTS.md
+	os.Remove(".amp")
+	os.WriteFile("AGENTS.md", []byte("# Agent instructions"), 0644)
+	detected = GetDetectedTools()
+
+	foundAmp = false
+	for _, d := range detected {
+		if d.Name == "Amp" {
+			foundAmp = true
+			break
+		}
+	}
+	if !foundAmp {
+		t.Error("expected Amp to be detected via AGENTS.md file")
+	}
+}
+
+func TestAmpSkillMDFormat(t *testing.T) {
+	dir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	tool := ToolTarget{
+		Name:      "Amp",
+		Format:    "skill-md",
+		LocalDir:  ".agents/skills/tasuku",
+		GlobalDir: filepath.Join(dir, "global"),
+	}
+
+	result := InstallToTool(tool, true)
+
+	if len(result.FilesAdded) == 0 {
+		t.Fatal("expected files to be added")
+	}
+
+	// Read first skill file and verify SKILL.md format
+	data, err := os.ReadFile(result.FilesAdded[0])
+	if err != nil {
+		t.Fatalf("failed to read skill file: %v", err)
+	}
+
+	content := string(data)
+
+	// Must have YAML frontmatter
+	if !strings.HasPrefix(content, "---\n") {
+		t.Error("skill file must start with YAML frontmatter delimiter")
+	}
+
+	// Must have name field
+	if !strings.Contains(content, "name:") {
+		t.Error("skill file must have 'name:' in frontmatter")
+	}
+
+	// Must have description field
+	if !strings.Contains(content, "description:") {
+		t.Error("skill file must have 'description:' in frontmatter")
 	}
 }
 

@@ -47,6 +47,11 @@ Cursor hooks (global ~/.cursor/ by default, or local ./.cursor/ with --local):
   - postToolUse: Checks if TodoWrite items should persist
   - beforeSubmitPrompt: Detects task intent in prompts
 
+Amp (uses skills/MCP instead of hooks — see 'tk plugin install --tool amp'):
+  - Skill bundle: .agents/skills/tasuku/ with MCP server
+  - MCP server: tk mcp install --tool amp
+  - Instructions: AGENTS.md (falls back to CLAUDE.md)
+
 Examples:
   tk hooks install              # Git + Claude + Codex + OpenCode + Copilot + Cursor (global where applicable)
   tk hooks install --local      # Git + Claude + OpenCode + Cursor (local to project)

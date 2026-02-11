@@ -1,0 +1,6 @@
+{
+  "tasuku": {
+    "command": "tk",
+    "args": ["serve", "mcp"]
+  }
+}

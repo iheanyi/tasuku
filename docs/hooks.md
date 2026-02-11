@@ -11,6 +11,7 @@ Hooks automatically integrate Tasuku into your AI tool workflow.
 | Cursor | MCP server + rules sync |
 | Codex | MCP server + notify hook |
 | OpenCode | MCP server + plugin hooks |
+| Amp | MCP server + skill bundle (no hooks — uses AGENTS.md + skills) |
 
 ## Installation
 
@@ -32,6 +33,7 @@ tk mcp install                # Auto-detect and install to all AI tools
 tk mcp install --tool claude  # Claude Code only
 tk mcp install --tool copilot # Copilot CLI only
 tk mcp install --tool cursor  # Cursor only
+tk mcp install --tool amp    # Amp only
 tk mcp install --local        # Project-local config
 ```
 
@@ -41,6 +43,7 @@ tk mcp install --local        # Project-local config
 - Cursor: `~/.cursor/mcp.json` or `./.cursor/mcp.json`
 - Codex: `~/.codex/config.toml`
 - OpenCode: `~/.config/opencode/opencode.json` or `./opencode.json`
+- Amp: `~/.config/amp/settings.json` or `./.amp/settings.json`
 
 **Hook file locations:**
 - Claude Code: `~/.claude/settings.json` or `./.claude/settings.json`
@@ -108,3 +111,33 @@ Hooks include version tracking:
 - Version written to `.claude/.tasuku-hooks-version` on install
 - SessionStart checks for updates
 - Update with `tk hooks install --force`
+
+## Amp Integration
+
+Amp uses a different extension model than hooks. Instead of lifecycle hooks,
+Amp provides:
+
+### Skill Bundle (Recommended)
+Install the Tasuku skill to get MCP tools that load on demand:
+```bash
+tk plugin install --tool amp    # Install to .agents/skills/tasuku/
+```
+
+Or manually copy the skill from `.agents/skills/tasuku/` in the Tasuku repo.
+
+The skill includes:
+- `SKILL.md` — Skill description and usage instructions
+- `mcp.json` — Bundled MCP server (starts with Amp, tools hidden until skill loaded)
+
+### MCP Server (Always-on)
+For always-available tools without needing to load the skill:
+```bash
+tk mcp install --tool amp          # Global (~/.config/amp/settings.json)
+tk mcp install --tool amp --local  # Project (.amp/settings.json)
+```
+
+Note: Workspace MCP servers require approval: `amp mcp approve tasuku`
+
+### AGENTS.md
+Amp reads `AGENTS.md` files for project-specific instructions (falls back to `CLAUDE.md`).
+Your existing `CLAUDE.md` already works with Amp.

@@ -103,6 +103,13 @@ func GetSupportedTools() []ToolTarget {
 			GlobalDir:   filepath.Join(home, ".codex/skills/tasuku"),
 			DetectFiles: []string{".codex", "CODEX.md"},
 		},
+		{
+			Name:        "Amp",
+			Format:      "skill-md",
+			LocalDir:    ".agents/skills/tasuku",
+			GlobalDir:   filepath.Join(home, ".config/agents/skills/tasuku"),
+			DetectFiles: []string{".amp", "AGENTS.md"},
+		},
 	}
 }
 

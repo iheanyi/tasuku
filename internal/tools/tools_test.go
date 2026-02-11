@@ -48,6 +48,13 @@ func TestResolve(t *testing.T) {
 		{"google", ToolGemini, true},
 		{"Google", ToolGemini, true},
 
+		// Amp aliases
+		{"amp", ToolAmp, true},
+		{"Amp", ToolAmp, true},
+		{"AMP", ToolAmp, true},
+		{"ampcode", ToolAmp, true},
+		{"AmpCode", ToolAmp, true},
+
 		// Unknown tools
 		{"unknown", "", false},
 		{"vscode", "", false},
@@ -79,6 +86,7 @@ func TestTool_String(t *testing.T) {
 		{ToolCodex, "Codex"},
 		{ToolOpenCode, "OpenCode"},
 		{ToolGemini, "Gemini"},
+		{ToolAmp, "Amp"},
 	}
 
 	for _, tt := range tests {
@@ -94,7 +102,7 @@ func TestValidNames(t *testing.T) {
 	names := ValidNames()
 
 	// Should contain all tool name keywords
-	expectedKeywords := []string{"claude", "cursor", "copilot", "codex", "opencode", "gemini"}
+	expectedKeywords := []string{"claude", "cursor", "copilot", "codex", "opencode", "gemini", "amp"}
 	for _, keyword := range expectedKeywords {
 		if !strings.Contains(names, keyword) {
 			t.Errorf("ValidNames() = %q, missing %q", names, keyword)
@@ -111,6 +119,7 @@ func TestResolve_AllAliasesMapToValidTools(t *testing.T) {
 		ToolCodex:    true,
 		ToolOpenCode: true,
 		ToolGemini:   true,
+		ToolAmp:      true,
 	}
 
 	for alias, tool := range aliases {

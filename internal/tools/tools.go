@@ -15,6 +15,7 @@ const (
 	ToolCodex    Tool = "Codex"
 	ToolOpenCode Tool = "OpenCode"
 	ToolGemini   Tool = "Gemini"
+	ToolAmp      Tool = "Amp"
 )
 
 // aliases maps various user inputs to canonical tool names.
@@ -43,6 +44,10 @@ var aliases = map[string]Tool{
 	// Gemini
 	"gemini": ToolGemini,
 	"google": ToolGemini,
+
+	// Amp
+	"amp":     ToolAmp,
+	"ampcode": ToolAmp,
 }
 
 // Resolve maps a user-provided tool name to its canonical Tool constant.
@@ -59,5 +64,5 @@ func (t Tool) String() string {
 
 // ValidNames returns a comma-separated string of valid tool names for error messages.
 func ValidNames() string {
-	return "claude, cursor, copilot, codex, opencode, gemini"
+	return "claude, cursor, copilot, codex, opencode, gemini, amp"
 }

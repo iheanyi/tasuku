@@ -23,6 +23,7 @@ Different AI tools use different formats:
   - Cursor: Commands in .cursor/commands/tasuku/
   - Copilot CLI: Skills in .github/skills/tasuku/
   - Codex: Skills in .codex/skills/tasuku/
+  - Amp: Skills in .agents/skills/tasuku/
 
 This command provides a unified way to install Tasuku's guided workflows
 to any supported tool.
@@ -64,7 +65,7 @@ Examples:
 		RunE: runInstall,
 	}
 
-	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, copilot, codex")
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, copilot, codex, amp")
 	cmd.Flags().Bool("local", false, "Install to project-local directory")
 
 	return cmd
@@ -79,7 +80,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	if tool != "" {
 		t := plugin.GetToolByName(tool)
 		if t == nil {
-			return fmt.Errorf("unknown tool: %s (valid: claude, cursor, copilot, codex)", tool)
+			return fmt.Errorf("unknown tool: %s (valid: claude, cursor, copilot, codex, amp)", tool)
 		}
 		targets = append(targets, *t)
 	} else {
@@ -140,7 +141,7 @@ Examples:
 		RunE: runUninstall,
 	}
 
-	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, copilot, codex")
+	cmd.Flags().String("tool", "", "Target specific tool: claude, cursor, copilot, codex, amp")
 	cmd.Flags().Bool("local", false, "Uninstall from project-local directory")
 
 	return cmd
@@ -155,7 +156,7 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	if tool != "" {
 		t := plugin.GetToolByName(tool)
 		if t == nil {
-			return fmt.Errorf("unknown tool: %s (valid: claude, cursor, copilot, codex)", tool)
+			return fmt.Errorf("unknown tool: %s (valid: claude, cursor, copilot, codex, amp)", tool)
 		}
 		targets = append(targets, *t)
 	} else {
