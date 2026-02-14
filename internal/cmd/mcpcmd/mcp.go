@@ -82,7 +82,7 @@ func newInstallCmd() *cobra.Command {
 Supported tools:
   - Claude Code (~/.claude.json or ./.claude.json with --local)
   - Copilot CLI (~/.copilot/mcp-config.json or ./.copilot/mcp-config.json with --local)
-  - Cursor (~/.cursor/mcp.json or ./.cursor/mcp.json with --local)
+  - Cursor (project-level ./.cursor/mcp.json; --tool cursor auto-uses --local)
   - Codex (~/.codex/config.toml)
   - OpenCode (~/.config/opencode/opencode.json or ./opencode.json with --local)
   - Gemini (~/.gemini/mcp.json or .gemini/mcp.json with --local)
@@ -162,6 +162,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	force, _ := cmd.Flags().GetBool("force")
 	local, _ := cmd.Flags().GetBool("local")
 	toolFilter, _ := cmd.Flags().GetString("tool")
+	explicitToolSelection := toolFilter != ""
 
 	// Cursor requires project-level config (global MCP has no project context).
 	// Auto-promote to --local when --tool cursor is used without --local.
@@ -212,6 +213,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	installedTo := []string{}
 	alreadyInstalled := []string{}
 	reinstalled := []string{}
+	cursorLocalConfigured := false
 
 	for _, tool := range tools {
 		// Check if tool is installed (via any DetectPath) or settings file exists
@@ -227,7 +229,9 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			settingsExist = true
 		}
 
-		if !settingsExist && !toolInstalled {
+		// When a tool is explicitly selected (via --tool), install even if
+		// detection markers don't exist yet (we'll create config directories/files).
+		if !explicitToolSelection && !settingsExist && !toolInstalled {
 			// Skip if neither settings file nor tool directory exists
 			continue
 		}
@@ -245,6 +249,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 		if err != nil {
 			continue
+		}
+
+		if local && strings.Contains(strings.ToLower(tool.Name), "cursor") {
+			cursorLocalConfigured = true
 		}
 
 		if installed {
@@ -270,6 +278,17 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		fmt.Println("Use --force to reinstall anyway.")
 	}
 
+	if cursorLocalConfigured {
+		removedLegacy, cleanupWarnings := removeLegacyCursorGlobalConfigs()
+		if len(removedLegacy) > 0 {
+			fmt.Printf("Removed legacy global Cursor configs: %s\n", strings.Join(removedLegacy, ", "))
+			fmt.Println("This prevents duplicate Tasuku MCP servers in Cursor.")
+		}
+		for _, warning := range cleanupWarnings {
+			fmt.Printf("Warning: %s\n", warning)
+		}
+	}
+
 	if len(installedTo) == 0 && len(reinstalled) == 0 && len(alreadyInstalled) == 0 {
 		fmt.Println("No supported AI tools found.")
 		fmt.Println("Run 'tk mcp config' for manual setup instructions.")
@@ -281,6 +300,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 func runUninstall(cmd *cobra.Command, args []string) error {
 	local, _ := cmd.Flags().GetBool("local")
 	tools := getSupportedAITools(local)
+	if !local {
+		// Also clean up legacy Cursor global locations from older installs.
+		tools = append(tools, getLegacyCursorGlobalTools()...)
+	}
 	removedFrom := []string{}
 
 	for _, tool := range tools {
@@ -636,7 +659,16 @@ func buildMCPEntry(tool AITool, executable, projectDir string) map[string]interf
 			"args":    args,
 		}
 	}
-	// Claude Code, Cursor, Gemini use "type": "stdio"
+	// Cursor uses "type": "stdio" with "cwd" for reliable project directory
+	if strings.Contains(nameLower, "cursor") && projectDir != "" {
+		return map[string]interface{}{
+			"command": executable,
+			"args":    args,
+			"type":    "stdio",
+			"cwd":     projectDir,
+		}
+	}
+	// Claude Code, Gemini use "type": "stdio"
 	return map[string]interface{}{
 		"command": executable,
 		"args":    args,
@@ -657,7 +689,7 @@ func getSupportedAITools(local bool) []AITool {
 			{"Cursor (project)", ".cursor/mcp.json", "mcpServers", []string{".cursorrules", ".cursor"}, FormatJSON, "tasuku"},
 			{"OpenCode (project)", "opencode.json", "mcp", []string{"opencode.json"}, FormatJSON, "tasuku"},
 			{"Gemini (project)", ".gemini/mcp.json", "mcpServers", []string{".gemini", "GEMINI.md"}, FormatJSON, "tasuku"},
-		{"Amp (project)", ".amp/settings.json", "amp.mcpServers", []string{".amp", "AGENTS.md"}, FormatJSON, "tasuku"},
+			{"Amp (project)", ".amp/settings.json", "amp.mcpServers", []string{".amp", "AGENTS.md"}, FormatJSON, "tasuku"},
 		}
 	}
 
@@ -691,4 +723,38 @@ func getSupportedAITools(local bool) []AITool {
 		// Amp: config at ~/.config/amp/settings.json
 		{"Amp", configDir + "/amp/settings.json", "amp.mcpServers", []string{configDir + "/amp"}, FormatJSON, "tasuku"},
 	}
+}
+
+func getLegacyCursorGlobalTools() []AITool {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return nil
+	}
+	return []AITool{
+		// Historical/global locations from older Cursor integrations.
+		{"Cursor (legacy global)", filepath.Join(home, ".cursor", "mcp.json"), "mcpServers", []string{filepath.Join(home, ".cursor")}, FormatJSON, "tasuku"},
+		{"Cursor (legacy alt)", filepath.Join(home, "Library", "Application Support", "Cursor", "User", "globalStorage", "mcp.json"), "mcpServers", []string{filepath.Join(home, "Library", "Application Support", "Cursor", "User", "globalStorage")}, FormatJSON, "tasuku"},
+	}
+}
+
+func removeLegacyCursorGlobalConfigs() ([]string, []string) {
+	removed := []string{}
+	warnings := []string{}
+
+	for _, tool := range getLegacyCursorGlobalTools() {
+		if _, err := os.Stat(tool.SettingsPath); os.IsNotExist(err) {
+			continue
+		}
+
+		didRemove, err := uninstallFromJSON(tool)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("failed cleaning %s at %s: %v", tool.Name, tool.SettingsPath, err))
+			continue
+		}
+		if didRemove {
+			removed = append(removed, tool.Name)
+		}
+	}
+
+	return removed, warnings
 }

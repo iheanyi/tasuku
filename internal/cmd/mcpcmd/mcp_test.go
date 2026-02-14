@@ -754,7 +754,7 @@ func TestInstallCursorAutoLocal(t *testing.T) {
 		t.Error("expected .cursor/mcp.json to be created via auto-local promotion")
 	}
 
-	// Verify it includes --dir flag
+	// Verify it includes --dir flag and cwd field
 	data, err := os.ReadFile(filepath.Join(dir, ".cursor", "mcp.json"))
 	if err != nil {
 		t.Fatalf("failed to read config: %v", err)
@@ -762,6 +762,167 @@ func TestInstallCursorAutoLocal(t *testing.T) {
 	content := string(data)
 	if !strings.Contains(content, "--dir") {
 		t.Error("expected --dir flag in auto-local Cursor config")
+	}
+	if !strings.Contains(content, `"cwd"`) {
+		t.Error("expected cwd field in Cursor config for reliable project directory")
+	}
+}
+
+func TestInstallCursorWithoutDetectionMarkers(t *testing.T) {
+	h := testutil.New(t)
+	dir := h.TempDir()
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldWd)
+
+	// No .cursor directory and no .cursorrules marker.
+	// Explicit --tool cursor should still create project config.
+	err := h.Execute(Cmd, "install", "--local", "--tool", "cursor")
+	h.AssertNoError(err)
+
+	if _, err := os.Stat(filepath.Join(dir, ".cursor", "mcp.json")); os.IsNotExist(err) {
+		t.Error("expected .cursor/mcp.json to be created even without detection markers")
+	}
+}
+
+func TestInstallCursorCleansLegacyGlobalConfigs(t *testing.T) {
+	h := testutil.New(t)
+	dir := h.TempDir()
+	tempHome := filepath.Join(h.TempDir(), "home")
+	os.MkdirAll(tempHome, 0755)
+
+	oldWd, _ := os.Getwd()
+	oldHome := os.Getenv("HOME")
+	os.Chdir(dir)
+	os.Setenv("HOME", tempHome)
+	defer func() {
+		os.Chdir(oldWd)
+		if oldHome == "" {
+			os.Unsetenv("HOME")
+		} else {
+			os.Setenv("HOME", oldHome)
+		}
+	}()
+
+	legacyPaths := []string{
+		filepath.Join(tempHome, ".cursor", "mcp.json"),
+		filepath.Join(tempHome, "Library", "Application Support", "Cursor", "User", "globalStorage", "mcp.json"),
+	}
+
+	for _, p := range legacyPaths {
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatalf("failed to create dir for %s: %v", p, err)
+		}
+		legacyConfig := map[string]interface{}{
+			"mcpServers": map[string]interface{}{
+				"tasuku": map[string]interface{}{
+					"command": "/usr/bin/tk",
+					"args":    []string{"serve", "mcp"},
+					"type":    "stdio",
+				},
+				"other-server": map[string]interface{}{
+					"command": "/usr/bin/other",
+				},
+			},
+		}
+		data, _ := json.MarshalIndent(legacyConfig, "", "  ")
+		if err := os.WriteFile(p, data, 0644); err != nil {
+			t.Fatalf("failed to write legacy config %s: %v", p, err)
+		}
+	}
+
+	// Cursor auto-promotes to project-local install and should clean legacy globals.
+	err := h.Execute(Cmd, "install", "--tool", "cursor", "--force")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Removed legacy global Cursor configs")
+
+	// Local project cursor config should exist.
+	if _, err := os.Stat(filepath.Join(dir, ".cursor", "mcp.json")); os.IsNotExist(err) {
+		t.Fatal("expected local .cursor/mcp.json to be created")
+	}
+
+	for _, p := range legacyPaths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", p, err)
+		}
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("invalid JSON in %s: %v", p, err)
+		}
+		mcpServers, ok := cfg["mcpServers"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected mcpServers in %s", p)
+		}
+		if _, exists := mcpServers["tasuku"]; exists {
+			t.Fatalf("expected tasuku removed from %s", p)
+		}
+		if _, exists := mcpServers["other-server"]; !exists {
+			t.Fatalf("expected other-server preserved in %s", p)
+		}
+	}
+}
+
+func TestUninstallRemovesLegacyCursorGlobalConfigs(t *testing.T) {
+	h := testutil.New(t)
+	tempHome := filepath.Join(h.TempDir(), "home")
+	os.MkdirAll(tempHome, 0755)
+
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempHome)
+	defer func() {
+		if oldHome == "" {
+			os.Unsetenv("HOME")
+		} else {
+			os.Setenv("HOME", oldHome)
+		}
+	}()
+
+	legacyPaths := []string{
+		filepath.Join(tempHome, ".cursor", "mcp.json"),
+		filepath.Join(tempHome, "Library", "Application Support", "Cursor", "User", "globalStorage", "mcp.json"),
+	}
+
+	for _, p := range legacyPaths {
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatalf("failed to create dir for %s: %v", p, err)
+		}
+		legacyConfig := map[string]interface{}{
+			"mcpServers": map[string]interface{}{
+				"tasuku": map[string]interface{}{
+					"command": "/usr/bin/tk",
+					"args":    []string{"serve", "mcp"},
+					"type":    "stdio",
+				},
+			},
+		}
+		data, _ := json.MarshalIndent(legacyConfig, "", "  ")
+		if err := os.WriteFile(p, data, 0644); err != nil {
+			t.Fatalf("failed to write legacy config %s: %v", p, err)
+		}
+	}
+
+	err := h.Execute(Cmd, "uninstall")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Cursor (legacy")
+
+	for _, p := range legacyPaths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", p, err)
+		}
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("invalid JSON in %s: %v", p, err)
+		}
+		mcpServers, ok := cfg["mcpServers"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected mcpServers in %s", p)
+		}
+		if _, exists := mcpServers["tasuku"]; exists {
+			t.Fatalf("expected tasuku removed from %s", p)
+		}
 	}
 }
 
