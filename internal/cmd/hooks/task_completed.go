@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -108,10 +109,15 @@ func resolveTaskID(taskID, taskSubject string, tasks map[string]task.Task) strin
 	}
 
 	if taskSubject != "" {
-		// Match the same ID normalization used by core task creation.
-		canonicalID := task.GenerateTaskID(taskSubject, nil)
-		if _, exists := tasks[canonicalID]; exists {
-			return canonicalID
+		// task.GenerateTaskID falls back to a random task-xxx ID when normalization
+		// yields an empty base (e.g. numeric/punctuation-only subjects). Skip this
+		// path unless the subject has at least one ASCII letter.
+		if strings.ContainsAny(taskSubject, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+			// Match the same ID normalization used by core task creation.
+			canonicalID := task.GenerateTaskID(taskSubject, nil)
+			if _, exists := tasks[canonicalID]; exists {
+				return canonicalID
+			}
 		}
 
 		// Backward-compatible fallback for tasks created via older hook ID generation.
