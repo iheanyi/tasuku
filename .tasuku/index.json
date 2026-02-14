@@ -1,27 +1,51 @@
 {
   "version": "v4",
   "tasks": {
+    "align-doctor-mcp-parity": {
+      "status": "done",
+      "description": "Align tk doctor MCP parity checks with consolidated tools",
+      "file": "tasks/align-doctor-mcp-parity.md",
+      "created_at": "2026-02-12T17:51:37.443875Z",
+      "updated_at": "2026-02-12T17:51:37.468861Z"
+    },
+    "cleanup-legacy-cursor-mcp": {
+      "status": "done",
+      "description": "Ensure legacy global Cursor MCP tasuku configs are cleaned up",
+      "file": "tasks/cleanup-legacy-cursor-mcp.md",
+      "created_at": "2026-02-12T17:51:37.391544Z",
+      "updated_at": "2026-02-12T17:51:37.415153Z"
+    },
     "fix-tui-string-truncation-for-an": {
       "status": "ready",
       "priority": 2,
       "file": "tasks/fix-tui-string-truncation-for-an.md",
+      "created_at": "0001-01-01T00:00:00Z",
       "updated_at": "2026-01-09T02:39:16.233324Z"
     },
     "optimize-storage-interface-for-g": {
       "status": "ready",
       "priority": 1,
       "file": "tasks/optimize-storage-interface-for-g.md",
+      "created_at": "0001-01-01T00:00:00Z",
       "updated_at": "2026-01-09T02:39:11.192827Z"
     },
     "refactor-tui-to-use-nonblocking": {
       "status": "ready",
       "priority": 1,
       "file": "tasks/refactor-tui-to-use-nonblocking.md",
+      "created_at": "0001-01-01T00:00:00Z",
       "updated_at": "2026-01-09T02:39:06.160536Z"
+    },
+    "verify-cursor-mcp-reliability": {
+      "status": "done",
+      "description": "Validate Cursor MCP install and runtime reliability",
+      "file": "tasks/verify-cursor-mcp-reliability.md",
+      "created_at": "2026-02-12T17:51:37.318101Z",
+      "updated_at": "2026-02-12T17:51:37.342251Z"
     }
   },
-  "archived_count": 214,
+  "archived_count": 217,
   "learnings_count": 17,
   "decisions_count": 14,
-  "updated_at": "2026-01-21T02:47:21.341454Z"
+  "updated_at": "2026-02-12T17:51:37.468979Z"
 }
