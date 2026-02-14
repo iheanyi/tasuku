@@ -234,14 +234,23 @@ func runDoctor() error {
 	tools := getSupportedAITools()
 	configuredTools := 0
 	mismatchedPaths := []string{}
+	projectRoot := ""
+	if s.Exists() {
+		projectRoot = filepath.Dir(tasukuPath)
+	}
 
 	for _, tool := range tools {
+		settingsPath := tool.SettingsPath
+		if projectRoot != "" && !filepath.IsAbs(settingsPath) {
+			settingsPath = filepath.Join(projectRoot, settingsPath)
+		}
+
 		// Check if settings file exists
-		if _, err := os.Stat(tool.SettingsPath); os.IsNotExist(err) {
+		if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 			continue
 		}
 
-		data, err := os.ReadFile(tool.SettingsPath)
+		data, err := os.ReadFile(settingsPath)
 		if err != nil {
 			continue
 		}
