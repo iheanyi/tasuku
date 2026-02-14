@@ -380,7 +380,7 @@ func runDoctor() error {
 			"task stats":    {"tk_stats"},
 			"task tag":      {"tk_metadata"},
 			"task field":    {"tk_metadata"},
-			"task archive":  {"tk_task"},
+			"task archive":  {"tk_task", "tk_manage"},
 			// Context commands
 			"learn":        {"tk_learn"},
 			"decide":       {"tk_decide"},
