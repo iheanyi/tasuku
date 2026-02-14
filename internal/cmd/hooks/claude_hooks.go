@@ -226,6 +226,26 @@ func getTasukuClaudeHooks() map[string][]map[string]interface{} {
 				},
 			},
 		},
+		"TaskCompleted": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks task-completed %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
+		"TeammateIdle": {
+			{
+				"hooks": []map[string]string{
+					{
+						"type":    "command",
+						"command": fmt.Sprintf("%s hooks teammate-idle %s", executable, tasukuHookMarker),
+					},
+				},
+			},
+		},
 	}
 }
 

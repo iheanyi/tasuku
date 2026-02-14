@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -437,8 +438,8 @@ func TestTruncateString(t *testing.T) {
 
 func TestIsBugFixTask(t *testing.T) {
 	tests := []struct {
-		desc   string
-		isBug  bool
+		desc  string
+		isBug bool
 	}{
 		{"fix login bug", true},
 		{"Fix authentication issue", true},
@@ -732,11 +733,11 @@ func TestHandleEditCheck(t *testing.T) {
 	os.MkdirAll(".tasuku", 0755)
 
 	tests := []struct {
-		name           string
-		config         featureConfig
-		setupReads     int
-		toolInput      string
-		expectTrigger  bool
+		name          string
+		config        featureConfig
+		setupReads    int
+		toolInput     string
+		expectTrigger bool
 	}{
 		{
 			name:          "triggers when investigation pattern detected",
@@ -1080,7 +1081,7 @@ func TestSubagentDoneCmd(t *testing.T) {
 
 func TestDetectArchitectureExplanation(t *testing.T) {
 	tests := []struct {
-		prompt        string
+		prompt         string
 		isArchitecture bool
 	}{
 		{"we chose Go because it compiles to a single binary", true},
@@ -1113,7 +1114,7 @@ func TestExtractDecisionContent(t *testing.T) {
 		{"the reason is that JSON parses faster", "that JSON parses faster"},
 		{"that's why we use flock for file locking", "we use flock for file locking"},
 		{"implement user login", ""}, // No decision content
-		{"", ""}, // Empty prompt
+		{"", ""},                     // Empty prompt
 	}
 
 	for _, tt := range tests {
@@ -1151,14 +1152,14 @@ func TestDetectUserPreference(t *testing.T) {
 
 func TestExtractPreferenceContent(t *testing.T) {
 	tests := []struct {
-		prompt   string
+		prompt     string
 		hasContent bool
 	}{
 		{"i prefer explicit error handling over panic", true},
 		{"please always use descriptive variable names", true},
 		{"from now on use early returns for guard clauses", true},
 		{"implement user login", false}, // No preference content
-		{"", false}, // Empty prompt
+		{"", false},                     // Empty prompt
 	}
 
 	for _, tt := range tests {
@@ -1292,10 +1293,10 @@ func TestPromptCheckListFeaturesIncludesNewNudges(t *testing.T) {
 
 func TestPromptCheckEdgeCases(t *testing.T) {
 	tests := []struct {
-		name           string
-		prompt         string
-		expectOutput   bool
-		expectedText   string
+		name         string
+		prompt       string
+		expectOutput bool
+		expectedText string
 	}{
 		{
 			name:         "unicode in architecture explanation",
@@ -1562,6 +1563,326 @@ func TestUninstallCopilotHooksPreservesOther(t *testing.T) {
 	}
 }
 
+// --- TaskCompleted hook tests ---
+
+func TestTaskCompletedWithDependents(t *testing.T) {
+	h := testutil.New(t)
+
+	h.AddTaskWithStatus("auth-system", "Implement auth system", task.StatusDone)
+	h.AddTaskWithStatus("user-dashboard", "Build user dashboard", task.StatusReady)
+	h.Store().BlockTask("user-dashboard", []string{"auth-system"})
+	h.Store().SetOwner("user-dashboard", "worker-2")
+
+	input := map[string]string{
+		"task_id":       "auth-system",
+		"task_subject":  "Auth system",
+		"teammate_name": "worker-1",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTaskCompleted()
+	})
+
+	if !strings.Contains(output, "Task Completed: auth-system") {
+		t.Errorf("expected header with task ID, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Tasks blocked by this task") {
+		t.Errorf("expected blocked-by-this-task section, got:\n%s", output)
+	}
+	if !strings.Contains(output, "user-dashboard") {
+		t.Errorf("expected dependent task ID, got:\n%s", output)
+	}
+	if !strings.Contains(output, "worker-2") {
+		t.Errorf("expected owner name, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Reflect on this work") {
+		t.Errorf("expected reflection prompts, got:\n%s", output)
+	}
+}
+
+func TestTaskCompletedNoMatch(t *testing.T) {
+	h := testutil.New(t)
+	_ = h // storage exists but no matching task
+
+	input := map[string]string{
+		"task_id":      "nonexistent",
+		"task_subject": "Some unknown task",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTaskCompleted()
+	})
+
+	if !strings.Contains(output, "Task Completed: nonexistent") {
+		t.Errorf("expected header with task_id, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Reflect on this work") {
+		t.Errorf("expected reflection prompts, got:\n%s", output)
+	}
+	// Should NOT have blocked-by-this-task section
+	if strings.Contains(output, "Tasks blocked by this task") {
+		t.Errorf("should not have blocked-by-this-task section for non-matching task, got:\n%s", output)
+	}
+}
+
+func TestTaskCompletedNoDependents(t *testing.T) {
+	h := testutil.New(t)
+
+	// Task exists but nothing is blocked by it
+	h.AddTaskWithStatus("simple-task", "Simple standalone task", task.StatusDone)
+
+	input := map[string]string{
+		"task_id":      "simple-task",
+		"task_subject": "Simple standalone task",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTaskCompleted()
+	})
+
+	if !strings.Contains(output, "Task Completed: simple-task") {
+		t.Errorf("expected header, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Reflect on this work") {
+		t.Errorf("expected reflection prompts, got:\n%s", output)
+	}
+	if strings.Contains(output, "Tasks blocked by this task") {
+		t.Errorf("should not have blocked-by-this-task section when no dependents, got:\n%s", output)
+	}
+}
+
+func TestTaskCompletedSubjectMatch(t *testing.T) {
+	h := testutil.New(t)
+
+	// Task ID is generated from subject
+	h.AddTaskWithStatus("auth-system", "Auth system", task.StatusDone)
+	h.AddTaskWithStatus("user-profile", "User profile page", task.StatusReady)
+	h.Store().BlockTask("user-profile", []string{"auth-system"})
+
+	// Use task_subject that generates "auth-system" via generateID
+	input := map[string]string{
+		"task_id":      "no-match-id",
+		"task_subject": "Auth System",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTaskCompleted()
+	})
+
+	if !strings.Contains(output, "Task Completed: auth-system") {
+		t.Errorf("expected subject-matched task ID, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Tasks blocked by this task") {
+		t.Errorf("expected blocked-by-this-task section via subject match, got:\n%s", output)
+	}
+}
+
+func TestTaskCompletedSubjectMatchUsesCanonicalIDRules(t *testing.T) {
+	h := testutil.New(t)
+
+	// Task ID reflects task.GenerateTaskID normalization (digits are dropped).
+	h.AddTaskWithStatus("oauth-v-support", "OAuth v2 support", task.StatusDone)
+	h.AddTaskWithStatus("post-auth-cleanup", "Post auth cleanup", task.StatusReady)
+	h.Store().BlockTask("post-auth-cleanup", []string{"oauth-v-support"})
+
+	input := map[string]string{
+		"task_id":      "no-match-id",
+		"task_subject": "OAuth v2 support",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTaskCompleted()
+	})
+
+	if !strings.Contains(output, "Task Completed: oauth-v-support") {
+		t.Errorf("expected canonical subject-matched task ID, got:\n%s", output)
+	}
+	if !strings.Contains(output, "post-auth-cleanup") {
+		t.Errorf("expected dependent task in output, got:\n%s", output)
+	}
+}
+
+func TestResolveTaskIDNoFalseMatchForDegenerateSubject(t *testing.T) {
+	tasks := map[string]task.Task{}
+	for i := 0; i < 0x1000; i++ {
+		// task.GenerateTaskID random fallback has form task-<3 hex chars>.
+		tasks[fmt.Sprintf("task-%03x", i)] = task.Task{Description: "Legacy task"}
+	}
+
+	got := resolveTaskID("missing-id", "12345", tasks)
+	if got != "" {
+		t.Fatalf("expected no match for degenerate subject, got %q", got)
+	}
+}
+
+// --- TeammateIdle hook tests ---
+
+func TestTeammateIdleWithDependents(t *testing.T) {
+	h := testutil.New(t)
+
+	h.AddTaskWithStatus("build-api", "Build the API", task.StatusInProgress)
+	h.Store().SetOwner("build-api", "worker-1")
+	h.AddTaskWithStatus("write-docs", "Write API docs", task.StatusReady)
+	h.Store().BlockTask("write-docs", []string{"build-api"})
+
+	input := map[string]string{
+		"teammate_name": "worker-1",
+		"team_name":     "my-team",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTeammateIdle()
+	})
+
+	if !strings.Contains(output, "Teammate Idle: worker-1") {
+		t.Errorf("expected header, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Your tasks blocking others") {
+		t.Errorf("expected blocking section, got:\n%s", output)
+	}
+	if !strings.Contains(output, "build-api") {
+		t.Errorf("expected owned task ID, got:\n%s", output)
+	}
+	if !strings.Contains(output, "write-docs") {
+		t.Errorf("expected dependent task ID, got:\n%s", output)
+	}
+	if strings.Contains(output, "Before going idle, reflect") {
+		t.Errorf("did not expect reflection prompts for teammate idle, got:\n%s", output)
+	}
+}
+
+func TestTeammateIdleNoDependents(t *testing.T) {
+	h := testutil.New(t)
+
+	// Teammate owns a task but nothing depends on it
+	h.AddTaskWithStatus("solo-task", "Solo task", task.StatusInProgress)
+	h.Store().SetOwner("solo-task", "worker-1")
+
+	input := map[string]string{
+		"teammate_name": "worker-1",
+		"team_name":     "my-team",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTeammateIdle()
+	})
+
+	if !strings.Contains(output, "Teammate Idle: worker-1") {
+		t.Errorf("expected header, got:\n%s", output)
+	}
+	if strings.Contains(output, "Your tasks blocking others") {
+		t.Errorf("should not have blocking section, got:\n%s", output)
+	}
+	if strings.Contains(output, "Before going idle, reflect") {
+		t.Errorf("did not expect reflection prompts for teammate idle, got:\n%s", output)
+	}
+}
+
+func TestTeammateIdleNoOwnedTasks(t *testing.T) {
+	h := testutil.New(t)
+
+	// Tasks exist but not owned by this teammate
+	h.AddTaskWithStatus("other-task", "Other task", task.StatusInProgress)
+	h.Store().SetOwner("other-task", "someone-else")
+
+	input := map[string]string{
+		"teammate_name": "worker-1",
+		"team_name":     "my-team",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTeammateIdle()
+	})
+
+	if !strings.Contains(output, "Teammate Idle: worker-1") {
+		t.Errorf("expected header, got:\n%s", output)
+	}
+	if strings.Contains(output, "Your tasks blocking others") {
+		t.Errorf("should not have blocking section, got:\n%s", output)
+	}
+	if strings.Contains(output, "Before going idle, reflect") {
+		t.Errorf("did not expect reflection prompts for teammate idle, got:\n%s", output)
+	}
+}
+
+func TestTeammateIdleSkipsDoneOwnedTasks(t *testing.T) {
+	h := testutil.New(t)
+
+	// Done tasks can still appear in BlockedBy, but should not be reported as blockers.
+	h.AddTaskWithStatus("done-owner-task", "Already completed task", task.StatusDone)
+	h.Store().SetOwner("done-owner-task", "worker-1")
+	h.AddTaskWithStatus("dependent-task", "Still blocked by other work", task.StatusBlocked)
+	h.Store().BlockTask("dependent-task", []string{"done-owner-task", "active-blocker"})
+
+	input := map[string]string{
+		"teammate_name": "worker-1",
+		"team_name":     "my-team",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTeammateIdle()
+	})
+
+	if strings.Contains(output, "Your tasks blocking others") {
+		t.Errorf("expected done owned task to be excluded from blockers, got:\n%s", output)
+	}
+}
+
+// captureStdoutWithStdin pipes JSON to stdin and captures stdout from fn.
+func captureStdoutWithStdin(t *testing.T, stdinData interface{}, fn func()) string {
+	t.Helper()
+
+	jsonBytes, err := json.Marshal(stdinData)
+	if err != nil {
+		t.Fatalf("failed to marshal stdin JSON: %v", err)
+	}
+
+	// Set up stdin pipe
+	stdinR, stdinW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdin pipe: %v", err)
+	}
+	oldStdin := os.Stdin
+	os.Stdin = stdinR
+
+	go func() {
+		stdinW.Write(jsonBytes)
+		stdinW.Close()
+	}()
+
+	// Set up stdout capture
+	oldStdout := os.Stdout
+	stdoutR, stdoutW, err := os.Pipe()
+	if err != nil {
+		os.Stdin = oldStdin
+		stdinR.Close()
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+	os.Stdout = stdoutW
+
+	fn()
+
+	stdoutW.Close()
+	os.Stdout = oldStdout
+	os.Stdin = oldStdin
+	stdinR.Close()
+
+	var buf strings.Builder
+	outBytes := make([]byte, 4096)
+	for {
+		n, readErr := stdoutR.Read(outBytes)
+		if n > 0 {
+			buf.Write(outBytes[:n])
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	stdoutR.Close()
+
+	return buf.String()
+}
+
 func TestCopilotHooksNoGithubDir(t *testing.T) {
 	h := testutil.New(t)
 
@@ -1579,4 +1900,3 @@ func TestCopilotHooksNoGithubDir(t *testing.T) {
 		t.Error(".github/hooks directory should be created")
 	}
 }
-

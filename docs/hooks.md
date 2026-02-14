@@ -59,6 +59,8 @@ tk mcp install --local        # Project-local config
 | Stop | Session ends | Reminds about timers and in-progress tasks |
 | PreCompact | Before context compaction | Prompts to capture learnings |
 | UserPromptSubmit | User sends message | Surfaces related context |
+| TaskCompleted | Task marked as done | Shows tasks blocked by the completed task plus reflection prompts |
+| TeammateIdle | Teammate about to go idle | Shows handoff guidance for blocking tasks |
 
 ## Hook Features
 
