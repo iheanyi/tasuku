@@ -108,11 +108,16 @@ func resolveTaskID(taskID, taskSubject string, tasks map[string]task.Task) strin
 	}
 
 	if taskSubject != "" {
+		// Match the same ID normalization used by core task creation.
+		canonicalID := task.GenerateTaskID(taskSubject, nil)
+		if _, exists := tasks[canonicalID]; exists {
+			return canonicalID
+		}
+
+		// Backward-compatible fallback for tasks created via older hook ID generation.
 		generatedID := generateID(taskSubject)
-		if generatedID != "" {
-			if _, exists := tasks[generatedID]; exists {
-				return generatedID
-			}
+		if _, exists := tasks[generatedID]; exists {
+			return generatedID
 		}
 	}
 

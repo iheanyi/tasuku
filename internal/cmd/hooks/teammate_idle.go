@@ -102,6 +102,9 @@ func findOwnedTasksWithDependents(owner string, tasks map[string]task.Task) []ow
 		if t.Owner == nil || *t.Owner != owner {
 			continue
 		}
+		if t.Status == task.StatusDone {
+			continue
+		}
 		blocked := findBlockedTasks(id, tasks)
 		if len(blocked) > 0 {
 			result = append(result, ownedTaskWithDependents{
