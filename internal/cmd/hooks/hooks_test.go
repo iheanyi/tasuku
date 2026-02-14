@@ -1701,6 +1701,18 @@ func TestTaskCompletedSubjectMatchUsesCanonicalIDRules(t *testing.T) {
 	}
 }
 
+func TestResolveTaskIDNoFalseMatchForDegenerateSubject(t *testing.T) {
+	tasks := map[string]task.Task{
+		// Not representable by task.GenerateTaskID random-hex fallback for empty-normalized subjects.
+		"task-zzz": {Description: "Legacy task"},
+	}
+
+	got := resolveTaskID("missing-id", "12345", tasks)
+	if got != "" {
+		t.Fatalf("expected no match for degenerate subject, got %q", got)
+	}
+}
+
 // --- TeammateIdle hook tests ---
 
 func TestTeammateIdleWithDependents(t *testing.T) {
