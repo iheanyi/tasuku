@@ -234,14 +234,23 @@ func runDoctor() error {
 	tools := getSupportedAITools()
 	configuredTools := 0
 	mismatchedPaths := []string{}
+	projectRoot := ""
+	if s.Exists() {
+		projectRoot = filepath.Dir(tasukuPath)
+	}
 
 	for _, tool := range tools {
+		settingsPath := tool.SettingsPath
+		if projectRoot != "" && !filepath.IsAbs(settingsPath) {
+			settingsPath = filepath.Join(projectRoot, settingsPath)
+		}
+
 		// Check if settings file exists
-		if _, err := os.Stat(tool.SettingsPath); os.IsNotExist(err) {
+		if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
 			continue
 		}
 
-		data, err := os.ReadFile(tool.SettingsPath)
+		data, err := os.ReadFile(settingsPath)
 		if err != nil {
 			continue
 		}
@@ -347,51 +356,8 @@ func runDoctor() error {
 			mcpToolSet[t.Name] = true
 		}
 
-		// Define expected MCP tools for CLI commands
-		cliToMCP := map[string][]string{
-			// Task commands
-			"task list":     {"tk_list"},
-			"task add":      {"tk_add"},
-			"task show":     {"tk_show"},
-			"task start":    {"tk_start"},
-			"task done":     {"tk_done"},
-			"task block":    {"tk_block"},
-			"task unblock":  {"tk_unblock"},
-			"task pause":    {"tk_pause"},
-			"task find":     {"tk_find"},
-			"task priority": {"tk_priority"},
-			"task delete":   {"tk_delete"},
-			"task edit":     {"tk_edit"},
-			"task owner":    {"tk_owner"},
-			"task claim":    {"tk_claim"},
-			"task release":  {"tk_release"},
-			"task ready":    {"tk_ready"},
-			"task who":      {"tk_who"},
-			"task deps":     {"tk_deps"},
-			"task stats":    {"tk_stats"},
-			"task tag":      {"tk_tag_add", "tk_tag_remove"},
-			"task field":    {"tk_field_set", "tk_field_remove"},
-			"task archive":  {"tk_archive", "tk_archive_restore", "tk_archive_list", "tk_archive_all"},
-			// Context commands
-			"learn":        {"tk_learn"},
-			"decide":       {"tk_decide"},
-			"note":         {"tk_note"},
-			"context show": {"tk_context"},
-			// Learning management
-			"learning list":    {"tk_learning_list"},
-			"learning promote": {"tk_learning_promote"},
-			"learning remove":  {"tk_learning_remove"},
-			"learning rules":   {"tk_learning_rules"},
-			// Decision management
-			"decision list":   {"tk_decision_list"},
-			"decision remove": {"tk_decision_remove"},
-			// Note management
-			"note list":   {"tk_note_list"},
-			"note remove": {"tk_note_remove"},
-			// Root commands
-			"suggest": {"tk_suggest"},
-			"health":  {"tk_health"},
-		}
+		// Define expected MCP tools for CLI commands.
+		cliToMCP := doctorCLIToMCPMap()
 
 		missingTools := []string{}
 		for cli, expectedTools := range cliToMCP {
@@ -449,6 +415,53 @@ func mustGetwd() string {
 		return "."
 	}
 	return wd
+}
+
+func doctorCLIToMCPMap() map[string][]string {
+	return map[string][]string{
+		// Task commands
+		"task list":     {"tk_list"},
+		"task add":      {"tk_add"},
+		"task show":     {"tk_show"},
+		"task start":    {"tk_start"},
+		"task done":     {"tk_done"},
+		"task block":    {"tk_block"},
+		"task unblock":  {"tk_task"},
+		"task pause":    {"tk_task"},
+		"task find":     {"tk_find"},
+		"task priority": {"tk_task"},
+		"task delete":   {"tk_task"},
+		"task edit":     {"tk_task"},
+		"task owner":    {"tk_task"},
+		"task claim":    {"tk_task"},
+		"task release":  {"tk_task"},
+		"task ready":    {"tk_ready"},
+		"task who":      {"tk_task"},
+		"task deps":     {"tk_deps"},
+		"task stats":    {"tk_stats"},
+		"task tag":      {"tk_metadata"},
+		"task field":    {"tk_metadata"},
+		"task archive":  {"tk_task", "tk_manage"},
+		// Context commands
+		"learn":        {"tk_learn"},
+		"decide":       {"tk_decide"},
+		"note":         {"tk_note"},
+		"context show": {"tk_context"},
+		// Learning management
+		"learning list":    {"tk_manage"},
+		"learning promote": {"tk_manage"},
+		"learning remove":  {"tk_manage"},
+		"learning rules":   {"tk_manage"},
+		// Decision management
+		"decision list":   {"tk_manage"},
+		"decision remove": {"tk_manage"},
+		// Note management
+		"note list":   {"tk_metadata"},
+		"note remove": {"tk_metadata"},
+		// Root commands
+		"suggest": {"tk_suggest"},
+		"health":  {"tk_health"},
+	}
 }
 
 // newLearnShortcutCmd creates a top-level shortcut for adding learnings.

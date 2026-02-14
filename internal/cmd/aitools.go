@@ -18,8 +18,9 @@ func getSupportedAITools() []AITool {
 
 	return []AITool{
 		{"Claude Code", home + "/.claude.json", "mcpServers"},
-		{"Cursor", home + "/.cursor/mcp.json", "mcpServers"},
-		{"Cursor (alt)", home + "/Library/Application Support/Cursor/User/globalStorage/mcp.json", "mcpServers"},
+		// Cursor should be configured per-project in .cursor/mcp.json
+		// (global cursor configs can create duplicate/ambiguous server instances).
+		{"Cursor (project)", ".cursor/mcp.json", "mcpServers"},
 		{"OpenCode", configDir + "/opencode/opencode.json", "mcp"},
 	}
 }
