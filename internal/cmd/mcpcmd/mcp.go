@@ -301,6 +301,15 @@ func runUninstall(cmd *cobra.Command, args []string) error {
 	local, _ := cmd.Flags().GetBool("local")
 	tools := getSupportedAITools(local)
 	if !local {
+		// Mirror install behavior: --tool cursor auto-installs to project config.
+		// Default uninstall should also try removing project-level Cursor config.
+		for _, localTool := range getSupportedAITools(true) {
+			if strings.Contains(strings.ToLower(localTool.Name), "cursor") {
+				tools = append(tools, localTool)
+				break
+			}
+		}
+
 		// Also clean up legacy Cursor global locations from older installs.
 		tools = append(tools, getLegacyCursorGlobalTools()...)
 	}
