@@ -23,11 +23,13 @@ Install/Uninstall:
   uninstall  Remove hooks (git, Claude Code, Codex, OpenCode, Copilot CLI, Cursor)
 
 Utility Commands:
-  session        Display Tasuku context summary at session start
-  stop-reminder  Remind about running timers and in-progress tasks
-  codex-notify   Handle Codex notify callback
-  sync           Sync tasks from TodoWrite JSON input (uses nudge rule)
-  plan-sync      Extract tasks from plan files (uses nudge rule)
+  session         Display Tasuku context summary at session start
+  stop-reminder   Remind about running timers and in-progress tasks
+  task-completed  Show handoff guidance when a teammate completes a task
+  teammate-idle   Show handoff guidance when a teammate goes idle
+  codex-notify    Handle Codex notify callback
+  sync            Sync tasks from TodoWrite JSON input (uses nudge rule)
+  plan-sync       Extract tasks from plan files (uses nudge rule)
 
 Git hooks provide:
   - pre-commit: Validates Tasuku storage before commits
@@ -37,6 +39,8 @@ Claude Code hooks provide:
   - SessionStart: Shows project context summary when session begins
   - Stop: Reminds about running timers and in-progress tasks
   - ExitPlanMode: Prompts to sync plan to Tasuku tasks
+  - TaskCompleted: Shows tasks blocked by the completed task plus reflection prompts
+  - TeammateIdle: Shows handoff guidance for blocking tasks
 
 Codex hooks provide:
   - notify: Called on agent turn completion
@@ -75,6 +79,8 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 	cmd.AddCommand(subagentDoneCmd)
 	cmd.AddCommand(newPromptCheckCmd())
 	cmd.AddCommand(codexNotifyCmd)
+	cmd.AddCommand(newTaskCompletedCmd())
+	cmd.AddCommand(newTeammateIdleCmd())
 
 	return cmd
 }
