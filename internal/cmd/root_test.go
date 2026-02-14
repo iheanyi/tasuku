@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/iheanyi/tasuku/internal/cmd/testutil"
@@ -57,4 +58,18 @@ func TestDoctorFindsProjectCursorConfigFromSubdirectory(t *testing.T) {
 	h.AssertNoError(err)
 	h.AssertOutputContains("Cursor (project): configured")
 	h.AssertOutputNotContains("Cursor (project): MCP not configured")
+}
+
+func TestDoctorCLIToMCPMapArchiveIncludesManageAndTask(t *testing.T) {
+	m := doctorCLIToMCPMap()
+	archiveTools, ok := m["task archive"]
+	if !ok {
+		t.Fatal("expected task archive parity mapping to exist")
+	}
+	if !slices.Contains(archiveTools, "tk_task") {
+		t.Fatalf("expected task archive parity mapping to include tk_task, got %v", archiveTools)
+	}
+	if !slices.Contains(archiveTools, "tk_manage") {
+		t.Fatalf("expected task archive parity mapping to include tk_manage, got %v", archiveTools)
+	}
 }
