@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"slices"
-	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -76,7 +74,7 @@ func hookTaskCompleted() error {
 		printTaskCompletedHeader(matchedID, "")
 
 		// Find tasks blocked by this one
-		blocked := findBlockedTasks(matchedID, f.Tasks)
+		blocked := task.FindBlockedTasks(matchedID, f.Tasks)
 		if len(blocked) > 0 {
 			fmt.Println()
 			fmt.Printf("Tasks blocked by this task (check remaining blockers):\n")
@@ -117,18 +115,6 @@ func resolveTaskID(taskID, taskSubject string, tasks map[string]task.Task) strin
 	}
 
 	return ""
-}
-
-// findBlockedTasks returns task IDs that are blocked by the given task.
-func findBlockedTasks(taskID string, tasks map[string]task.Task) []string {
-	var blocks []string
-	for id, t := range tasks {
-		if slices.Contains(t.BlockedBy, taskID) {
-			blocks = append(blocks, id)
-		}
-	}
-	sort.Strings(blocks)
-	return blocks
 }
 
 func printTaskCompletedHeader(taskID, taskSubject string) {
