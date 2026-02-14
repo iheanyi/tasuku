@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"unicode"
 
 	"github.com/spf13/cobra"
 
@@ -108,10 +109,14 @@ func resolveTaskID(taskID, taskSubject string, tasks map[string]task.Task) strin
 	}
 
 	if taskSubject != "" {
-		// Match the same ID normalization used by core task creation.
-		canonicalID := task.GenerateTaskID(taskSubject, nil)
-		if _, exists := tasks[canonicalID]; exists {
-			return canonicalID
+		// task.GenerateTaskID falls back to a random task-xxx ID when normalization
+		// yields an empty base (for subjects without letters). Avoid random matching.
+		if hasLetter(taskSubject) {
+			// Match the same ID normalization used by core task creation.
+			canonicalID := task.GenerateTaskID(taskSubject, nil)
+			if _, exists := tasks[canonicalID]; exists {
+				return canonicalID
+			}
 		}
 
 		// Backward-compatible fallback for tasks created via older hook ID generation.
@@ -122,6 +127,15 @@ func resolveTaskID(taskID, taskSubject string, tasks map[string]task.Task) strin
 	}
 
 	return ""
+}
+
+func hasLetter(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // findBlockedTasks returns task IDs that are blocked by the given task.

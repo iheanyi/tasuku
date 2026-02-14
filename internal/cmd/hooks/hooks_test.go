@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1702,9 +1703,10 @@ func TestTaskCompletedSubjectMatchUsesCanonicalIDRules(t *testing.T) {
 }
 
 func TestResolveTaskIDNoFalseMatchForDegenerateSubject(t *testing.T) {
-	tasks := map[string]task.Task{
-		// Not representable by task.GenerateTaskID random-hex fallback for empty-normalized subjects.
-		"task-zzz": {Description: "Legacy task"},
+	tasks := map[string]task.Task{}
+	for i := 0; i < 0x1000; i++ {
+		// task.GenerateTaskID random fallback has form task-<3 hex chars>.
+		tasks[fmt.Sprintf("task-%03x", i)] = task.Task{Description: "Legacy task"}
 	}
 
 	got := resolveTaskID("missing-id", "12345", tasks)
