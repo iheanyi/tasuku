@@ -1676,6 +1676,31 @@ func TestTaskCompletedSubjectMatch(t *testing.T) {
 	}
 }
 
+func TestTaskCompletedSubjectMatchUsesCanonicalIDRules(t *testing.T) {
+	h := testutil.New(t)
+
+	// Task ID reflects task.GenerateTaskID normalization (digits are dropped).
+	h.AddTaskWithStatus("oauth-v-support", "OAuth v2 support", task.StatusDone)
+	h.AddTaskWithStatus("post-auth-cleanup", "Post auth cleanup", task.StatusReady)
+	h.Store().BlockTask("post-auth-cleanup", []string{"oauth-v-support"})
+
+	input := map[string]string{
+		"task_id":      "no-match-id",
+		"task_subject": "OAuth v2 support",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTaskCompleted()
+	})
+
+	if !strings.Contains(output, "Task Completed: oauth-v-support") {
+		t.Errorf("expected canonical subject-matched task ID, got:\n%s", output)
+	}
+	if !strings.Contains(output, "post-auth-cleanup") {
+		t.Errorf("expected dependent task in output, got:\n%s", output)
+	}
+}
+
 // --- TeammateIdle hook tests ---
 
 func TestTeammateIdleWithDependents(t *testing.T) {
@@ -1763,6 +1788,29 @@ func TestTeammateIdleNoOwnedTasks(t *testing.T) {
 	}
 	if strings.Contains(output, "Before going idle, reflect") {
 		t.Errorf("did not expect reflection prompts for teammate idle, got:\n%s", output)
+	}
+}
+
+func TestTeammateIdleSkipsDoneOwnedTasks(t *testing.T) {
+	h := testutil.New(t)
+
+	// Done tasks can still appear in BlockedBy, but should not be reported as blockers.
+	h.AddTaskWithStatus("done-owner-task", "Already completed task", task.StatusDone)
+	h.Store().SetOwner("done-owner-task", "worker-1")
+	h.AddTaskWithStatus("dependent-task", "Still blocked by other work", task.StatusBlocked)
+	h.Store().BlockTask("dependent-task", []string{"done-owner-task", "active-blocker"})
+
+	input := map[string]string{
+		"teammate_name": "worker-1",
+		"team_name":     "my-team",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookTeammateIdle()
+	})
+
+	if strings.Contains(output, "Your tasks blocking others") {
+		t.Errorf("expected done owned task to be excluded from blockers, got:\n%s", output)
 	}
 }
 
