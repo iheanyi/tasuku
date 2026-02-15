@@ -54,20 +54,6 @@ func runTaskDeps(cmd *cobra.Command, args []string) error {
 	return outputAllTaskDeps(f.Tasks)
 }
 
-func findBlockedTasks(taskID string, tasks map[string]task.Task) []string {
-	var blocks []string
-	for id, t := range tasks {
-		for _, blocker := range t.BlockedBy {
-			if blocker == taskID {
-				blocks = append(blocks, id)
-				break
-			}
-		}
-	}
-	sort.Strings(blocks)
-	return blocks
-}
-
 type taskDepInfo struct {
 	ID        string   `json:"id" yaml:"id"`
 	Status    string   `json:"status" yaml:"status"`
@@ -81,7 +67,7 @@ func outputTaskDepsForTask(taskID string, tasks map[string]task.Task) error {
 		return fmt.Errorf("task not found: %s", taskID)
 	}
 
-	blocks := findBlockedTasks(taskID, tasks)
+	blocks := task.FindBlockedTasks(taskID, tasks)
 
 	switch config.OutputFormat {
 	case "json":
@@ -155,7 +141,7 @@ func outputTaskDepsForTask(taskID string, tasks map[string]task.Task) error {
 func outputAllTaskDeps(tasks map[string]task.Task) error {
 	var deps []taskDepInfo
 	for id, t := range tasks {
-		blocks := findBlockedTasks(id, tasks)
+		blocks := task.FindBlockedTasks(id, tasks)
 		if len(t.BlockedBy) > 0 || len(blocks) > 0 {
 			deps = append(deps, taskDepInfo{
 				ID:        id,

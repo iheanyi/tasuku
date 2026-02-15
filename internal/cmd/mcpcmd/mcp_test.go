@@ -926,6 +926,71 @@ func TestUninstallRemovesLegacyCursorGlobalConfigs(t *testing.T) {
 	}
 }
 
+func TestUninstallRemovesProjectCursorConfigByDefault(t *testing.T) {
+	h := testutil.New(t)
+	dir := h.TempDir()
+	tempHome := filepath.Join(h.TempDir(), "home")
+	os.MkdirAll(tempHome, 0755)
+
+	oldWd, _ := os.Getwd()
+	oldHome := os.Getenv("HOME")
+	os.Chdir(dir)
+	os.Setenv("HOME", tempHome)
+	defer func() {
+		os.Chdir(oldWd)
+		if oldHome == "" {
+			os.Unsetenv("HOME")
+		} else {
+			os.Setenv("HOME", oldHome)
+		}
+	}()
+
+	cursorPath := filepath.Join(dir, ".cursor", "mcp.json")
+	if err := os.MkdirAll(filepath.Dir(cursorPath), 0755); err != nil {
+		t.Fatalf("failed to create cursor config dir: %v", err)
+	}
+
+	cursorConfig := map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"tasuku": map[string]interface{}{
+				"command": "/usr/bin/tk",
+				"args":    []string{"serve", "mcp"},
+				"type":    "stdio",
+			},
+			"other-server": map[string]interface{}{
+				"command": "/usr/bin/other",
+			},
+		},
+	}
+	data, _ := json.MarshalIndent(cursorConfig, "", "  ")
+	if err := os.WriteFile(cursorPath, data, 0644); err != nil {
+		t.Fatalf("failed to write cursor config: %v", err)
+	}
+
+	err := h.Execute(Cmd, "uninstall")
+	h.AssertNoError(err)
+	h.AssertOutputContains("Cursor (project)")
+
+	data, err = os.ReadFile(cursorPath)
+	if err != nil {
+		t.Fatalf("failed to read cursor config: %v", err)
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("invalid JSON in %s: %v", cursorPath, err)
+	}
+	mcpServers, ok := cfg["mcpServers"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected mcpServers in %s", cursorPath)
+	}
+	if _, exists := mcpServers["tasuku"]; exists {
+		t.Fatalf("expected tasuku removed from %s", cursorPath)
+	}
+	if _, exists := mcpServers["other-server"]; !exists {
+		t.Fatalf("expected other-server preserved in %s", cursorPath)
+	}
+}
+
 func TestInstallLocalWithAmp(t *testing.T) {
 	h := testutil.New(t)
 	dir := h.TempDir()
