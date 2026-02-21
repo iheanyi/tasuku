@@ -1900,3 +1900,59 @@ func TestCopilotHooksNoGithubDir(t *testing.T) {
 		t.Error(".github/hooks directory should be created")
 	}
 }
+
+// withLegacyStoreDir creates a temp dir containing a legacy V2 .tasuku.json,
+// changes into it, and returns a cleanup function. The legacy file triggers
+// AutoDetectWithWarning to return an error requiring migration.
+func withLegacyStoreDir(t *testing.T) (dir string, cleanup func()) {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "tasuku-legacy-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".tasuku.json"), []byte(`{}`), 0644); err != nil {
+		os.RemoveAll(dir)
+		t.Fatalf("failed to write legacy store: %v", err)
+	}
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(dir); err != nil {
+		os.RemoveAll(dir)
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	return dir, func() {
+		os.Chdir(origDir)
+		os.RemoveAll(dir)
+	}
+}
+
+func TestSessionCmdDegradedWithLegacyStore(t *testing.T) {
+	_, cleanup := withLegacyStoreDir(t)
+	defer cleanup()
+
+	// hookSession should not return an error even when storage needs migration.
+	// It prints the migration message to stdout (Claude's context) instead.
+	err := hookSession()
+	if err != nil {
+		t.Errorf("hookSession should degrade gracefully with legacy store, got error: %v", err)
+	}
+}
+
+func TestStopReminderDegradedWithLegacyStore(t *testing.T) {
+	_, cleanup := withLegacyStoreDir(t)
+	defer cleanup()
+
+	err := hookStopReminder()
+	if err != nil {
+		t.Errorf("hookStopReminder should degrade gracefully with legacy store, got error: %v", err)
+	}
+}
+
+func TestPreCompactDegradedWithLegacyStore(t *testing.T) {
+	_, cleanup := withLegacyStoreDir(t)
+	defer cleanup()
+
+	err := hookPreCompact()
+	if err != nil {
+		t.Errorf("hookPreCompact should degrade gracefully with legacy store, got error: %v", err)
+	}
+}

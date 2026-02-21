@@ -111,7 +111,8 @@ func hookCodexNotify(args []string) error {
 func hookStopReminder() error {
 	s, err := store.DefaultStorageWithWarning()
 	if err != nil {
-		return err
+		// No usable storage — nothing to remind about. Degrade gracefully.
+		return nil
 	}
 	if !s.Exists() {
 		return nil
@@ -191,10 +192,8 @@ func hookPreCompact() error {
 	fmt.Println("Context is about to be summarized. Capture important insights NOW!")
 	fmt.Println()
 
-	s, err := store.DefaultStorageWithWarning()
-	if err != nil {
-		return err
-	}
+	s, _ := store.DefaultStorageWithWarning()
+	// Ignore storage errors — git activity and reflection prompts still run without Tasuku.
 
 	// Check for recent git activity
 	hasGitActivity := false
@@ -217,7 +216,7 @@ func hookPreCompact() error {
 	}
 
 	// Check Tasuku state
-	if s.Exists() {
+	if s != nil && s.Exists() {
 		f, err := s.Read()
 		if err == nil {
 			// In-progress tasks
@@ -281,7 +280,11 @@ func hookSession() error {
 
 	s, err := store.DefaultStorageWithWarning()
 	if err != nil {
-		return err
+		// Print to stdout so Claude sees it (SessionStart stdout → Claude's context).
+		// Don't return the error — a non-zero exit shows "hook error" in the banner
+		// but the system message to the LLM says "success", leaving the AI blind.
+		fmt.Printf("Tasuku: %v\n", err)
+		return nil
 	}
 	if !s.Exists() {
 		return nil
@@ -289,7 +292,8 @@ func hookSession() error {
 
 	f, err := s.Read()
 	if err != nil {
-		return err
+		fmt.Printf("Tasuku: failed to read task store: %v\n", err)
+		return nil
 	}
 
 	counts := map[task.Status]int{}

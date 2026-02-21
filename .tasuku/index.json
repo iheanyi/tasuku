@@ -22,6 +22,17 @@
       "created_at": "0001-01-01T00:00:00Z",
       "updated_at": "2026-01-09T02:39:16.233324Z"
     },
+    "improve-hook-error-visibility-in": {
+      "status": "done",
+      "tags": [
+        "hooks",
+        "ux"
+      ],
+      "description": "Improve hook error visibility in Claude Code sessions",
+      "file": "tasks/improve-hook-error-visibility-in.md",
+      "created_at": "2026-02-21T17:05:20.671991Z",
+      "updated_at": "2026-02-21T17:13:29.571443Z"
+    },
     "optimize-storage-interface-for-g": {
       "status": "ready",
       "priority": 1,
@@ -45,7 +56,7 @@
     }
   },
   "archived_count": 217,
-  "learnings_count": 17,
+  "learnings_count": 18,
   "decisions_count": 14,
-  "updated_at": "2026-02-12T17:51:37.468979Z"
+  "updated_at": "2026-02-21T17:13:29.571569Z"
 }

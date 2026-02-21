@@ -52,3 +52,6 @@ Codex CLI (rmcp SDK) sends MCP notifications with full method names like 'notifi
 scope: internal/cmd/testutil/**
 Always ensure the test harness storage backend matches the production default. When migrating storage formats (V3→V4), the test harness must also be updated — otherwise ALL command tests pass but exercise the wrong backend. Added TestHarness_UsesV4Storage as a regression guard that detects if harness and AutoDetect() ever diverge.
 
+## da2437 - 2026-02-21T17:13:35Z
+Claude Code hook commands that return errors cause a non-zero exit, which shows "hook error" in the UI banner but the system message to the LLM still says "success" — the AI is blind to the failure. For hook commands, always degrade gracefully: print actionable messages to stdout (for SessionStart, stdout → Claude's context) and return nil instead of propagating storage errors.
+

@@ -5,6 +5,7 @@ _Auto-synced from .tasuku/context/learnings.md_
 ## Rules
 
 - Codex CLI (rmcp SDK) sends MCP notifications with full method names like 'notifications/initialized', not just 'initialized'. Always handle both forms: `case "initialized", "notifications/initialized":` to ensure compatibility.
+- Claude Code hook commands that return errors cause a non-zero exit, which shows "hook error" in the UI banner but the system message to the LLM still says "success" — the AI is blind to the failure. For hook commands, always degrade gracefully: print actionable messages to stdout (for SessionStart, stdout → Claude's context) and return nil instead of propagating storage errors.
 
 ## Insights
 
