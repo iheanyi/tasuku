@@ -92,7 +92,6 @@ func hookTaskCompleted() error {
 		printTaskCompletedHeader(input.TaskID, input.TaskSubject)
 	}
 
-	fmt.Println()
 	printReflectionPrompts()
 
 	return nil
@@ -145,7 +144,7 @@ func printTaskCompletedHeader(taskID, taskSubject string) {
 }
 
 func printReflectionPrompts() {
-	fmt.Println("Reflect on this work:")
+	fmt.Println("\nReflect on this work:")
 	fmt.Println("   - Did you learn any gotchas or patterns? -> /tasuku:learn")
 	fmt.Println("   - Did you make architectural decisions? -> /tasuku:decide")
 	fmt.Println("   - Any \"never X\" or \"always Y\" rules? -> /tasuku:learn")

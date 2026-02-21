@@ -41,7 +41,6 @@ func hookTeammateIdle() error {
 	var input teammateIdleInput
 	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
 		printTeammateIdleHeader("unknown")
-		fmt.Println()
 		printReflectionPrompts()
 		return nil
 	}
@@ -54,13 +53,11 @@ func hookTeammateIdle() error {
 	s, err := store.DefaultStorageWithWarning()
 	if err != nil {
 		printTeammateIdleHeader(name)
-		fmt.Println()
 		printReflectionPrompts()
 		return nil
 	}
 	if !s.Exists() {
 		printTeammateIdleHeader(name)
-		fmt.Println()
 		printReflectionPrompts()
 		return nil
 	}
@@ -68,7 +65,6 @@ func hookTeammateIdle() error {
 	f, err := s.Read()
 	if err != nil {
 		printTeammateIdleHeader(name)
-		fmt.Println()
 		printReflectionPrompts()
 		return nil
 	}
@@ -79,8 +75,7 @@ func hookTeammateIdle() error {
 	printTeammateIdleHeader(name)
 
 	if len(ownedWithDependents) > 0 {
-		fmt.Println()
-		fmt.Println("Your tasks blocking others:")
+		fmt.Println("\nYour tasks blocking others:")
 		for _, owt := range ownedWithDependents {
 			fmt.Printf("   %s [%s]: %s\n", owt.id, owt.task.Status, owt.task.Description)
 			for _, dep := range owt.dependents {
@@ -94,7 +89,6 @@ func hookTeammateIdle() error {
 		}
 	}
 
-	fmt.Println()
 	printReflectionPrompts()
 
 	return nil
