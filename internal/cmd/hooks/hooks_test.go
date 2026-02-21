@@ -1867,6 +1867,9 @@ func TestSubagentDoneWithNonSignificantAgent(t *testing.T) {
 	if strings.Contains(output, "Subagent exploration completed") {
 		t.Errorf("expected no prompt for non-significant agent type, got:\n%s", output)
 	}
+	if output != "" {
+		t.Errorf("expected empty output, got:\n%s", output)
+	}
 }
 
 func TestSubagentDoneNoInProgressTasks(t *testing.T) {
@@ -1885,6 +1888,9 @@ func TestSubagentDoneNoInProgressTasks(t *testing.T) {
 
 	if strings.Contains(output, "Subagent exploration completed") {
 		t.Errorf("expected no prompt when no in-progress tasks, got:\n%s", output)
+	}
+	if output != "" {
+		t.Errorf("expected empty output, got:\n%s", output)
 	}
 }
 
@@ -1908,6 +1914,7 @@ func TestSubagentDoneEmptyAgentType(t *testing.T) {
 }
 
 // captureStdoutWithStdin pipes JSON to stdin and captures stdout from fn.
+// NOTE: not safe for t.Parallel() due to os.Stdin/os.Stdout mutation.
 func captureStdoutWithStdin(t *testing.T, stdinData interface{}, fn func()) string {
 	t.Helper()
 

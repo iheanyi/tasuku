@@ -44,7 +44,8 @@ type taskCompletedInput struct {
 func hookTaskCompleted() error {
 	var input taskCompletedInput
 	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
-		// If we can't parse stdin, still show reflection prompts
+		// If we can't parse stdin, still show header and reflection prompts
+		printTaskCompletedHeader("", "task")
 		printReflectionPrompts()
 		return nil
 	}
@@ -77,8 +78,7 @@ func hookTaskCompleted() error {
 		// Find tasks blocked by this one
 		blocked := task.FindBlockedTasks(matchedID, f.Tasks)
 		if len(blocked) > 0 {
-			fmt.Println()
-			fmt.Printf("Tasks blocked by this task (check remaining blockers):\n")
+			fmt.Printf("\nTasks blocked by this task (check remaining blockers):\n")
 			for _, depID := range blocked {
 				dep := f.Tasks[depID]
 				ownerStr := "unassigned"

@@ -76,7 +76,7 @@ Run 'tk hooks <subcommand> --help' for more details.`,
 	cmd.AddCommand(syncCmd)
 	cmd.AddCommand(newPlanSyncCmd())
 	cmd.AddCommand(newTodoCheckCmd())
-	cmd.AddCommand(subagentDoneCmd)
+	cmd.AddCommand(newSubagentDoneCmd())
 	cmd.AddCommand(newPromptCheckCmd())
 	cmd.AddCommand(codexNotifyCmd)
 	cmd.AddCommand(newTaskCompletedCmd())

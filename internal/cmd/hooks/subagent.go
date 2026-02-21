@@ -11,10 +11,11 @@ import (
 	"github.com/iheanyi/tasuku/internal/task"
 )
 
-var subagentDoneCmd = &cobra.Command{
-	Use:   "subagent-done",
-	Short: "Capture insights after subagent (Task tool) completes",
-	Long: `Called by Claude Code SubagentStop hook when a Task tool subagent completes.
+func newSubagentDoneCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "subagent-done",
+		Short: "Capture insights after subagent (Task tool) completes",
+		Long: `Called by Claude Code SubagentStop hook when a Task tool subagent completes.
 
 Subagents often do deep exploration work (code searches, complex analysis,
 multi-step implementations). When they complete, prompt for:
@@ -25,16 +26,29 @@ multi-step implementations). When they complete, prompt for:
 This helps capture valuable insights that might otherwise be lost
 when subagent context is merged back.
 
+Always exits 0 (soft reminder, never blocks).
+
 Examples:
-  tk hooks subagent-done   # Prompt for subagent insights`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return hookSubagentDone()
-	},
+  echo '{"subagent_type":"Explore"}' | tk hooks subagent-done`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return hookSubagentDone()
+		},
+	}
 }
 
 type subagentStopInput struct {
-	SubagentType         string `json:"subagent_type"`
-	LastAssistantMessage string `json:"last_assistant_message"`
+	SubagentType string `json:"subagent_type"`
+}
+
+// significantAgents lists subagent types that do meaningful exploration work.
+// Trivial agents like quick "haiku" lookups are excluded.
+var significantAgents = map[string]bool{
+	"Explore":          true,
+	"general-purpose":  true,
+	"Plan":             true,
+	"code-reviewer":    true,
+	"database-design":  true,
+	"issue-summarizer": true,
 }
 
 // hookSubagentDone prompts for insights after subagent completion
@@ -46,17 +60,8 @@ func hookSubagentDone() error {
 
 	agentType := input.SubagentType
 
-	// Only prompt for exploration-type subagents that do significant work.
-	// Skip trivial agents like quick "haiku" lookups.
-	significantAgents := map[string]bool{
-		"Explore":          true,
-		"general-purpose":  true,
-		"Plan":             true,
-		"code-reviewer":    true,
-		"database-design":  true,
-		"issue-summarizer": true,
-	}
-
+	// Empty agentType (decode failed or unknown caller) is treated as significant
+	// to avoid silently swallowing prompts when the caller omits the field.
 	if agentType != "" && !significantAgents[agentType] {
 		// Not a significant agent type, skip
 		return nil
@@ -91,14 +96,11 @@ func hookSubagentDone() error {
 
 	// Output insight prompt
 	fmt.Println("🔍 Subagent exploration completed.")
-	fmt.Println()
-	fmt.Println("Did the exploration reveal:")
+	fmt.Println("\nDid the exploration reveal:")
 	fmt.Println("   - Patterns or conventions? → /tasuku:learn")
 	fmt.Println("   - Gotchas or unexpected behaviors? → /tasuku:learn")
 	fmt.Println("   - Design decisions to document? → /tasuku:decide")
-	fmt.Println()
-	fmt.Println("   Or use /tasuku:reflect for guided extraction.")
-	fmt.Println()
+	fmt.Print("\n   Or use /tasuku:reflect for guided extraction.\n\n")
 
 	return nil
 }

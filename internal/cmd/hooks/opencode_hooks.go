@@ -112,11 +112,15 @@ export const TasukuPlugin = async ({ project, client, $, directory }) => {
         return;
       }
 
-      // Handle Subagent completion
+      // Handle Subagent completion (pipe JSON on stdin like other hooks)
       if (tool === 'task') {
-        process.env.SUBAGENT_TYPE = event.input?.subagent_type || 'general';
-        const output = await tk('hooks', 'subagent-done');
-        if (output.trim()) notify(output);
+        const hookCmd = 'subagent-done';
+        const stdinData = JSON.stringify({ subagent_type: event.input?.subagent_type || 'general' });
+        try {
+          const result = await $` + "`" + `echo ${stdinData} | tk hooks ${hookCmd}` + "`" + `;
+          const output = result.text();
+          if (output.trim()) notify(output);
+        } catch (e) {}
         return;
       }
     },
