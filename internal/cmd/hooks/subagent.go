@@ -100,7 +100,7 @@ func hookSubagentDone() error {
 	fmt.Println("   - Patterns or conventions? → /tasuku:learn")
 	fmt.Println("   - Gotchas or unexpected behaviors? → /tasuku:learn")
 	fmt.Println("   - Design decisions to document? → /tasuku:decide")
-	fmt.Print("\n   Or use /tasuku:reflect for guided extraction.\n\n")
+	fmt.Println("\n   Or use /tasuku:reflect for guided extraction.")
 
 	return nil
 }
