@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -31,14 +32,22 @@ Examples:
 	},
 }
 
+type subagentStopInput struct {
+	SubagentType         string `json:"subagent_type"`
+	LastAssistantMessage string `json:"last_assistant_message"`
+}
+
 // hookSubagentDone prompts for insights after subagent completion
 func hookSubagentDone() error {
-	// Get subagent info from environment (set by Claude Code hook)
-	agentType := os.Getenv("SUBAGENT_TYPE")
-	// duration := os.Getenv("SUBAGENT_DURATION") // Future: filter by duration
+	var input subagentStopInput
+	// SubagentStop delivers JSON on stdin like all other hook events.
+	// Ignore decode errors — if stdin is empty or malformed, proceed with zero values.
+	_ = json.NewDecoder(os.Stdin).Decode(&input)
 
-	// Only prompt for exploration-type subagents that do significant work
-	// Skip trivial agents like "haiku" quick lookups
+	agentType := input.SubagentType
+
+	// Only prompt for exploration-type subagents that do significant work.
+	// Skip trivial agents like quick "haiku" lookups.
 	significantAgents := map[string]bool{
 		"Explore":          true,
 		"general-purpose":  true,
@@ -56,7 +65,7 @@ func hookSubagentDone() error {
 	// Check if there's ongoing Tasuku work
 	s, err := store.DefaultStorageWithWarning()
 	if err != nil {
-		return err
+		return nil
 	}
 	if !s.Exists() {
 		return nil

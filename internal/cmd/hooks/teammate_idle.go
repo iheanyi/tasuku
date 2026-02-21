@@ -41,6 +41,8 @@ func hookTeammateIdle() error {
 	var input teammateIdleInput
 	if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil {
 		printTeammateIdleHeader("unknown")
+		fmt.Println()
+		printReflectionPrompts()
 		return nil
 	}
 
@@ -52,16 +54,22 @@ func hookTeammateIdle() error {
 	s, err := store.DefaultStorageWithWarning()
 	if err != nil {
 		printTeammateIdleHeader(name)
+		fmt.Println()
+		printReflectionPrompts()
 		return nil
 	}
 	if !s.Exists() {
 		printTeammateIdleHeader(name)
+		fmt.Println()
+		printReflectionPrompts()
 		return nil
 	}
 
 	f, err := s.Read()
 	if err != nil {
 		printTeammateIdleHeader(name)
+		fmt.Println()
+		printReflectionPrompts()
 		return nil
 	}
 
@@ -85,6 +93,9 @@ func hookTeammateIdle() error {
 			}
 		}
 	}
+
+	fmt.Println()
+	printReflectionPrompts()
 
 	return nil
 }

@@ -1746,8 +1746,8 @@ func TestTeammateIdleWithDependents(t *testing.T) {
 	if !strings.Contains(output, "write-docs") {
 		t.Errorf("expected dependent task ID, got:\n%s", output)
 	}
-	if strings.Contains(output, "Before going idle, reflect") {
-		t.Errorf("did not expect reflection prompts for teammate idle, got:\n%s", output)
+	if !strings.Contains(output, "Reflect on this work") {
+		t.Errorf("expected reflection prompts, got:\n%s", output)
 	}
 }
 
@@ -1773,8 +1773,8 @@ func TestTeammateIdleNoDependents(t *testing.T) {
 	if strings.Contains(output, "Your tasks blocking others") {
 		t.Errorf("should not have blocking section, got:\n%s", output)
 	}
-	if strings.Contains(output, "Before going idle, reflect") {
-		t.Errorf("did not expect reflection prompts for teammate idle, got:\n%s", output)
+	if !strings.Contains(output, "Reflect on this work") {
+		t.Errorf("expected reflection prompts, got:\n%s", output)
 	}
 }
 
@@ -1800,8 +1800,8 @@ func TestTeammateIdleNoOwnedTasks(t *testing.T) {
 	if strings.Contains(output, "Your tasks blocking others") {
 		t.Errorf("should not have blocking section, got:\n%s", output)
 	}
-	if strings.Contains(output, "Before going idle, reflect") {
-		t.Errorf("did not expect reflection prompts for teammate idle, got:\n%s", output)
+	if !strings.Contains(output, "Reflect on this work") {
+		t.Errorf("expected reflection prompts even when no owned tasks, got:\n%s", output)
 	}
 }
 
@@ -1825,6 +1825,85 @@ func TestTeammateIdleSkipsDoneOwnedTasks(t *testing.T) {
 
 	if strings.Contains(output, "Your tasks blocking others") {
 		t.Errorf("expected done owned task to be excluded from blockers, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Reflect on this work") {
+		t.Errorf("expected reflection prompts, got:\n%s", output)
+	}
+}
+
+// --- SubagentDone hook tests ---
+
+func TestSubagentDoneWithSignificantAgent(t *testing.T) {
+	h := testutil.New(t)
+
+	h.AddTaskWithStatus("active-task", "Active task", task.StatusInProgress)
+
+	input := map[string]string{
+		"subagent_type": "Explore",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookSubagentDone()
+	})
+
+	if !strings.Contains(output, "Subagent exploration completed") {
+		t.Errorf("expected subagent prompt for significant agent type, got:\n%s", output)
+	}
+}
+
+func TestSubagentDoneWithNonSignificantAgent(t *testing.T) {
+	h := testutil.New(t)
+
+	h.AddTaskWithStatus("active-task", "Active task", task.StatusInProgress)
+
+	input := map[string]string{
+		"subagent_type": "haiku",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookSubagentDone()
+	})
+
+	if strings.Contains(output, "Subagent exploration completed") {
+		t.Errorf("expected no prompt for non-significant agent type, got:\n%s", output)
+	}
+}
+
+func TestSubagentDoneNoInProgressTasks(t *testing.T) {
+	h := testutil.New(t)
+
+	// Only a done task — no active work
+	h.AddTaskWithStatus("finished-task", "Finished task", task.StatusDone)
+
+	input := map[string]string{
+		"subagent_type": "Explore",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookSubagentDone()
+	})
+
+	if strings.Contains(output, "Subagent exploration completed") {
+		t.Errorf("expected no prompt when no in-progress tasks, got:\n%s", output)
+	}
+}
+
+func TestSubagentDoneEmptyAgentType(t *testing.T) {
+	h := testutil.New(t)
+
+	h.AddTaskWithStatus("active-task", "Active task", task.StatusInProgress)
+
+	// Empty subagent_type means unknown — should still prompt (not filtered out)
+	input := map[string]string{
+		"subagent_type": "",
+	}
+
+	output := captureStdoutWithStdin(t, input, func() {
+		hookSubagentDone()
+	})
+
+	if !strings.Contains(output, "Subagent exploration completed") {
+		t.Errorf("expected prompt when subagent_type is empty (unknown), got:\n%s", output)
 	}
 }
 
