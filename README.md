@@ -39,6 +39,24 @@ git add .tasuku/           # Tasks travel with your code
 
 Works with Claude Code, Cursor, Copilot CLI, Codex, and OpenCode. Restart your editor after installing.
 
+#### OpenCode Setup
+
+For OpenCode users, Tasuku provides both MCP tools and a plugin system:
+
+```bash
+tk hooks install --opencode    # Install OpenCode plugin hooks
+tk mcp install --tool opencode # Install MCP server config
+```
+
+The OpenCode plugin provides:
+- **session.created**: Shows project context at session start
+- **session.idle**: Reminds about running timers
+- **todo.updated**: Checks for project-level tasks
+- **tool.execute.after**: Captures learnings from bash/task execution
+- **message.created**: Context surfacing and nudges
+
+Copy `opencode.json.example` to `opencode.json` to get started.
+
 ### 2. Your AI agent now has access to
 
 **MCP Tools** (40+ tools, see `docs/mcp.md`):
