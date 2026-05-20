@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/iheanyi/tasuku/internal/task"
@@ -198,7 +197,10 @@ func (s *Store) writeTask(id string, t task.Task, notes []task.Note) error {
 		return fmt.Errorf("store: failed to write task %s: %w", id, err)
 	}
 
-	// Update index
+	return s.updateTaskIndex(id, t)
+}
+
+func (s *Store) updateTaskIndex(id string, t task.Task) error {
 	return s.updateIndex(func(idx *Index) {
 		idx.AddTaskWithDescription(id, t.Description, TaskFrontmatter{
 			Status:     string(t.Status),
@@ -259,10 +261,10 @@ func (s *Store) updateIndex(fn func(*Index)) error {
 	}
 	defer f.Close()
 
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := lockFile(f); err != nil {
 		return fmt.Errorf("store: failed to acquire index lock: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer unlockFile(f)
 
 	// Read current from locked fd
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
@@ -291,7 +293,7 @@ func (s *Store) updateIndex(fn func(*Index)) error {
 	if err != nil {
 		return fmt.Errorf("store: failed to marshal index: %w", err)
 	}
-	return os.WriteFile(idxPath, newData, 0644)
+	return writeToLockedFD(f, newData)
 }
 
 // regenerateIndex fully regenerates the index from all task files.
@@ -373,10 +375,10 @@ func (s *Store) updateTask(id string, fn func(*task.Task, *[]task.Note) error) e
 	defer f.Close()
 
 	// Acquire exclusive lock
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := lockFile(f); err != nil {
 		return fmt.Errorf("store: failed to acquire lock: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer unlockFile(f)
 
 	// Read current state from locked fd
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
@@ -400,8 +402,15 @@ func (s *Store) updateTask(id string, fn func(*task.Task, *[]task.Note) error) e
 		return err
 	}
 
-	// Write back
-	return s.writeTask(id, t, notes)
+	content, err := WriteTaskFile(id, t, notes)
+	if err != nil {
+		return fmt.Errorf("store: failed to generate task content: %w", err)
+	}
+	if err := writeToLockedFD(f, content); err != nil {
+		return fmt.Errorf("store: failed to write task %s: %w", id, err)
+	}
+
+	return s.updateTaskIndex(id, t)
 }
 
 // ErrNotInitialized is returned when no Tasuku storage exists.
@@ -1058,10 +1067,10 @@ func (s *Store) AddLearningWithRule(text string, forceRule *bool) (string, bool,
 	}
 	defer f.Close()
 
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := lockFile(f); err != nil {
 		return "", false, fmt.Errorf("store: failed to acquire lock: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer unlockFile(f)
 
 	data, err := readFromLockedFD(f)
 	if err != nil {
@@ -1122,10 +1131,10 @@ func (s *Store) AddLearningWithScope(text, scope string, forceRule *bool) (strin
 	}
 	defer f.Close()
 
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := lockFile(f); err != nil {
 		return "", false, fmt.Errorf("store: failed to acquire lock: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer unlockFile(f)
 
 	data, err := readFromLockedFD(f)
 	if err != nil {
@@ -1184,10 +1193,10 @@ func (s *Store) AddLearningFull(l task.Learning) error {
 	}
 	defer f.Close()
 
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := lockFile(f); err != nil {
 		return fmt.Errorf("store: failed to acquire lock: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer unlockFile(f)
 
 	data, err := readFromLockedFD(f)
 	if err != nil {
@@ -1240,10 +1249,10 @@ func (s *Store) RemoveLearning(id string) (string, error) {
 	}
 	defer f.Close()
 
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := lockFile(f); err != nil {
 		return "", fmt.Errorf("store: failed to acquire lock: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer unlockFile(f)
 
 	data, err := readFromLockedFD(f)
 	if err != nil {
@@ -1328,10 +1337,10 @@ func (s *Store) AddDecision(d task.Decision) error {
 	}
 	defer f.Close()
 
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := lockFile(f); err != nil {
 		return fmt.Errorf("store: failed to acquire lock: %w", err)
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer unlockFile(f)
 
 	data, err := readFromLockedFD(f)
 	if err != nil {
